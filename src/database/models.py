@@ -1,6 +1,13 @@
+"""
+Defines the SQLAlchemy ORM models for the application.
+
+This module contains class definitions for Project, Recording, Sample,
+SampleMapping, and SampleMappingItem, which correspond to database tables
+and their relationships.
+"""
+
 from sqlalchemy import (
-    create_engine,
-    Column,
+    Column, # create_engine removed
     Integer,
     String,
     Text,
@@ -14,6 +21,7 @@ from sqlalchemy.sql import func
 Base = declarative_base()
 
 
+# pylint: disable=too-few-public-methods
 class Project(Base):
     """
     Represents a user's project, which groups recordings and sample mappings.
@@ -37,6 +45,7 @@ class Project(Base):
     )
 
 
+# pylint: disable=too-few-public-methods
 class Recording(Base):
     """
     Represents an audio recording file associated with a project.
@@ -66,6 +75,7 @@ class Recording(Base):
     )
 
 
+# pylint: disable=too-few-public-methods
 class Sample(Base):
     """
     Represents a sliced audio sample extracted from a recording.
@@ -103,6 +113,7 @@ class Sample(Base):
         cascade="all, delete-orphan")
 
 
+# pylint: disable=too-few-public-methods
 class SampleMapping(Base):
     """
     Defines how samples are mapped, e.g., to MIDI keys or drum pads.
@@ -132,6 +143,7 @@ class SampleMapping(Base):
     )
 
 
+# pylint: disable=too-few-public-methods
 class SampleMappingItem(Base):
     """
     An individual item within a SampleMapping, linking a specific Sample

@@ -27,9 +27,10 @@ DATA_TYPE_LIST_OF_FILE_PATHS = "list_of_file_paths"
 
 DATA_TYPE_LIST_OF_SAMPLE_DATA = "list_of_sample_data"
 """
-Represents a list of dictionaries or objects. Each item in the list corresponds
-to a sample and contains its metadata (e.g., start time, end time, pitch)
-and potentially its audio data (e.g., as an audio buffer or file path).
+"""Represents a list of dictionaries or objects. Each item in the list
+corresponds to a sample and contains its metadata (e.g., start time, end
+time, pitch) and potentially its audio data (e.g., as an audio buffer or
+file path).
 """
 
 # --- Abstract Base Class for Processing Stages ---
@@ -126,34 +127,29 @@ class AudioProcessingStage(ABC):
         manipulation or analysis occurs.
 
         Args:
-            data: The input data to be processed. The type of this data is
-                  defined by the `input_type` property of the stage.
-            params (dict): A dictionary of parameters for this specific execution
-                           of the stage. These parameters are typically a merge of
-                           the stage's `default_params` and any user-provided
-                           overrides from a pipeline configuration.
-            context (dict, optional): An optional dictionary for passing shared
-                                      resources or information between stages or
-                                      from the pipeline runner. This could include
-                                      things like a database session, project ID,
-                                      recording ID, temporary working directories, etc.
+            data: The input data to be processed. Its type is defined by
+                  `input_type`.
+            params (dict): Parameters for this execution, typically a merge of
+                           `default_params` and user overrides.
+            context (dict, optional): Shared resources or information (e.g.,
+                                      DB session, project ID, temp dirs).
                                       Defaults to None.
 
         Returns:
-            The processed data. The type of this data is defined by the
-            `output_type` property of the stage.
+            The processed data. Its type is defined by `output_type`.
 
         Raises:
-            NotImplementedError: If the concrete stage does not implement this method.
-            Exception: Concrete implementations may raise various exceptions based
-                       on processing errors (e.g., FileNotFoundError, processing errors).
+            NotImplementedError: If a concrete stage doesn't implement this.
+            Exception: Implementations might raise various processing errors
+                       (e.g., FileNotFoundError).
         """
         pass
 
 
 if __name__ == "__main__":
-    # Example of how a concrete stage might be defined (for illustration
-    # purposes):
+    # Example of how a concrete stage might be defined (for illustration purposes):
+    # Note: The following ExampleFilePathProcessor is for demonstration and is not
+    # actively used by the main application unless explicitly imported and registered.
 
     class ExampleFilePathProcessor(AudioProcessingStage):
         @property
@@ -180,38 +176,46 @@ if __name__ == "__main__":
             # In a real scenario, 'data' would be a file path (string).
             # This example just demonstrates parameter usage.
             print(
-                f"Processing file: {data} with params: {params} and context: {context}")
-            output_filename = params.get("prefix", "") + data.split("/")[-1]
+                f"Processing file: {data} with params: {params} and context: {context}"
+            )
+            # Ensure data is treated as a string for path operations
+            file_name_part = os.path.basename(str(data))
+            output_filename = params.get("prefix", "") + file_name_part
 
             # Simulate creating a new file path or list of paths
-            processed_path = f"/tmp/{output_filename}"
+            processed_path = f"/tmp/{output_filename}" # Note: /tmp might not be ideal
             print(f"Simulated output path: {processed_path}")
             return [processed_path]
 
-    # Instantiate and use the example processor
-    # This part would typically be handled by a pipeline runner.
-    if False:  # Disabled for direct execution, just for illustration
-        stage = ExampleFilePathProcessor()
-        print(f"Stage: {stage.name}, Description: {stage.description}")
-        print(
-            f"Input type: {
-                stage.input_type}, Output type: {
-                stage.output_type}")
-        print(f"Default params: {stage.default_params}")
-
-        # Simulate processing
-        input_data = "/path/to/my/audiofile.wav"
-        # Parameters for this specific run (could merge with defaults)
-        run_params = stage.default_params.copy()
-        run_params["prefix"] = "enhanced_"
-
-        run_context = {"project_id": 123, "user_id": "test_user"}
-
-        output_data = stage.process(
-            input_data, params=run_params, context=run_context)
-        print(f"Processed output: {output_data}")
+    # To run the example:
+    # 1. Uncomment the block below.
+    # 2. Execute this file directly: `python src/core/processing_stages.py`
+    #
+    # print("\n--- Example Stage Execution ---")
+    # stage = ExampleFilePathProcessor()
+    # print(f"Stage: {stage.name}, Description: {stage.description}")
+    # print(f"Input type: {stage.input_type}, Output type: {stage.output_type}")
+    # print(f"Default params: {stage.default_params}")
+    #
+    # # Simulate processing
+    # example_input_data = "/path/to/my/audiofile.wav"
+    # run_params = stage.default_params.copy()
+    # run_params["prefix"] = "enhanced_"
+    # run_context = {"project_id": 123, "user_id": "test_user"}
+    #
+    # try:
+    #     output_data = stage.process(example_input_data, params=run_params, context=run_context)
+    #     print(f"Processed output: {output_data}")
+    # except Exception as e:
+    # print(f"Error during example processing: {e}")
+    # print("--- End Example Stage Execution ---\n")
 
     print("AudioProcessingStage and data type constants defined.")
-    print(
-        f"Available data types: {DATA_TYPE_AUDIO_BUFFER_MONO}, {DATA_TYPE_AUDIO_BUFFER_STEREO}, {DATA_TYPE_FILE_PATH}, {DATA_TYPE_LIST_OF_FILE_PATHS}, {DATA_TYPE_LIST_OF_SAMPLE_DATA}"
-    )
+    available_types = [
+        DATA_TYPE_AUDIO_BUFFER_MONO,
+        DATA_TYPE_AUDIO_BUFFER_STEREO,
+        DATA_TYPE_FILE_PATH,
+        DATA_TYPE_LIST_OF_FILE_PATHS,
+        DATA_TYPE_LIST_OF_SAMPLE_DATA,
+    ]
+    print(f"Available data types: {', '.join(available_types)}")

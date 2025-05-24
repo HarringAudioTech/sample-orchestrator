@@ -8,7 +8,7 @@ The application can be run directly using `python -m src.app` for development.
 """
 
 import os
-from flask import Flask, jsonify  # g is not used in current session management
+from flask import Flask, jsonify, request # Added request
 from src.api.routes import projects_bp, recordings_bp, samples_bp
 from src.database.utils import (
     init_db,
@@ -48,9 +48,8 @@ def create_app() -> Flask:
     # Example: app.config['DATABASE_URL'] = os.environ.get('DATABASE_URL', 'sqlite:///./default.db')
     # The actual DATABASE_URL is currently hardcoded in src/database/utils.py
 
-    app.logger.info(f"UPLOAD_FOLDER set to: {app.config['UPLOAD_FOLDER']}")
-    app.logger.info(
-        f"SAMPLES_BASE_DIR set to: {app.config['SAMPLES_BASE_DIR']}")
+    app.logger.info("UPLOAD_FOLDER set to: %s", app.config['UPLOAD_FOLDER'])
+    app.logger.info("SAMPLES_BASE_DIR set to: %s", app.config['SAMPLES_BASE_DIR'])
 
     # --- Database Initialization ---
     # This is called every time create_app() is run.
@@ -63,10 +62,7 @@ def create_app() -> Flask:
         # get_session_local().bind.engine.url provides the actual URL being
         # used.
         init_db()
-        app.logger.info(
-            f"Database initialized. DB located at: {
-                get_session_local().bind.engine.url}"
-        )
+        app.logger.info("Database initialized. DB located at: %s", get_session_local().bind.engine.url)
 
     # --- Request-scoped Database Session (Alternative) ---
     # The current approach in routes.py is to create/close sessions per route.
@@ -95,7 +91,7 @@ def create_app() -> Flask:
     @app.errorhandler(404)
     def not_found_error(error):
         """Handles 404 Not Found errors with a JSON response."""
-        app.logger.warning(f"404 Not Found: {request.path} (Error: {error})")
+        app.logger.warning("404 Not Found: %s (Error: %s)", request.path, error)
         return (jsonify({"error": "Not Found",
                          "message": "The requested URL was not found on the server.",
                          }),
@@ -105,10 +101,7 @@ def create_app() -> Flask:
     @app.errorhandler(500)
     def internal_server_error(error):
         """Handles 500 Internal Server Error with a JSON response."""
-        app.logger.error(
-            f"500 Internal Server Error: {
-                request.path} (Error: {error})",
-            exc_info=True)
+        app.logger.error("500 Internal Server Error: %s (Error: %s)", request.path, error, exc_info=True)
         return (
             jsonify(
                 {
@@ -142,12 +135,9 @@ if __name__ == "__main__":
         if folder_path and not os.path.exists(folder_path):
             try:
                 os.makedirs(folder_path, exist_ok=True)
-                current_app_instance.logger.info(
-                    f"Successfully created data directory: {folder_path}"
-                )
+                current_app_instance.logger.info("Successfully created data directory: %s", folder_path)
             except OSError as e:
-                current_app_instance.logger.error(
-                    f"Error creating data directory {folder_path}: {e}", exc_info=True)
+                current_app_instance.logger.error("Error creating data directory %s: %s", folder_path, e, exc_info=True)
                 # Depending on severity, might exit here.
 
     # Note: For production, use a dedicated WSGI server like Gunicorn or Waitress

@@ -1,85 +1,78 @@
-import pytest
-import json
-from flask import Flask
-from unittest.mock import patch, MagicMock
-from src.app import create_app # Assuming your Flask app factory is in src.app
-from src.database.utils import init_db as initialize_db_utils, get_engine, get_session_local
-from src.database.models import Base, Project as ProjectModel
+"""
+API tests for project-related routes.
+
+This module contains tests for creating, retrieving, and listing projects
+via the Flask API endpoints. It uses pytest fixtures to set up a test
+application instance and a test client.
+"""
+
+# import json # Standard library - Not directly used, Flask handles JSON in responses.
+from unittest.mock import patch # Standard library (for mocking database utils)
+
+from flask import Flask # Third-party
+import pytest # Third-party
+from sqlalchemy import create_engine # Third-party (for test DB engine)
+from sqlalchemy.orm import sessionmaker # Third-party (for test DB session)
+
+from src.app import create_app # Local application
+from src.database.models import Base # ProjectModel not directly used in tests, but Base is for setup
+# Removed: get_engine, get_session_local as utils.py was refactored
+# Removed: ProjectModel, MagicMock as they are not used directly in this version of tests
+
 
 # --- Test Fixtures ---
-@pytest.fixture(scope="module") # Use module scope for app to be faster
-def app():
-    """Create and configure a new app instance for each test module."""
-    # Use an in-memory SQLite database for testing API routes
-    test_db_url = "sqlite:///:memory:"
-    
-    # Create a Flask app configured for testing
-    flask_app = create_app() # Your actual app factory
+
+@pytest.fixture(scope="module")
+def app() -> Flask:
+    """
+    Create and configure a new Flask app instance for the test module.
+    This app will be configured to use an in-memory SQLite database for tests.
+    """
+    flask_app = create_app()
     flask_app.config.update({
         "TESTING": True,
-        "SQLALCHEMY_DATABASE_URI": test_db_url, # If your app uses this config key
-        "DATABASE_URL": test_db_url # If your app uses this for your custom utils
+        # Note: The DATABASE_URL for the app's utils will be patched by
+        # the manage_database_session fixture for each test.
     })
-
-    # Override database utilities to use the test database
-    # This is crucial if your routes directly call get_db or SessionLocal from utils
-    engine = get_engine(test_db_url)
-    
-    # Re-initialize global engine and SessionLocal in utils for the test app context
-    # This is a bit of a hack due to the global nature of _engine and _SessionLocal in utils.py
-    # A better approach would be for utils.py to accept app.config for DB URL.
-    import src.database.utils as db_utils
-    db_utils._engine = engine 
-    db_utils._SessionLocal = get_session_local(engine_instance=engine)
-
-    with flask_app.app_context():
-        initialize_db_utils(engine_instance=engine) # Create tables in the in-memory DB
-
-    yield flask_app
-
-    # Teardown: if there's any global state to clean for the app, do it here.
-    # For in-memory DB, it's usually gone when the engine/connection closes.
-    # Resetting the globals in utils for safety if other test modules use default DB.
-    db_utils._engine = None
-    db_utils._SessionLocal = None
-
+    return flask_app
 
 @pytest.fixture
-def client(app: Flask):
-    """A test client for the app."""
+def client(app: Flask): # app parameter is the app fixture
+    """
+    Provides a test client for the Flask application.
+    """
     return app.test_client()
 
-@pytest.fixture(autouse=True) # Automatically use this for each test in this file
-def manage_database_session(app: Flask):
-    """Ensure each test has a fresh database session and tables are clean."""
-    engine = get_engine("sqlite:///:memory:") # Always get a fresh in-memory engine for full isolation
-    
-    # Re-assign globals in utils for this specific test function's context
-    import src.database.utils as db_utils
-    original_engine = db_utils._engine
-    original_session_local = db_utils._SessionLocal
-    
-    db_utils._engine = engine
-    db_utils._SessionLocal = get_session_local(engine_instance=engine)
+@pytest.fixture(autouse=True)
+def manage_database_session(app: Flask): # app parameter is the app fixture
+    """
+    Manages the database for each test function.
+    It patches the database utilities (ENGINE and SESSION_LOCAL) to use an
+    in-memory SQLite database, creates all tables before each test, and drops
+    them after. This ensures test isolation.
+    """
+    test_db_url = "sqlite:///:memory:"
+    test_engine = create_engine(test_db_url)
+    TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
 
-    with app.app_context(): # Ensure operations are within app context
-      Base.metadata.drop_all(bind=engine) # Drop all tables
-      Base.metadata.create_all(bind=engine) # Create all tables
-
-    yield # Run the test
-
-    # Teardown after test: drop all tables to ensure no state leaks
-    with app.app_context():
-      Base.metadata.drop_all(bind=engine)
-    
-    # Restore original engine and session local if they were set
-    db_utils._engine = original_engine
-    db_utils._SessionLocal = original_session_local
+    # Patch the module-level ENGINE and SESSION_LOCAL in src.database.utils
+    with patch("src.database.utils.ENGINE", test_engine), \
+         patch("src.database.utils.SESSION_LOCAL", TestSessionLocal):
+        with app.app_context():
+            Base.metadata.create_all(bind=test_engine) # Create tables
+        
+        yield # Run the test function
+        
+        with app.app_context():
+            Base.metadata.drop_all(bind=test_engine) # Drop tables after test
 
 
 # --- Project Route Tests ---
 
 def test_create_project_success(client):
+    """
+    Test successful creation of a new project via POST /projects.
+    """
     response = client.post('/projects', json={
         "name": "My First API Project",
         "description": "A project created via API test"
@@ -89,21 +82,15 @@ def test_create_project_success(client):
     assert "id" in data
     assert data["name"] == "My First API Project"
     assert data["description"] == "A project created via API test"
-
-    # Verify in DB (optional, but good for confidence)
-    # This requires getting a session in the test, similar to how routes do.
-    # For simplicity, we trust the route's own DB interaction for now,
-    # or we'd need to setup db_session fixture like in model tests.
-    
-    # Example DB verification (if you set up a db_session fixture for API tests too):
-    # project_in_db = db_session.query(ProjectModel).filter(ProjectModel.id == data['id']).first()
-    # assert project_in_db is not None
-    # assert project_in_db.name == "My First API Project"
-
+    # DB verification can be added here if a test DB session is made
+    # available to the test function, but for API tests, checking response is primary.
 
 def test_create_project_missing_name(client):
+    """
+    Test project creation failure when 'name' is missing in the request payload.
+    """
     response = client.post('/projects', json={
-        "description": "Project without a name"
+        "description": "Project without a name" # 'name' field is intentionally missing
     })
     assert response.status_code == 400
     data = response.get_json()
@@ -111,10 +98,13 @@ def test_create_project_missing_name(client):
     assert "Project name is required" in data["error"]
 
 def test_get_project_success(client):
+    """
+    Test successfully retrieving an existing project by its ID.
+    """
     # First, create a project to fetch
-    create_resp = client.post('/projects', json={"name": "Fetchable Project"})
-    assert create_resp.status_code == 201
-    project_id = create_resp.get_json()["id"]
+    create_response = client.post('/projects', json={"name": "Fetchable Project"})
+    assert create_response.status_code == 201, "Project creation failed for get test."
+    project_id = create_response.get_json()["id"]
 
     response = client.get(f'/projects/{project_id}')
     assert response.status_code == 200
@@ -123,20 +113,29 @@ def test_get_project_success(client):
     assert data["name"] == "Fetchable Project"
 
 def test_get_project_not_found(client):
-    response = client.get('/projects/9999') # Assuming 9999 does not exist
+    """
+    Test retrieving a non-existent project; expects a 404 error.
+    """
+    response = client.get('/projects/9999') # Use an ID unlikely to exist
     assert response.status_code == 404
     data = response.get_json()
     assert "error" in data
     assert "Project not found" in data["error"]
 
 def test_list_projects_empty(client):
+    """
+    Test listing projects when the database has no projects; expects an empty list.
+    """
     response = client.get('/projects')
     assert response.status_code == 200
     data = response.get_json()
     assert isinstance(data, list)
-    assert len(data) == 0
+    assert not data # Check if list is empty
 
 def test_list_projects_with_data(client):
+    """
+    Test listing projects when multiple projects exist.
+    """
     client.post('/projects', json={"name": "Project Alpha"})
     client.post('/projects', json={"name": "Project Beta"})
 
@@ -149,8 +148,12 @@ def test_list_projects_with_data(client):
     assert project_names == ["Project Alpha", "Project Beta"]
 
 def test_root_path(client):
+    """
+    Test the API's root path ("/") for the expected welcome message.
+    """
     response = client.get('/')
     assert response.status_code == 200
     data = response.get_json()
     assert "message" in data
-    assert "Welcome to the Audio Processing API!" in data["message"]
+    expected_message = "Welcome to the Audio Processing and Sample Management API!"
+    assert expected_message in data["message"]

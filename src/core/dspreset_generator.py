@@ -1,17 +1,24 @@
-import xml.etree.ElementTree as ET
+"""
+Module for generating Decent Sampler presets (.dspreset files and structure).
+
+This module provides the DecentSamplerPresetGenerator class, which orchestrates
+the creation of a Decent Sampler instrument, including its XML preset file,
+sample organization, and artwork copying, based on project data and instrument metadata.
+"""
+
 import os
 import shutil
-from src.core.project import Project
+import xml.etree.ElementTree as ET
+# List from typing is not used in the provided snippet. Assuming it's not needed.
+
 from src.core.instrument_data import InstrumentData
-from src.database.models import (
-    Recording as RecordingModel,
-    Sample as SampleModel,
-    # SampleMapping as SampleMappingModel, # Not directly used in this file
-    SampleMappingItem as SampleMappingItemModel,
-)
-from typing import List  # For type hinting
+from src.core.project import Project
+# RecordingModel is not directly type hinted or instantiated; its attributes are accessed via iteration.
+# SampleModel and SampleMappingItemModel are used for attributes.
+from src.database.models import SampleModel, SampleMappingItemModel
 
 
+# pylint: disable=too-few-public-methods
 class DecentSamplerPresetGenerator:
     """Generates Decent Sampler preset files (.dspreset) and associated file structure.
 
@@ -118,16 +125,19 @@ class DecentSamplerPresetGenerator:
         root_element.append(effects_element)
 
         # Write .dspreset file
-        dspreset_filename = instrument_name_fs + ".dspreset"
-        dspreset_path = os.path.join(instrument_dir, dspreset_filename)
+        # Inlined dspreset_filename
+        dspreset_path = os.path.join(instrument_dir, f"{instrument_name_fs}.dspreset")
         try:
             tree = ET.ElementTree(root_element)
-            # ET.indent(tree, space="\t", level=0) # For pretty printing,
-            # Python 3.9+
+            # ET.indent(tree, space="\t", level=0) # For pretty printing, Python 3.9+
+            # Ensure parent directory exists before writing (already done by makedirs for instrument_dir)
+            # os.makedirs(os.path.dirname(dspreset_path), exist_ok=True) # instrument_dir is the parent
             tree.write(dspreset_path, encoding="UTF-8", xml_declaration=True)
             print(f"INFO: Generated preset file: {dspreset_path}")
         except IOError as e:
             print(f"ERROR: Could not write .dspreset file: {e}")
+        except Exception as e_xml_write: # Broader catch for other XML/write issues
+            print(f"ERROR: Unexpected error writing .dspreset file {dspreset_path}: {e_xml_write}")
 
     def _create_root_element(self) -> ET.Element:
         """Creates the root <DecentSampler> XML element.
@@ -149,35 +159,26 @@ class DecentSamplerPresetGenerator:
         #     root.append(ET.Comment(f"Website: {self.instrument_data.website}"))
         return root
 
-    def _create_ui_element(self, artwork_output_dir: str) -> ET.Element:
+    def _create_ui_element(self) -> ET.Element: # artwork_output_dir removed
         """Creates the <ui> XML element, including background image if specified.
-
-        Args:
-            artwork_output_dir: The absolute path to the 'Artwork' directory where UI
-                                 elements are stored. Used for context if needed,
-                                 though paths in XML are relative.
 
         Returns:
             The `ET.Element` for the <ui> section.
         """
         ui_element = ET.Element("ui")
         if self.instrument_data.ui_background_image_path:
-            # Ensure the source file exists before referencing it in XML
-            # (actual copy happens in generate_preset)
             source_artwork_path = self.instrument_data.ui_background_image_path
+            # Check if source artwork exists (copying is handled elsewhere, but good to check for XML validity)
             if os.path.exists(source_artwork_path):
                 artwork_filename = os.path.basename(source_artwork_path)
-                # XML path should be relative to the .dspreset file location
+                # XML path is relative to the .dspreset file, within the 'Artwork' subdirectory
                 relative_image_path = os.path.join("Artwork", artwork_filename)
 
                 tab_element = ET.SubElement(ui_element, "tab")
-                tab_element.set("name", "main")  # Default tab name
+                tab_element.set("name", "main")
                 background_element = ET.SubElement(tab_element, "background")
                 background_element.set("image", relative_image_path)
-            # else:
-            # Warning about missing artwork source is handled in generate_preset()
-            # No need to duplicate here, as this method only builds XML
-            # structure.
+            # else: Warning handled in generate_preset
         return ui_element
 
     def _create_groups_element(self, samples_output_dir: str) -> ET.Element:
@@ -240,10 +241,9 @@ class DecentSamplerPresetGenerator:
                 # Create the <sample> XML element
                 sample_element = ET.SubElement(group_element, "sample")
 
-                # Path is relative to the .dspreset file, within the 'Samples'
-                # subdirectory
-                xml_sample_path = os.path.join("Samples", sample_filename)
-                sample_element.set("path", xml_sample_path)
+                # Path is relative to the .dspreset file, within the 'Samples' subdirectory
+                # Inlined xml_sample_path
+                sample_element.set("path", os.path.join("Samples", sample_filename))
 
                 # Root note (MIDI note number)
                 root_note_val = sample_model.midi_pitch
@@ -252,21 +252,23 @@ class DecentSamplerPresetGenerator:
                 )  # Default to C3 (MIDI 60)
                 sample_element.set("rootNote", root_note_str)
 
-                # Key range (loKey, hiKey)
-                lo_key_str = root_note_str
-                hi_key_str = root_note_str
+                # Key range (loKey, hiKey) - Refactored to reduce locals
+                # Use numeric values for logic, convert to string only for set()
+                # Default to root_note_val if available, else MIDI 60 (C3)
+                key_default_val = root_note_val if root_note_val is not None else 60
+                lo_key_val = key_default_val
+                hi_key_val = key_default_val
+
                 if sample_model.sample_mapping_items:
-                    # Assuming the first mapping item dictates the key range for this sample.
-                    # More complex logic might be needed if multiple items or
-                    # complex mappings exist.
+                    # Assuming the first mapping item dictates the key range
                     mapping_item = sample_model.sample_mapping_items[0]
                     if mapping_item.key_range_start is not None:
-                        lo_key_str = str(mapping_item.key_range_start)
+                        lo_key_val = mapping_item.key_range_start
                     if mapping_item.key_range_end is not None:
-                        hi_key_str = str(mapping_item.key_range_end)
-
-                sample_element.set("loKey", lo_key_str)
-                sample_element.set("hiKey", hi_key_str)
+                        hi_key_val = mapping_item.key_range_end
+                
+                sample_element.set("loKey", str(lo_key_val))
+                sample_element.set("hiKey", str(hi_key_val))
 
                 # Velocity range (loVel, hiVel) - defaults to full range
                 lo_vel_str = "0"

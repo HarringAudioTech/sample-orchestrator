@@ -1,3 +1,11 @@
+"""
+Defines the data structure for instrument metadata.
+
+This module contains the `InstrumentData` dataclass, which is used to store
+configuration and descriptive information about a musical instrument preset,
+such as its name, author, and associated UI elements.
+"""
+
 from dataclasses import dataclass
 from typing import Optional
 

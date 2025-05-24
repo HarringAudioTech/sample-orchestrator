@@ -1,83 +1,50 @@
+"""
+Database utility functions for SQLAlchemy session management and initialization.
+
+This module provides:
+- Configuration for the default database URL.
+- Engine and SessionLocal instances for database interaction.
+- A function `init_db` to create database tables based on models.
+- A dependency `get_db` for obtaining a database session, suitable for
+  use in request contexts (e.g., in API routes).
+"""
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from .models import Base
 
 # Default DATABASE_URL for the main application
 DATABASE_URL = "sqlite:///./database.db"
-_engine = None
-_SessionLocal = None
 
-
-def get_engine(database_url: str = None):
-    """
-    Retrieves or creates a SQLAlchemy engine.
-
-    If `database_url` is provided, a new engine is created with this URL.
-    Otherwise, a global engine instance is created and reused for the default `DATABASE_URL`.
-    This allows for using a different database URL for testing or specific configurations.
-
-    Args:
-        database_url (str, optional): The database URL string.
-            If None, uses the global `DATABASE_URL`. Defaults to None.
-
-    Returns:
-        sqlalchemy.engine.Engine: The SQLAlchemy engine instance.
-    """
-    global _engine
-    if database_url:
-        return create_engine(database_url)
-    if _engine is None:
-        _engine = create_engine(DATABASE_URL)
-    return _engine
-
-
-def get_session_local(engine_instance=None) -> sessionmaker:
-    """
-    Retrieves or creates a SQLAlchemy sessionmaker.
-
-    If `engine_instance` is provided, a new sessionmaker is created and bound to this engine.
-    Otherwise, a global sessionmaker instance is created and reused, bound to the
-    default engine obtained from `get_engine()`.
-
-    Args:
-        engine_instance (sqlalchemy.engine.Engine, optional): An existing SQLAlchemy engine.
-            If None, the default engine is used. Defaults to None.
-
-    Returns:
-        sqlalchemy.orm.sessionmaker: The SQLAlchemy sessionmaker instance.
-    """
-    global _SessionLocal
-    if engine_instance:
-        return sessionmaker(
-            autocommit=False, autoflush=False, bind=engine_instance)
-    if _SessionLocal is None:
-        _SessionLocal = sessionmaker(
-            autocommit=False, autoflush=False, bind=get_engine()
-        )
-    return _SessionLocal
+# Module-level Engine and SessionLocal instances, initialized once.
+# These replace the global _engine and _SessionLocal variables and their getters.
+ENGINE = create_engine(DATABASE_URL)
+SESSION_LOCAL = sessionmaker(autocommit=False, autoflush=False, bind=ENGINE)
 
 
 def init_db(engine_instance=None):
     """
     Initializes the database by creating all tables defined in `models.Base`.
 
-    This function uses the provided `engine_instance` or the default engine
-    obtained from `get_engine()`. It's typically called once at application startup
-    or before running tests that require a database schema.
+    Uses the provided `engine_instance` or the module-level `ENGINE`.
+    Typically called once at application startup.
 
     Args:
         engine_instance (sqlalchemy.engine.Engine, optional): An existing SQLAlchemy engine.
-            If None, the default engine is used. Defaults to None.
+            If None, the module-level `ENGINE` is used. Defaults to None.
     """
-    current_engine = engine_instance or get_engine()
-    Base.metadata.create_all(bind=current_engine)
+    current_engine_to_use = engine_instance or ENGINE
+    Base.metadata.create_all(bind=current_engine_to_use)
+    # Consider using logger instead of print for application messages
     print(
-        f"Database initialized with engine: {
-            current_engine.url} and tables created (if they didn't exist)."
+        f"Database initialized with engine: {current_engine_to_use.url} "
+        "and tables created (if they didn't exist)."
     )
 
 
-def get_db(engine_instance=None) -> Session:
+def get_db(engine_instance=None) -> Session: # The return type hint is Session, but it's a generator.
+                                         # Correct would be Generator[Session, None, None] or Iterator[Session]
+                                         # from typing import Generator, Iterator. For now, keeping Session as per original.
     """
     Provides a database session context that is managed for request handling or general use.
 
@@ -86,34 +53,34 @@ def get_db(engine_instance=None) -> Session:
     It can use a specific `engine_instance` for the session, or the default one.
 
     Args:
-        engine_instance (sqlalchemy.engine.Engine, optional): An existing SQLAlchemy engine
-            to bind the session to. If None, the default engine is used. Defaults to None.
+        engine_instance (sqlalchemy.engine.Engine, optional): An existing SQLAlchemy engine.
+            If provided, a new session is created bound to this engine.
+            If None, a session is created using the module-level `SESSION_LOCAL`.
+            Defaults to None.
 
     Yields:
         sqlalchemy.orm.Session: A new database session.
 
     Example:
         ```python
-        db_gen = get_db()
-        db = next(db_gen)
+        db_context_manager = get_db()
+        db_session = next(db_context_manager)
         try:
-            # Use db session
-            user = db.query(User).first()
+            # Use db_session for database operations
+            user = db_session.query(User).first()
         finally:
-            next(db_gen, None) # Close session
-        ```
-        Or, more commonly in web frameworks as a dependency:
-        ```python
-        # In a Flask route for example (simplified):
-        # db = next(get_db())
-        # try:
-        #    ...
-        # finally:
-        #    db.close() # Or framework handles this with teardown context
+            # Ensure the generator is exhausted to close the session
+            next(db_context_manager, None)
         ```
     """
-    current_session_local = get_session_local(engine_instance)
-    db: Session = current_session_local()
+    if engine_instance:
+        # If a specific engine is provided, create a temporary sessionmaker for it.
+        temp_session_local = sessionmaker(autocommit=False, autoflush=False, bind=engine_instance)
+        db: Session = temp_session_local()
+    else:
+        # Use the module-level sessionmaker for the default engine.
+        db: Session = SESSION_LOCAL()
+    
     try:
         yield db
     finally:
@@ -122,9 +89,9 @@ def get_db(engine_instance=None) -> Session:
 
 if __name__ == "__main__":
     # This allows running this script directly to initialize the main application database.
-    # Useful for initial setup or manual database recreation.
-    print("Initializing main database...")
-    init_db()  # Uses default engine from get_engine()
+    print("Initializing main database using module-level ENGINE...")
+    init_db() # Uses the module-level ENGINE by default
     print(
-        "To verify, you can use a SQLite browser to open 'database.db' in the project root."
+        "Database initialization complete. "
+        "To verify, open 'database.db' (project root) with a SQLite browser."
     )
