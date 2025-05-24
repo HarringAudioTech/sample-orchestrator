@@ -6,6 +6,7 @@ import os
 import shutil
 import wave
 import logging
+import numpy as np # For librosa mocking
 from unittest.mock import patch, MagicMock, ANY
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
@@ -107,39 +108,40 @@ def test_slicing_stage_properties():
     assert stage.output_type == DATA_TYPE_LIST_OF_SAMPLE_DATA
     assert "hop_size" in stage.default_params
 
-@patch('src.core.stages.slicing_stage.aubio_notes')
-@patch('src.core.stages.slicing_stage.aubio_source')
-def test_slicing_stage_process_success(mock_aubio_src, mock_aubio_notes_obj_class, db_session, setup_test_recording, temp_output_dir_for_samples):
+@patch('src.core.stages.slicing_stage.librosa.onset.onset_detect')
+@patch('src.core.stages.slicing_stage.librosa.load')
+@patch('src.core.stages.slicing_stage._get_audio_details_for_slicing') # Keep this mock for simplicity here
+def test_slicing_stage_process_success(mock_get_details, mock_librosa_load, mock_librosa_onset_detect, db_session, setup_test_recording, temp_output_dir_for_samples):
     recording = setup_test_recording
     stage = SlicingStage()
 
-    # --- Mock Aubio ---
-    mock_src_instance = MagicMock()
-    mock_src_instance.samplerate = recording.samplerate
-    mock_src_instance.channels = recording.channels
-    mock_src_instance.duration = int(recording.duration_seconds * recording.samplerate)
-    # Simulate reading audio data in chunks
-    # For a 1s file at 44100Hz, hop_size 256 -> 44100/256 = ~172 reads
-    # Let's simulate fewer reads for simplicity, assuming some notes are found.
-    num_reads_simulated = 10
-    frames_per_read_simulated = stage.default_params["hop_size"]
-    simulated_reads = [(MagicMock(), frames_per_read_simulated)] * num_reads_simulated + [(MagicMock(), 0)] # Last read is 0
-    mock_src_instance.side_effect = simulated_reads
-    mock_aubio_src.return_value = mock_src_instance
+    # --- Mock _get_audio_details_for_slicing ---
+    # This function is now complex due to librosa/wave fallback. Mocking its direct output simplifies this test.
+    # It's tested separately in test_internal_get_audio_details_*.
+    mock_get_details.return_value = (recording.samplerate, int(recording.duration_seconds * recording.samplerate), recording.channels)
 
-    mock_notes_instance = MagicMock()
-    # Simulate detecting two notes
-    # Note format: (midi_pitch, velocity, onset_sample_within_chunk_passed_to_notes_o)
-    # SlicingStage calculates absolute start_frame based on notes_o.get_last_pos()
-    mock_notes_instance.get_last_pos.side_effect = [50, 150] # Frame index within the current chunk
-    
-    # notes_o(samples) returns a list of new notes.
-    # Simulate one note found in the 2nd read, another in the 5th read.
-    notes_output_simulation = [[]] * (num_reads_simulated + 1) # Default to no notes
-    notes_output_simulation[1] = [(60, 100, 50)] # Note 1: MIDI 60, vel 100, detected at frame 50 of this chunk
-    notes_output_simulation[4] = [(62, 110, 150)]# Note 2: MIDI 62, vel 110, detected at frame 150 of this chunk
-    mock_notes_instance.side_effect = notes_output_simulation
-    mock_aubio_notes_obj_class.return_value = mock_notes_instance
+    # --- Mock Librosa ---
+    # librosa.load (for the process method's direct use for onset detection)
+    # y: mono audio signal (numpy array), sr: sample rate
+    mock_y_mono = np.random.rand(int(recording.duration_seconds * recording.samplerate)) 
+    mock_librosa_load.return_value = (mock_y_mono, recording.samplerate)
+
+    # librosa.onset.onset_detect
+    # Returns frame indices of onsets. Let's say these are frame indices.
+    # These are *not* sample indices if units='frames' was used, they are hop-scaled.
+    # The SlicingStage uses these directly as start_frame.
+    # For a 1s file at 44100Hz, hop_size 256:
+    # onset at 0.1s -> sample 4410 -> frame 4410 (if units='samples') or 4410/256 = 17 (if units='frames')
+    # The code uses units='frames', so these are indices like 17, 30 etc.
+    # Let's simulate two onsets.
+    # The default hop_size is 256.
+    # onset1_frame_idx = int(0.1 * recording.samplerate / stage.default_params["hop_size"]) # Example: onset at 0.1s
+    # onset2_frame_idx = int(0.5 * recording.samplerate / stage.default_params["hop_size"]) # Example: onset at 0.5s
+    # For simplicity, let's use direct frame numbers that would be plausible.
+    # The stage code converts these to sample numbers for slicing.
+    # The stage code uses these directly as `start_frame`.
+    onset_frames = np.array([50, 150]) # Example frame indices for onsets
+    mock_librosa_onset_detect.return_value = onset_frames
     
     # --- Prepare Context ---
     context = {
@@ -160,28 +162,45 @@ def test_slicing_stage_process_success(mock_aubio_src, mock_aubio_notes_obj_clas
     
     # Sample 1
     sample1_info = result_samples_info[0]
-    assert sample1_info["name"].startswith(f"rec_{recording.id}_sample_midi60")
-    assert sample1_info["midi_pitch"] == 60
+    # Midi pitch is now a placeholder (0) and velocity (100)
+    assert sample1_info["name"].startswith(f"rec_{recording.id}_sample_midi0") # MIDI is now placeholder
+    assert sample1_info["midi_pitch"] == 0 # Placeholder
     assert os.path.exists(sample1_info["file_path"])
     assert sample1_info["file_path"].startswith(temp_output_dir_for_samples)
     
     # Sample 2
     sample2_info = result_samples_info[1]
-    assert sample2_info["name"].startswith(f"rec_{recording.id}_sample_midi62")
-    assert sample2_info["midi_pitch"] == 62
+    assert sample2_info["name"].startswith(f"rec_{recording.id}_sample_midi0") # MIDI is now placeholder
+    assert sample2_info["midi_pitch"] == 0 # Placeholder
     assert os.path.exists(sample2_info["file_path"])
 
     # Check DB
     db_samples = db_session.query(SampleModel).filter(SampleModel.recording_id == recording.id).order_by(SampleModel.id).all()
     assert len(db_samples) == 2
     assert db_samples[0].name == sample1_info["name"]
-    assert db_samples[0].midi_pitch == 60
+    assert db_samples[0].midi_pitch == 0 # Placeholder
     assert db_samples[1].name == sample2_info["name"]
-    assert db_samples[1].midi_pitch == 62
+    assert db_samples[1].midi_pitch == 0 # Placeholder
 
-    # Verify aubio calls (simplified)
-    mock_aubio_src.assert_called_with(recording.file_path, recording.samplerate, stage.default_params["hop_size"])
-    mock_aubio_notes_obj_class.assert_called_with("default", stage.default_params["window_size"], stage.default_params["hop_size"], recording.samplerate)
+    # Verify librosa calls
+    mock_librosa_load.assert_called_once_with(recording.file_path, sr=recording.samplerate, mono=True)
+    
+    # Expected hop_length for onset_detect
+    expected_hop_length = stage.default_params["hop_size"]
+    # Expected min_ioi_seconds_factor from defaults
+    min_ioi_seconds_factor = stage.default_params["min_ioi_seconds_factor"]
+    # Calculate expected wait_samples based on how SlicingStage does it
+    expected_min_ioi_seconds = (expected_hop_length * min_ioi_seconds_factor) / float(recording.samplerate)
+    expected_wait_samples = int(expected_min_ioi_seconds * recording.samplerate / expected_hop_length)
+
+    mock_librosa_onset_detect.assert_called_once_with(
+        y=mock_y_mono, 
+        sr=recording.samplerate, 
+        hop_length=expected_hop_length,
+        units='frames',
+        wait=expected_wait_samples
+        # backtrack=True # if we decide to enable it
+    )
 
 def test_slicing_stage_input_file_not_found(db_session, setup_test_recording, temp_output_dir_for_samples):
     recording = setup_test_recording
@@ -241,19 +260,19 @@ def test_slicing_stage_audio_detail_error(mock_get_details, db_session, setup_te
     assert recording.status == "slicing_failed"
 
 
-@patch('src.core.stages.slicing_stage.aubio_notes')
-@patch('src.core.stages.slicing_stage.aubio_source')
-def test_slicing_stage_no_notes_detected(mock_aubio_src, mock_aubio_notes_obj_class, db_session, setup_test_recording, temp_output_dir_for_samples):
+@patch('src.core.stages.slicing_stage.librosa.onset.onset_detect')
+@patch('src.core.stages.slicing_stage.librosa.load')
+@patch('src.core.stages.slicing_stage._get_audio_details_for_slicing')
+def test_slicing_stage_no_notes_detected(mock_get_details, mock_librosa_load, mock_librosa_onset_detect, db_session, setup_test_recording, temp_output_dir_for_samples):
     recording = setup_test_recording
     stage = SlicingStage()
 
-    mock_src_instance = MagicMock(samplerate=recording.samplerate, channels=recording.channels, duration=int(recording.duration_seconds * recording.samplerate))
-    mock_src_instance.side_effect = [(MagicMock(), stage.default_params["hop_size"])] * 5 + [(MagicMock(), 0)]
-    mock_aubio_src.return_value = mock_src_instance
-
-    mock_notes_instance = MagicMock()
-    mock_notes_instance.side_effect = [[]] * 6 # No notes detected in any chunk
-    mock_aubio_notes_obj_class.return_value = mock_notes_instance
+    mock_get_details.return_value = (recording.samplerate, int(recording.duration_seconds * recording.samplerate), recording.channels)
+    
+    mock_y_mono = np.random.rand(int(recording.duration_seconds * recording.samplerate))
+    mock_librosa_load.return_value = (mock_y_mono, recording.samplerate)
+    
+    mock_librosa_onset_detect.return_value = np.array([]) # No onsets detected
     
     context = {
         "db_session": db_session,
@@ -272,22 +291,27 @@ def test_slicing_stage_no_notes_detected(mock_aubio_src, mock_aubio_notes_obj_cl
     assert len(os.listdir(temp_output_dir_for_samples)) == 0 # No sample files created
 
 
-# Test for _get_audio_details_for_slicing helper (optional, as it's internal)
+# Test for _get_audio_details_for_slicing helper
 @patch('src.core.stages.slicing_stage.wave.open')
-@patch('src.core.stages.slicing_stage.aubio_source')
-def test_internal_get_audio_details_aubio_success(mock_aubio_source_gad, mock_wave_open_gad):
-    mock_s_gad = MagicMock(samplerate=48000, duration=96000, channels=1)
-    mock_aubio_source_gad.return_value = mock_s_gad
+@patch('src.core.stages.slicing_stage.librosa.load')
+def test_internal_get_audio_details_librosa_success(mock_librosa_load_gad, mock_wave_open_gad):
+    # Simulate librosa.load returning a stereo audio signal (2 channels) of 1 second duration at 48kHz
+    mock_sr = 48000
+    mock_total_frames = 48000 # 1 second
+    mock_channels = 2
+    mock_audio_array = np.zeros((mock_channels, mock_total_frames)) # (channels, samples)
+    mock_librosa_load_gad.return_value = (mock_audio_array, mock_sr)
 
     samplerate, total_frames, channels = _get_audio_details_for_slicing("fake_path.wav")
-    assert samplerate == 48000
-    assert total_frames == 96000
-    assert channels == 1
+    assert samplerate == mock_sr
+    assert total_frames == mock_total_frames
+    assert channels == mock_channels
     mock_wave_open_gad.assert_not_called()
+    mock_librosa_load_gad.assert_called_once_with("fake_path.wav", sr=None, mono=False)
 
-@patch('src.core.stages.slicing_stage.aubio_source', side_effect=RuntimeError("Aubio error"))
+@patch('src.core.stages.slicing_stage.librosa.load', side_effect=RuntimeError("Librosa error"))
 @patch('src.core.stages.slicing_stage.wave.open')
-def test_internal_get_audio_details_aubio_fails_wave_success(mock_wave_open_gad, mock_aubio_source_gad_fails):
+def test_internal_get_audio_details_librosa_fails_wave_success(mock_wave_open_gad, mock_librosa_load_gad_fails):
     mock_wf_gad = MagicMock()
     mock_wf_gad.__enter__.return_value.getframerate.return_value = 44100
     mock_wf_gad.__enter__.return_value.getnframes.return_value = 88200
@@ -298,11 +322,13 @@ def test_internal_get_audio_details_aubio_fails_wave_success(mock_wave_open_gad,
     assert samplerate == 44100
     assert total_frames == 88200
     assert channels == 2
-    mock_aubio_source_gad_fails.assert_called_once()
+    mock_librosa_load_gad_fails.assert_called_once_with("fake_path.wav", sr=None, mono=False)
+    mock_wave_open_gad.assert_called_once_with("fake_path.wav", "rb")
 
-@patch('src.core.stages.slicing_stage.aubio_source', side_effect=RuntimeError("Aubio error"))
+
+@patch('src.core.stages.slicing_stage.librosa.load', side_effect=RuntimeError("Librosa error"))
 @patch('src.core.stages.slicing_stage.wave.open', side_effect=wave.Error("Wave error"))
-def test_internal_get_audio_details_all_fail(mock_wave_open_gad_fails, mock_aubio_source_gad_fails):
-    with pytest.raises(ValueError, match="Could not determine audio details"):
+def test_internal_get_audio_details_all_fail(mock_wave_open_gad_fails, mock_librosa_load_gad_fails):
+    with pytest.raises(ValueError, match="Could not determine audio details .* using librosa or wave"):
         _get_audio_details_for_slicing("fake_path.wav")
 

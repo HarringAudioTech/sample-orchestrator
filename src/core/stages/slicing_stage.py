@@ -20,8 +20,9 @@ from src.database.models import Recording as RecordingModel, Sample as SampleMod
 # Project model might not be needed directly if project_id is passed in
 # context.
 
-# Import aubio for audio processing
-from aubio import source as aubio_source, notes as aubio_notes
+# Import librosa for audio processing
+import librosa
+import numpy as np # librosa often uses numpy arrays
 
 # Logger for this stage
 logger = logging.getLogger(__name__)
@@ -30,27 +31,34 @@ logger = logging.getLogger(__name__)
 def _get_audio_details_for_slicing(path: str) -> tuple[int, int, int]:
     """
     Internal helper to get samplerate, total frames, and channels for slicing.
-    Prioritizes aubio, falls back to wave.
+    Uses librosa, falls back to wave.
     """
     samplerate, total_frames, channels = 0, 0, 0
     try:
-        s = aubio_source(path, 0, 512)  # samplerate=0 means use original
-        samplerate = s.samplerate
-        total_frames = s.duration  # total frames for aubio source
-        channels = s.channels
-        if (
-            channels == 0
-        ):  # Aubio might return 0 channels for some files it can't fully parse
+        # librosa.load returns audio time series (y) and sampling rate (sr)
+        # We set sr=None to load the original sampling rate.
+        y, sr = librosa.load(path, sr=None, mono=False) # mono=False to get actual channel count
+        samplerate = sr
+        # librosa.get_duration returns duration in seconds. Multiply by sr for total_frames.
+        # Or, more directly, use the shape of the loaded audio array.
+        if y.ndim == 1:
+            channels = 1
+            total_frames = len(y)
+        else:
+            channels = y.shape[0]
+            total_frames = y.shape[1]
+
+        if channels == 0:
             logger.warning(
-                f"Aubio reported 0 channels for {path}. Attempting fallback with wave module.")
-            raise RuntimeError("Aubio reported 0 channels.")  # Force fallback
+                f"Librosa reported 0 channels for {path}. Attempting fallback with wave module.")
+            raise RuntimeError("Librosa reported 0 channels.") # Force fallback
         logger.info(
-            f"Audio details from Aubio for {path}: SR={samplerate}, Frames={total_frames}, Channels={channels}"
+            f"Audio details from Librosa for {path}: SR={samplerate}, Frames={total_frames}, Channels={channels}"
         )
         return samplerate, total_frames, channels
-    except Exception as e_aubio:
+    except Exception as e_librosa:
         logger.warning(
-            f"Error getting full audio details for {path} with aubio ({e_aubio}). Falling back to wave module.")
+            f"Error getting full audio details for {path} with librosa ({e_librosa}). Falling back to wave module.")
         try:
             with wave.open(path, "rb") as wf:
                 samplerate = wf.getframerate()
@@ -65,7 +73,7 @@ def _get_audio_details_for_slicing(path: str) -> tuple[int, int, int]:
                 exc_info=True,
             )
             raise ValueError(
-                f"Could not determine audio details (samplerate, frames, channels) for {path} using aubio or wave."
+                f"Could not determine audio details (samplerate, frames, channels) for {path} using librosa or wave."
             ) from e_wave
 
 
@@ -186,76 +194,86 @@ class SlicingStage(AudioProcessingStage):
                 raise RuntimeError(
                     f"Could not determine valid samplerate ({samplerate}Hz) or channels ({num_channels}) for {data}.")
 
-            # --- Aubio Setup ---
-            hop_size = params.get("hop_size", self.default_params["hop_size"])
-            win_size = params.get(
-                "window_size", self.default_params["window_size"]
-            )  # May not be used by 'default' notes method
+            # --- Librosa Setup for Onset Detection ---
+            # hop_length in librosa is equivalent to hop_size in aubio
+            hop_length = params.get("hop_size", self.default_params["hop_size"])
+            # Other params like window_size and silence_threshold_db might need different handling or mapping.
+            # Librosa's onset detection can be tuned with parameters like `backtrack`, `pre_avg`, `post_avg`, `wait`, etc.
+            # For simplicity, we'll use defaults for some of these or adapt from aubio if direct parallels exist.
+            # The 'silence_threshold_db' is not directly used in librosa.onset.onset_detect in the same way.
+            # Onset strength can be used, or pre-processing to remove silence if needed.
+            # min_ioi_seconds_factor needs to be converted to samples for librosa's `wait` parameter (in samples).
 
-            audio_source_obj = aubio_source(data, samplerate, hop_size)
-            # Aubio might adjust samplerate if it was 0 initially, so
-            # re-assign.
-            actual_samplerate = audio_source_obj.samplerate
+            # Load audio with librosa. Use original samplerate.
+            # For onset detection, it's common to use a mono signal.
+            y, sr = librosa.load(data, sr=samplerate, mono=True)
+            actual_samplerate = sr # Samplerate from librosa loading
+            total_frames_in_loaded_audio = len(y) # total frames in the actual loaded audio for onset detection
 
-            notes_obj = aubio_notes(
-                "default", win_size, hop_size, actual_samplerate)
-            notes_obj.set_param(
-                "silence",
-                params.get(
-                    "silence_threshold_db",
-                    self.default_params["silence_threshold_db"]),
-            )
-            min_ioi_calc = (
-                hop_size
+            # Calculate min_ioi in samples for librosa's `wait` parameter in onset_detect
+            # This is an approximation of aubio's minioi logic.
+            min_ioi_seconds = (
+                hop_length
                 * params.get(
                     "min_ioi_seconds_factor",
                     self.default_params["min_ioi_seconds_factor"],
                 )
             ) / float(actual_samplerate)
-            notes_obj.set_param("minioi", min_ioi_calc)
+            wait_samples = int(min_ioi_seconds * actual_samplerate / hop_length) # wait expects units of hops
 
-            # --- Note Detection Loop ---
+            # --- Onset Detection ---
+            # librosa.onset.onset_detect returns frame indices of onsets
+            # Units for onset_frames is in hop_length, so multiply by hop_length to get actual frame index
+            onset_frames_indices = librosa.onset.onset_detect(
+                y=y,
+                sr=actual_samplerate,
+                hop_length=hop_length,
+                units='frames',
+                wait=wait_samples, # wait this many hops before detecting another onset
+                # backtrack=True, # Backtrack to find the local minimum of energy before an onset
+            )
+
             detected_notes_list = []
-            frames_read_count = 0
-            while True:
-                samples, read = audio_source_obj()
-                new_note_events = notes_obj(samples)
-                for note_event in new_note_events:
-                    onset_frame = (
-                        frames_read_count - read +
-                        int(notes_obj.get_last_pos())
-                    )
-                    detected_notes_list.append(
-                        {
-                            "midi_pitch": int(note_event[0]),
-                            "velocity": int(note_event[1]),
-                            "start_frame": onset_frame,
-                        }
-                    )
-                frames_read_count += read
-                if read < hop_size:
-                    break
-
+            for onset_frame_index in onset_frames_indices:
+                # onset_frame_index is already in terms of frames if units='frames'
+                # For consistency with previous logic, we'll store "start_frame".
+                # Librosa's onset_detect doesn't give MIDI pitch or velocity.
+                # We'll assign a default or placeholder if these were essential.
+                # For now, focusing on slicing by onsets.
+                detected_notes_list.append(
+                    {
+                        "midi_pitch": 0,  # Placeholder, librosa onsets don't provide pitch
+                        "velocity": 100, # Placeholder
+                        "start_frame": onset_frame_index,
+                    }
+                )
+            
+            # frames_read_count in aubio context was total frames processed by aubio loop.
+            # Here, total_frames_in_source from _get_audio_details_for_slicing (or total_frames_in_loaded_audio)
+            # should be used for boundary checks later. For slicing, we use total_frames_in_source from the original multi-channel file.
             logger.info(
-                f"[{self.name}] Detected {len(detected_notes_list)} potential notes in recording {recording_id}."
+                f"[{self.name}] Detected {len(detected_notes_list)} onsets in recording {recording_id}."
             )
 
             # --- Estimate End Frames ---
+            # The original total_frames_in_source is from the potentially multi-channel file details.
+            # Onset detection might have been on a mono version.
+            # Slicing should use the original file's frame count (total_frames_in_source)
             for i in range(len(detected_notes_list)):
                 current_note_start = detected_notes_list[i]["start_frame"]
                 if i + 1 < len(detected_notes_list):
                     next_note_start = detected_notes_list[i + 1]["start_frame"]
+                    # Ensure end_frame doesn't precede start_frame
                     detected_notes_list[i]["end_frame"] = max(
                         current_note_start, next_note_start - 1
                     )
                 else:
-                    estimated_end = (
-                        current_note_start + actual_samplerate
-                    )  # Approx 1s duration
+                    # Estimate end: current start + 1 second, capped by total frames of original audio
+                    estimated_end = current_note_start + actual_samplerate # Approx 1s duration in frames
                     detected_notes_list[i]["end_frame"] = min(
-                        estimated_end, frames_read_count
+                        estimated_end, total_frames_in_source # Cap with original total frames
                     )
-
+            
             # --- Slicing and Saving ---
             if not os.path.exists(output_sample_dir):
                 os.makedirs(output_sample_dir)
@@ -277,7 +295,8 @@ class SlicingStage(AudioProcessingStage):
                     continue
 
                 start_frame = max(0, start_frame)
-                end_frame = min(frames_read_count, end_frame)
+                # Use total_frames_in_source for the upper bound, which is from the original audio file details
+                end_frame = min(total_frames_in_source, end_frame)
                 slice_duration_frames = end_frame - start_frame
 
                 if slice_duration_frames <= 0:
