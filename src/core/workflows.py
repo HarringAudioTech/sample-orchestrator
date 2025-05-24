@@ -255,7 +255,8 @@ try:
     register_workflow(ExampleSlicingWorkflow)
 except Exception as e:
     # Log error if registration fails, e.g. if BaseWorkflow is not fully defined
-    logger.critical(f"Failed to register ExampleSlicingWorkflow: {e}", exc_info=True)
+    logger.critical(
+        f"Failed to register ExampleSlicingWorkflow: {e}", exc_info=True)
 
 
 if __name__ == "__main__":
@@ -371,7 +372,8 @@ if __name__ == "__main__":
                 f"Key: '{wf_key}', Name: '{instance.name}', Desc: '{instance.description}'"
             )
         except Exception as e:
-            logger.error(f"Could not inspect workflow class {wf_class.__name__}: {e}")
+            logger.error(
+                f"Could not inspect workflow class {wf_class.__name__}: {e}")
 
     # --- Example Workflow Execution ---
     logger.info("\n--- Testing ExampleSlicingWorkflow ---")
@@ -468,7 +470,8 @@ if __name__ == "__main__":
 
             # SlicingStage requires db_session, recording_id, project_id, output_sample_dir in context
             mock_context = {
-                "db_session": "dummy_db_session_object (mocked)",  # In real use, an actual Session
+                # In real use, an actual Session
+                "db_session": "dummy_db_session_object (mocked)",
                 "recording_id": 1,
                 "project_id": 1,
                 "output_sample_dir": "/tmp/test_slicing_output_workflow",
@@ -500,7 +503,8 @@ if __name__ == "__main__":
                 f"Error during __main__ test of OnlySlicingWorkflow: {e}", exc_info=True
             )
     else:
-        logger.error(f"Workflow '{workflow_to_run_key}' not found in registry.")
+        logger.error(
+            f"Workflow '{workflow_to_run_key}' not found in registry.")
 
     logger.info("Workflow system demonstration finished.")
 

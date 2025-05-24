@@ -95,9 +95,11 @@ class DecentSamplerPresetGenerator:
                         f"INFO: Copied artwork: {source_artwork_path} to {dest_artwork_path}"
                     )
                 except IOError as e:
-                    print(f"ERROR: Could not copy artwork file {artwork_filename}: {e}")
+                    print(
+                        f"ERROR: Could not copy artwork file {artwork_filename}: {e}")
             else:
-                print(f"WARNING: Artwork source file not found: {source_artwork_path}")
+                print(
+                    f"WARNING: Artwork source file not found: {source_artwork_path}")
 
         # Create XML structure
         # Samples are copied within _create_groups_element, which needs samples_dir
@@ -213,7 +215,8 @@ class DecentSamplerPresetGenerator:
             for sample_model in recording_model.samples:
                 source_sample_path = sample_model.file_path
                 sample_filename = os.path.basename(source_sample_path)
-                dest_sample_path = os.path.join(samples_output_dir, sample_filename)
+                dest_sample_path = os.path.join(
+                    samples_output_dir, sample_filename)
 
                 # Attempt to copy the sample file
                 if os.path.exists(source_sample_path):

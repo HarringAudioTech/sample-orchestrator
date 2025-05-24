@@ -193,7 +193,8 @@ if __name__ == "__main__":
     if False:  # Disabled for direct execution, just for illustration
         stage = ExampleFilePathProcessor()
         print(f"Stage: {stage.name}, Description: {stage.description}")
-        print(f"Input type: {stage.input_type}, Output type: {stage.output_type}")
+        print(
+            f"Input type: {stage.input_type}, Output type: {stage.output_type}")
         print(f"Default params: {stage.default_params}")
 
         # Simulate processing
@@ -204,7 +205,8 @@ if __name__ == "__main__":
 
         run_context = {"project_id": 123, "user_id": "test_user"}
 
-        output_data = stage.process(input_data, params=run_params, context=run_context)
+        output_data = stage.process(
+            input_data, params=run_params, context=run_context)
         print(f"Processed output: {output_data}")
 
     print("AudioProcessingStage and data type constants defined.")

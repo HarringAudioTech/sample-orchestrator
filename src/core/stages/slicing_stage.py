@@ -100,7 +100,8 @@ class SlicingStage(AudioProcessingStage):
             "hop_size": 256,  # Hop size for aubio analysis
             "window_size": 512,  # FFT window size for aubio analysis
             "silence_threshold_db": -40,  # Silence threshold in dB for note detection
-            "min_ioi_seconds_factor": 2.0,  # Factor for min inter-onset interval (multiplied by hop_size/samplerate)
+            # Factor for min inter-onset interval (multiplied by hop_size/samplerate)
+            "min_ioi_seconds_factor": 2.0,
         }
 
     def process(
@@ -196,7 +197,8 @@ class SlicingStage(AudioProcessingStage):
             # Aubio might adjust samplerate if it was 0 initially, so re-assign.
             actual_samplerate = audio_source_obj.samplerate
 
-            notes_obj = aubio_notes("default", win_size, hop_size, actual_samplerate)
+            notes_obj = aubio_notes(
+                "default", win_size, hop_size, actual_samplerate)
             notes_obj.set_param(
                 "silence",
                 params.get(
@@ -220,7 +222,8 @@ class SlicingStage(AudioProcessingStage):
                 new_note_events = notes_obj(samples)
                 for note_event in new_note_events:
                     onset_frame = (
-                        frames_read_count - read + int(notes_obj.get_last_pos())
+                        frames_read_count - read +
+                        int(notes_obj.get_last_pos())
                     )
                     detected_notes_list.append(
                         {
@@ -264,7 +267,8 @@ class SlicingStage(AudioProcessingStage):
             for note_info in detected_notes_list:
                 midi_pitch = note_info["midi_pitch"]
                 start_frame = note_info["start_frame"]
-                end_frame = note_info.get("end_frame", start_frame + actual_samplerate)
+                end_frame = note_info.get(
+                    "end_frame", start_frame + actual_samplerate)
 
                 if end_frame <= start_frame:
                     logger.warning(
@@ -285,14 +289,16 @@ class SlicingStage(AudioProcessingStage):
                 count = sample_filename_counters.get(midi_pitch, 0) + 1
                 sample_filename_counters[midi_pitch] = count
                 sample_filename = f"rec_{recording_id}_sample_midi{midi_pitch}_v{note_info['velocity']}_{count}.wav"
-                output_sample_path = os.path.join(output_sample_dir, sample_filename)
+                output_sample_path = os.path.join(
+                    output_sample_dir, sample_filename)
 
                 try:
                     with wave.open(
                         data, "rb"
                     ) as wf_in:  # 'data' is the input file path
                         wf_in.setpos(start_frame)
-                        slice_audio_data = wf_in.readframes(slice_duration_frames)
+                        slice_audio_data = wf_in.readframes(
+                            slice_duration_frames)
 
                         # Use original file's channels for saving slice
                         # _get_audio_details_for_slicing returns channels from original file
@@ -305,7 +311,8 @@ class SlicingStage(AudioProcessingStage):
                                 actual_samplerate
                             )  # Use samplerate from aubio processing
                             wf_out.writeframes(slice_audio_data)
-                        logger.info(f"[{self.name}] Saved sample: {output_sample_path}")
+                        logger.info(
+                            f"[{self.name}] Saved sample: {output_sample_path}")
                 except Exception as e_slice:
                     logger.error(
                         f"[{self.name}] Error slicing/saving sample for MIDI {midi_pitch} (frames {start_frame}-{end_frame}): {e_slice}",
@@ -346,7 +353,8 @@ class SlicingStage(AudioProcessingStage):
 
         except (
             FileNotFoundError
-        ) as fnf_error:  # Should be caught before this block by os.path.exists(data)
+            # Should be caught before this block by os.path.exists(data)
+        ) as fnf_error:
             logger.error(
                 f"[{self.name}] File not found during processing: {fnf_error}",
                 exc_info=True,

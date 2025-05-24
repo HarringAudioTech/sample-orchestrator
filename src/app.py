@@ -39,15 +39,18 @@ def create_app() -> Flask:
     # --- Configuration ---
     # Determine project root to build absolute paths for data directories.
     # __file__ is src/app.py, so project_root is one level up.
-    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    project_root = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), ".."))
 
     app.config["UPLOAD_FOLDER"] = os.path.join(project_root, "data", "uploads")
-    app.config["SAMPLES_BASE_DIR"] = os.path.join(project_root, "data", "projects")
+    app.config["SAMPLES_BASE_DIR"] = os.path.join(
+        project_root, "data", "projects")
     # Example: app.config['DATABASE_URL'] = os.environ.get('DATABASE_URL', 'sqlite:///./default.db')
     # The actual DATABASE_URL is currently hardcoded in src/database/utils.py
 
     app.logger.info(f"UPLOAD_FOLDER set to: {app.config['UPLOAD_FOLDER']}")
-    app.logger.info(f"SAMPLES_BASE_DIR set to: {app.config['SAMPLES_BASE_DIR']}")
+    app.logger.info(
+        f"SAMPLES_BASE_DIR set to: {app.config['SAMPLES_BASE_DIR']}")
 
     # --- Database Initialization ---
     # This is called every time create_app() is run.
@@ -152,7 +155,8 @@ if __name__ == "__main__":
     # Example: gunicorn -w 4 "src.app:create_app()"
     current_app_instance.logger.info("Starting Flask development server...")
     current_app_instance.run(
-        debug=True,  # Enable debug mode for development (auto-reloads, debugger)
+        # Enable debug mode for development (auto-reloads, debugger)
+        debug=True,
         host="0.0.0.0",  # Listen on all available network interfaces
         port=5000,  # Standard port for Flask dev server
     )

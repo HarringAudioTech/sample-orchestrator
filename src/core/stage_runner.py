@@ -348,7 +348,8 @@ if __name__ == "__main__":
         initial_file_path, DATA_TYPE_FILE_PATH, [], shared_context
     )
     assert empty_chain_output == initial_file_path
-    logger.info(f"Empty chain output (should be initial data): {empty_chain_output}")
+    logger.info(
+        f"Empty chain output (should be initial data): {empty_chain_output}")
 
     # --- Test case: Type mismatch ---
     logger.info("\n--- Testing Type Mismatch ---")
@@ -360,9 +361,11 @@ if __name__ == "__main__":
             initial_file_path, DATA_TYPE_FILE_PATH, mismatch_chain, shared_context
         )
     except TypeError as e:
-        logger.info(f"Successfully caught expected TypeError for mismatch: {e}")
+        logger.info(
+            f"Successfully caught expected TypeError for mismatch: {e}")
     except Exception as e:
-        logger.error(f"Unexpected error during type mismatch test: {e}", exc_info=True)
+        logger.error(
+            f"Unexpected error during type mismatch test: {e}", exc_info=True)
 
     # --- Test case: Unregistered stage ---
     logger.info("\n--- Testing Unregistered Stage ---")

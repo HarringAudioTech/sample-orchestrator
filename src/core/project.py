@@ -34,7 +34,8 @@ class Project:
         db: Session = next(db_gen)
         try:
             self.project_model = (
-                db.query(ProjectModel).filter(ProjectModel.id == project_id).first()
+                db.query(ProjectModel).filter(
+                    ProjectModel.id == project_id).first()
             )
             if not self.project_model:
                 raise ValueError(f"Project with id {project_id} not found")
@@ -65,7 +66,8 @@ class Project:
         db: Session = SessionLocal()  # New session for this transaction
         try:
             if not os.path.exists(file_path):
-                raise FileNotFoundError(f"Recording file not found: {file_path}")
+                raise FileNotFoundError(
+                    f"Recording file not found: {file_path}")
 
             duration_seconds = None
             samplerate = None

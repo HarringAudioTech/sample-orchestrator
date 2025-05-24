@@ -8,7 +8,8 @@ import os
 from flask import Blueprint, request, jsonify, current_app
 from werkzeug.utils import secure_filename
 from sqlalchemy.orm import Session
-from src.database.utils import SessionLocal  # init_db is not directly used in routes
+# init_db is not directly used in routes
+from src.database.utils import SessionLocal
 from src.database.models import (
     Project as ProjectModel,
     Recording as RecordingModel,
@@ -130,7 +131,8 @@ def get_project(project_id: int):
     """
     db: Session = get_db_session()
     try:
-        project = db.query(ProjectModel).filter(ProjectModel.id == project_id).first()
+        project = db.query(ProjectModel).filter(
+            ProjectModel.id == project_id).first()
         if not project:
             return jsonify({"error": "Project not found"}), 404
         return jsonify(model_to_dict(project)), 200
@@ -190,19 +192,22 @@ def add_project_recording(project_id: int):
         "UPLOAD_FOLDER", DEFAULT_UPLOAD_BASE_DIR
     )
     # Ensure project-specific subdirectory for uploads
-    project_upload_dir = os.path.join(upload_folder_base, f"project_{project_id}")
+    project_upload_dir = os.path.join(
+        upload_folder_base, f"project_{project_id}")
 
     if not os.path.exists(project_upload_dir):
         try:
             os.makedirs(project_upload_dir)
-            current_app.logger.info(f"Created upload directory: {project_upload_dir}")
+            current_app.logger.info(
+                f"Created upload directory: {project_upload_dir}")
         except OSError as e:
             current_app.logger.error(
                 f"Error creating upload directory {project_upload_dir}: {e}",
                 exc_info=True,
             )
             return (
-                jsonify({"error": f"Could not create upload directory: {e.strerror}"}),
+                jsonify(
+                    {"error": f"Could not create upload directory: {e.strerror}"}),
                 500,
             )
 
@@ -247,7 +252,8 @@ def add_project_recording(project_id: int):
         if os.path.exists(file_path):
             try:
                 os.remove(file_path)
-                current_app.logger.info(f"Cleaned up orphaned file: {file_path}")
+                current_app.logger.info(
+                    f"Cleaned up orphaned file: {file_path}")
             except OSError as rm_e:
                 current_app.logger.error(
                     f"Error cleaning up orphaned file {file_path}: {rm_e}",
@@ -296,7 +302,8 @@ def get_recording_details(recording_id: int):
     db: Session = get_db_session()
     try:
         recording = (
-            db.query(RecordingModel).filter(RecordingModel.id == recording_id).first()
+            db.query(RecordingModel).filter(
+                RecordingModel.id == recording_id).first()
         )
         if not recording:
             return jsonify({"error": "Recording not found"}), 404
@@ -356,7 +363,8 @@ def process_recording_endpoint(recording_id: int):
 
         # --- Fetch Recording and Project ---
         recording = (
-            db.query(RecordingModel).filter(RecordingModel.id == recording_id).first()
+            db.query(RecordingModel).filter(
+                RecordingModel.id == recording_id).first()
         )
         if not recording:
             return jsonify({"error": "Recording not found"}), 404
@@ -434,7 +442,8 @@ def process_recording_endpoint(recording_id: int):
                 exc_info=True,
             )
             return (
-                jsonify({"error": f"Could not create output directory: {e.strerror}"}),
+                jsonify(
+                    {"error": f"Could not create output directory: {e.strerror}"}),
                 500,
             )
 
@@ -597,14 +606,16 @@ def list_recording_samples(recording_id: int):
     try:
         # First, verify the recording exists to provide a clear 404 if not.
         recording = (
-            db.query(RecordingModel).filter(RecordingModel.id == recording_id).first()
+            db.query(RecordingModel).filter(
+                RecordingModel.id == recording_id).first()
         )
         if not recording:
             return jsonify({"error": "Recording not found"}), 404
 
         # Then, query for its samples.
         samples = (
-            db.query(SampleModel).filter(SampleModel.recording_id == recording_id).all()
+            db.query(SampleModel).filter(
+                SampleModel.recording_id == recording_id).all()
         )
         return jsonify([model_to_dict(s) for s in samples]), 200
     finally:
@@ -624,7 +635,8 @@ def get_sample_details(sample_id: int):
     """
     db: Session = get_db_session()
     try:
-        sample = db.query(SampleModel).filter(SampleModel.id == sample_id).first()
+        sample = db.query(SampleModel).filter(
+            SampleModel.id == sample_id).first()
         if not sample:
             return jsonify({"error": "Sample not found"}), 404
         return jsonify(model_to_dict(sample)), 200

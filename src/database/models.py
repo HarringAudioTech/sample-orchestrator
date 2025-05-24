@@ -84,8 +84,10 @@ class Sample(Base):
     )  # Path to the individual sample's audio file
     start_time_seconds = Column(Float, nullable=False)
     end_time_seconds = Column(Float, nullable=False)
-    sample_type = Column(String)  # E.g., "one-shot", "loop", "multi-sample_region"
-    midi_pitch = Column(Integer, nullable=True)  # Detected or assigned MIDI pitch
+    # E.g., "one-shot", "loop", "multi-sample_region"
+    sample_type = Column(String)
+    # Detected or assigned MIDI pitch
+    midi_pitch = Column(Integer, nullable=True)
     metadata_json = Column(
         Text, nullable=True
     )  # For additional metadata like velocity, timbre, etc.
@@ -144,8 +146,10 @@ class SampleMappingItem(Base):
     sample_id = Column(Integer, ForeignKey("samples.id"), nullable=False)
     key_range_start = Column(Integer, nullable=True)  # MIDI note number
     key_range_end = Column(Integer, nullable=True)  # MIDI note number
-    velocity_range_start = Column(Integer, nullable=True)  # MIDI velocity (0-127)
-    velocity_range_end = Column(Integer, nullable=True)  # MIDI velocity (0-127)
+    velocity_range_start = Column(
+        Integer, nullable=True)  # MIDI velocity (0-127)
+    velocity_range_end = Column(
+        Integer, nullable=True)  # MIDI velocity (0-127)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     # updated_at is not strictly necessary here as this table is primarily an association table.
 
