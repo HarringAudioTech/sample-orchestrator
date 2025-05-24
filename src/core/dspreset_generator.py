@@ -7,9 +7,10 @@ from src.database.models import (
     Recording as RecordingModel,
     Sample as SampleModel,
     # SampleMapping as SampleMappingModel, # Not directly used in this file
-    SampleMappingItem as SampleMappingItemModel
+    SampleMappingItem as SampleMappingItemModel,
 )
-from typing import List # For type hinting
+from typing import List  # For type hinting
+
 
 class DecentSamplerPresetGenerator:
     """Generates Decent Sampler preset files (.dspreset) and associated file structure.
@@ -28,7 +29,9 @@ class DecentSamplerPresetGenerator:
                          will be created.
     """
 
-    def __init__(self, project: Project, instrument_data: InstrumentData, output_base_dir: str):
+    def __init__(
+        self, project: Project, instrument_data: InstrumentData, output_base_dir: str
+    ):
         """Initializes the DecentSamplerPresetGenerator.
 
         Args:
@@ -78,7 +81,7 @@ class DecentSamplerPresetGenerator:
             print(f"INFO: Created Artwork directory: {artwork_dir}")
         except OSError as e:
             print(f"ERROR: Could not create instrument directories: {e}")
-            return # Stop if base directories can't be made
+            return  # Stop if base directories can't be made
 
         # Copy Artwork
         if self.instrument_data.ui_background_image_path:
@@ -88,16 +91,20 @@ class DecentSamplerPresetGenerator:
             if os.path.exists(source_artwork_path):
                 try:
                     shutil.copy2(source_artwork_path, dest_artwork_path)
-                    print(f"INFO: Copied artwork: {source_artwork_path} to {dest_artwork_path}")
+                    print(
+                        f"INFO: Copied artwork: {source_artwork_path} to {dest_artwork_path}"
+                    )
                 except IOError as e:
                     print(f"ERROR: Could not copy artwork file {artwork_filename}: {e}")
             else:
                 print(f"WARNING: Artwork source file not found: {source_artwork_path}")
-        
+
         # Create XML structure
         # Samples are copied within _create_groups_element, which needs samples_dir
         root_element = self._create_root_element()
-        ui_element = self._create_ui_element(artwork_dir) # Pass artwork_dir for context if needed
+        ui_element = self._create_ui_element(
+            artwork_dir
+        )  # Pass artwork_dir for context if needed
         root_element.append(ui_element)
 
         groups_element = self._create_groups_element(samples_dir)
@@ -159,12 +166,12 @@ class DecentSamplerPresetGenerator:
                 relative_image_path = os.path.join("Artwork", artwork_filename)
 
                 tab_element = ET.SubElement(ui_element, "tab")
-                tab_element.set("name", "main") # Default tab name
+                tab_element.set("name", "main")  # Default tab name
                 background_element = ET.SubElement(tab_element, "background")
                 background_element.set("image", relative_image_path)
             # else:
-                # Warning about missing artwork source is handled in generate_preset()
-                # No need to duplicate here, as this method only builds XML structure.
+            # Warning about missing artwork source is handled in generate_preset()
+            # No need to duplicate here, as this method only builds XML structure.
         return ui_element
 
     def _create_groups_element(self, samples_output_dir: str) -> ET.Element:
@@ -185,18 +192,22 @@ class DecentSamplerPresetGenerator:
         groups_element = ET.Element("groups")
 
         if not self.project.project_model or not self.project.project_model.recordings:
-            print("INFO: No recordings found in the project. Groups element will be empty.")
+            print(
+                "INFO: No recordings found in the project. Groups element will be empty."
+            )
             return groups_element
 
         for recording_model in self.project.project_model.recordings:
             # Create a <group> for each recording.
             # You could add attributes to the group here, e.g., name
             group_element = ET.SubElement(groups_element, "group")
-            if recording_model.name: # Add group name if available
-                 group_element.set("name", recording_model.name)
+            if recording_model.name:  # Add group name if available
+                group_element.set("name", recording_model.name)
 
             if not recording_model.samples:
-                print(f"INFO: No samples found for recording '{recording_model.name}'. Group will be empty.")
+                print(
+                    f"INFO: No samples found for recording '{recording_model.name}'. Group will be empty."
+                )
                 continue
 
             for sample_model in recording_model.samples:
@@ -210,22 +221,28 @@ class DecentSamplerPresetGenerator:
                         shutil.copy2(source_sample_path, dest_sample_path)
                         # print(f"INFO: Copied sample: {source_sample_path} to {dest_sample_path}")
                     except IOError as e:
-                        print(f"ERROR: Could not copy sample file {sample_filename}: {e}")
-                        continue # Skip this sample if copy fails
+                        print(
+                            f"ERROR: Could not copy sample file {sample_filename}: {e}"
+                        )
+                        continue  # Skip this sample if copy fails
                 else:
-                    print(f"WARNING: Sample source file not found, skipping: {source_sample_path}")
-                    continue # Skip this sample if source doesn't exist
+                    print(
+                        f"WARNING: Sample source file not found, skipping: {source_sample_path}"
+                    )
+                    continue  # Skip this sample if source doesn't exist
 
                 # Create the <sample> XML element
                 sample_element = ET.SubElement(group_element, "sample")
-                
+
                 # Path is relative to the .dspreset file, within the 'Samples' subdirectory
                 xml_sample_path = os.path.join("Samples", sample_filename)
                 sample_element.set("path", xml_sample_path)
 
                 # Root note (MIDI note number)
                 root_note_val = sample_model.midi_pitch
-                root_note_str = str(root_note_val) if root_note_val is not None else "60" # Default to C3 (MIDI 60)
+                root_note_str = (
+                    str(root_note_val) if root_note_val is not None else "60"
+                )  # Default to C3 (MIDI 60)
                 sample_element.set("rootNote", root_note_str)
 
                 # Key range (loKey, hiKey)
@@ -239,7 +256,7 @@ class DecentSamplerPresetGenerator:
                         lo_key_str = str(mapping_item.key_range_start)
                     if mapping_item.key_range_end is not None:
                         hi_key_str = str(mapping_item.key_range_end)
-                
+
                 sample_element.set("loKey", lo_key_str)
                 sample_element.set("hiKey", hi_key_str)
 
@@ -255,7 +272,7 @@ class DecentSamplerPresetGenerator:
                 #         hi_vel_str = str(mapping_item.velocity_range_end)
                 sample_element.set("loVel", lo_vel_str)
                 sample_element.set("hiVel", hi_vel_str)
-                
+
                 # Other potential sample attributes (e.g., volume, pan, loop settings)
                 # sample_element.set("volume", "0dB") # Example
 

@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import Optional
 
+
 @dataclass
 class InstrumentData:
     """Represents metadata for a musical instrument preset.
@@ -17,6 +18,7 @@ class InstrumentData:
         ui_background_image_path: An optional absolute or relative path to an image file
                                   to be used as the UI background. Defaults to None.
     """
+
     name: str
     author: str
     version: Optional[str] = None

@@ -7,6 +7,7 @@ DATABASE_URL = "sqlite:///./database.db"
 _engine = None
 _SessionLocal = None
 
+
 def get_engine(database_url: str = None):
     """
     Retrieves or creates a SQLAlchemy engine.
@@ -29,6 +30,7 @@ def get_engine(database_url: str = None):
         _engine = create_engine(DATABASE_URL)
     return _engine
 
+
 def get_session_local(engine_instance=None) -> sessionmaker:
     """
     Retrieves or creates a SQLAlchemy sessionmaker.
@@ -48,8 +50,11 @@ def get_session_local(engine_instance=None) -> sessionmaker:
     if engine_instance:
         return sessionmaker(autocommit=False, autoflush=False, bind=engine_instance)
     if _SessionLocal is None:
-        _SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=get_engine())
+        _SessionLocal = sessionmaker(
+            autocommit=False, autoflush=False, bind=get_engine()
+        )
     return _SessionLocal
+
 
 def init_db(engine_instance=None):
     """
@@ -65,7 +70,10 @@ def init_db(engine_instance=None):
     """
     current_engine = engine_instance or get_engine()
     Base.metadata.create_all(bind=current_engine)
-    print(f"Database initialized with engine: {current_engine.url} and tables created (if they didn't exist).")
+    print(
+        f"Database initialized with engine: {current_engine.url} and tables created (if they didn't exist)."
+    )
+
 
 def get_db(engine_instance=None) -> Session:
     """
@@ -81,7 +89,7 @@ def get_db(engine_instance=None) -> Session:
 
     Yields:
         sqlalchemy.orm.Session: A new database session.
-    
+
     Example:
         ```python
         db_gen = get_db()
@@ -109,9 +117,12 @@ def get_db(engine_instance=None) -> Session:
     finally:
         db.close()
 
+
 if __name__ == "__main__":
     # This allows running this script directly to initialize the main application database.
     # Useful for initial setup or manual database recreation.
     print("Initializing main database...")
-    init_db() # Uses default engine from get_engine()
-    print("To verify, you can use a SQLite browser to open 'database.db' in the project root.")
+    init_db()  # Uses default engine from get_engine()
+    print(
+        "To verify, you can use a SQLite browser to open 'database.db' in the project root."
+    )

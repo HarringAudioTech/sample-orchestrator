@@ -34,6 +34,7 @@ and potentially its audio data (e.g., as an audio buffer or file path).
 
 # --- Abstract Base Class for Processing Stages ---
 
+
 class AudioProcessingStage(ABC):
     """
     Abstract Base Class for an audio processing stage.
@@ -149,7 +150,8 @@ class AudioProcessingStage(ABC):
         """
         pass
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     # Example of how a concrete stage might be defined (for illustration purposes):
 
     class ExampleFilePathProcessor(AudioProcessingStage):
@@ -168,7 +170,7 @@ if __name__ == '__main__':
         @property
         def output_type(self) -> str:
             return DATA_TYPE_LIST_OF_FILE_PATHS
-        
+
         @property
         def default_params(self) -> dict:
             return {"prefix": "processed_"}
@@ -176,9 +178,11 @@ if __name__ == '__main__':
         def process(self, data: str, params: dict, context: dict = None):
             # In a real scenario, 'data' would be a file path (string).
             # This example just demonstrates parameter usage.
-            print(f"Processing file: {data} with params: {params} and context: {context}")
-            output_filename = params.get("prefix", "") + data.split('/')[-1]
-            
+            print(
+                f"Processing file: {data} with params: {params} and context: {context}"
+            )
+            output_filename = params.get("prefix", "") + data.split("/")[-1]
+
             # Simulate creating a new file path or list of paths
             processed_path = f"/tmp/{output_filename}"
             print(f"Simulated output path: {processed_path}")
@@ -186,7 +190,7 @@ if __name__ == '__main__':
 
     # Instantiate and use the example processor
     # This part would typically be handled by a pipeline runner.
-    if False: # Disabled for direct execution, just for illustration
+    if False:  # Disabled for direct execution, just for illustration
         stage = ExampleFilePathProcessor()
         print(f"Stage: {stage.name}, Description: {stage.description}")
         print(f"Input type: {stage.input_type}, Output type: {stage.output_type}")
@@ -196,12 +200,14 @@ if __name__ == '__main__':
         input_data = "/path/to/my/audiofile.wav"
         # Parameters for this specific run (could merge with defaults)
         run_params = stage.default_params.copy()
-        run_params["prefix"] = "enhanced_" 
-        
+        run_params["prefix"] = "enhanced_"
+
         run_context = {"project_id": 123, "user_id": "test_user"}
 
         output_data = stage.process(input_data, params=run_params, context=run_context)
         print(f"Processed output: {output_data}")
 
     print("AudioProcessingStage and data type constants defined.")
-    print(f"Available data types: {DATA_TYPE_AUDIO_BUFFER_MONO}, {DATA_TYPE_AUDIO_BUFFER_STEREO}, {DATA_TYPE_FILE_PATH}, {DATA_TYPE_LIST_OF_FILE_PATHS}, {DATA_TYPE_LIST_OF_SAMPLE_DATA}")
+    print(
+        f"Available data types: {DATA_TYPE_AUDIO_BUFFER_MONO}, {DATA_TYPE_AUDIO_BUFFER_STEREO}, {DATA_TYPE_FILE_PATH}, {DATA_TYPE_LIST_OF_FILE_PATHS}, {DATA_TYPE_LIST_OF_SAMPLE_DATA}"
+    )
