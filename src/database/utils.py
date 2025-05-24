@@ -48,7 +48,8 @@ def get_session_local(engine_instance=None) -> sessionmaker:
     """
     global _SessionLocal
     if engine_instance:
-        return sessionmaker(autocommit=False, autoflush=False, bind=engine_instance)
+        return sessionmaker(
+            autocommit=False, autoflush=False, bind=engine_instance)
     if _SessionLocal is None:
         _SessionLocal = sessionmaker(
             autocommit=False, autoflush=False, bind=get_engine()
@@ -71,7 +72,8 @@ def init_db(engine_instance=None):
     current_engine = engine_instance or get_engine()
     Base.metadata.create_all(bind=current_engine)
     print(
-        f"Database initialized with engine: {current_engine.url} and tables created (if they didn't exist)."
+        f"Database initialized with engine: {
+            current_engine.url} and tables created (if they didn't exist)."
     )
 
 

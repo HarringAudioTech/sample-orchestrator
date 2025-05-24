@@ -30,8 +30,10 @@ class DecentSamplerPresetGenerator:
     """
 
     def __init__(
-        self, project: Project, instrument_data: InstrumentData, output_base_dir: str
-    ):
+            self,
+            project: Project,
+            instrument_data: InstrumentData,
+            output_base_dir: str):
         """Initializes the DecentSamplerPresetGenerator.
 
         Args:
@@ -92,8 +94,7 @@ class DecentSamplerPresetGenerator:
                 try:
                     shutil.copy2(source_artwork_path, dest_artwork_path)
                     print(
-                        f"INFO: Copied artwork: {source_artwork_path} to {dest_artwork_path}"
-                    )
+                        f"INFO: Copied artwork: {source_artwork_path} to {dest_artwork_path}")
                 except IOError as e:
                     print(
                         f"ERROR: Could not copy artwork file {artwork_filename}: {e}")
@@ -102,7 +103,8 @@ class DecentSamplerPresetGenerator:
                     f"WARNING: Artwork source file not found: {source_artwork_path}")
 
         # Create XML structure
-        # Samples are copied within _create_groups_element, which needs samples_dir
+        # Samples are copied within _create_groups_element, which needs
+        # samples_dir
         root_element = self._create_root_element()
         ui_element = self._create_ui_element(
             artwork_dir
@@ -120,7 +122,8 @@ class DecentSamplerPresetGenerator:
         dspreset_path = os.path.join(instrument_dir, dspreset_filename)
         try:
             tree = ET.ElementTree(root_element)
-            # ET.indent(tree, space="\t", level=0) # For pretty printing, Python 3.9+
+            # ET.indent(tree, space="\t", level=0) # For pretty printing,
+            # Python 3.9+
             tree.write(dspreset_path, encoding="UTF-8", xml_declaration=True)
             print(f"INFO: Generated preset file: {dspreset_path}")
         except IOError as e:
@@ -173,7 +176,8 @@ class DecentSamplerPresetGenerator:
                 background_element.set("image", relative_image_path)
             # else:
             # Warning about missing artwork source is handled in generate_preset()
-            # No need to duplicate here, as this method only builds XML structure.
+            # No need to duplicate here, as this method only builds XML
+            # structure.
         return ui_element
 
     def _create_groups_element(self, samples_output_dir: str) -> ET.Element:
@@ -208,7 +212,8 @@ class DecentSamplerPresetGenerator:
 
             if not recording_model.samples:
                 print(
-                    f"INFO: No samples found for recording '{recording_model.name}'. Group will be empty."
+                    f"INFO: No samples found for recording '{
+                        recording_model.name}'. Group will be empty."
                 )
                 continue
 
@@ -225,19 +230,18 @@ class DecentSamplerPresetGenerator:
                         # print(f"INFO: Copied sample: {source_sample_path} to {dest_sample_path}")
                     except IOError as e:
                         print(
-                            f"ERROR: Could not copy sample file {sample_filename}: {e}"
-                        )
+                            f"ERROR: Could not copy sample file {sample_filename}: {e}")
                         continue  # Skip this sample if copy fails
                 else:
                     print(
-                        f"WARNING: Sample source file not found, skipping: {source_sample_path}"
-                    )
+                        f"WARNING: Sample source file not found, skipping: {source_sample_path}")
                     continue  # Skip this sample if source doesn't exist
 
                 # Create the <sample> XML element
                 sample_element = ET.SubElement(group_element, "sample")
 
-                # Path is relative to the .dspreset file, within the 'Samples' subdirectory
+                # Path is relative to the .dspreset file, within the 'Samples'
+                # subdirectory
                 xml_sample_path = os.path.join("Samples", sample_filename)
                 sample_element.set("path", xml_sample_path)
 
@@ -253,7 +257,8 @@ class DecentSamplerPresetGenerator:
                 hi_key_str = root_note_str
                 if sample_model.sample_mapping_items:
                     # Assuming the first mapping item dictates the key range for this sample.
-                    # More complex logic might be needed if multiple items or complex mappings exist.
+                    # More complex logic might be needed if multiple items or
+                    # complex mappings exist.
                     mapping_item = sample_model.sample_mapping_items[0]
                     if mapping_item.key_range_start is not None:
                         lo_key_str = str(mapping_item.key_range_start)

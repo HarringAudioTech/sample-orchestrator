@@ -235,4 +235,3 @@ def test_example_slicing_workflow_definition():
     # has a type incompatibility between its defined stages if using the
     # actual NoiseReductionStage (outputs buffer) and SlicingStage (inputs file path).
     # This test only checks the definition, not its executability without mocks.
-```

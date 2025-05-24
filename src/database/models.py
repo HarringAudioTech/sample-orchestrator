@@ -98,8 +98,9 @@ class Sample(Base):
 
     recording = relationship("Recording", back_populates="samples")
     sample_mapping_items = relationship(
-        "SampleMappingItem", back_populates="sample", cascade="all, delete-orphan"
-    )
+        "SampleMappingItem",
+        back_populates="sample",
+        cascade="all, delete-orphan")
 
 
 class SampleMapping(Base):
@@ -151,7 +152,8 @@ class SampleMappingItem(Base):
     velocity_range_end = Column(
         Integer, nullable=True)  # MIDI velocity (0-127)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    # updated_at is not strictly necessary here as this table is primarily an association table.
+    # updated_at is not strictly necessary here as this table is primarily an
+    # association table.
 
     sample_mapping = relationship(
         "SampleMapping", back_populates="sample_mapping_items"
@@ -164,4 +166,5 @@ class SampleMappingItem(Base):
 # its related child objects are also deleted. If a child object is
 # disassociated from its parent (e.g., project.recordings.remove(some_recording)),
 # it will also be deleted if it's an orphan (no longer referenced by a parent).
-# This is generally useful for owned relationships like Project -> Recordings -> Samples.
+# This is generally useful for owned relationships like Project ->
+# Recordings -> Samples.

@@ -292,4 +292,3 @@ def test_execute_stage_chain_no_context_provided(registered_mock_stages):
     chain_def = [{"stage_name": "mock_stage_a"}]
     execute_stage_chain("/input.wav", DATA_TYPE_FILE_PATH, chain_def) # context=None
     assert MockStageA_FilePathToBuffer.call_log[0]["context"] == {} # Should default to empty dict
-```

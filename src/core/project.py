@@ -74,12 +74,14 @@ class Project:
             channels = None
 
             try:
-                # Use aubio to get samplerate, as it will be used for processing
+                # Use aubio to get samplerate, as it will be used for
+                # processing
                 s = source(
                     file_path, 0, 512
                 )  # hop_size = 512, samplerate = 0 (use original)
                 samplerate = s.samplerate
-                # Use wave module for duration and channels as it's more direct for these properties
+                # Use wave module for duration and channels as it's more direct
+                # for these properties
                 with wave.open(file_path, "rb") as wf:
                     frames = wf.getnframes()
                     rate_wave = wf.getframerate()
@@ -91,15 +93,15 @@ class Project:
                         samplerate = rate_wave
                     elif samplerate != rate_wave:
                         # This can happen if aubio and wave interpret file differently, or if aubio was forced to resample
-                        # For consistency, if aubio provides a samplerate, prefer it.
+                        # For consistency, if aubio provides a samplerate,
+                        # prefer it.
                         print(
-                            f"Warning: aubio samplerate {samplerate} and wave module samplerate {rate_wave} differ for {file_path}. Using aubio's."
-                        )
+                            f"Warning: aubio samplerate {samplerate} and wave module samplerate {rate_wave} differ for {file_path}. Using aubio's.")
             except Exception as e:
-                # Log error but proceed to add recording entry without full metadata if necessary
+                # Log error but proceed to add recording entry without full
+                # metadata if necessary
                 print(
-                    f"Error getting audio properties for {file_path}: {e}. Recording will be added with available metadata."
-                )
+                    f"Error getting audio properties for {file_path}: {e}. Recording will be added with available metadata.")
 
             new_recording = RecordingModel(
                 project_id=self.project_id,
@@ -184,9 +186,9 @@ class Project:
                 print(f"Created output directory: {output_sample_dir}")
             except OSError as e:
                 print(
-                    f"Error creating output directory {output_sample_dir}: {e}. Processing aborted."
-                )
-                # Optionally, update recording status to 'failed' here or let detect_and_slice_recording handle it
+                    f"Error creating output directory {output_sample_dir}: {e}. Processing aborted.")
+                # Optionally, update recording status to 'failed' here or let
+                # detect_and_slice_recording handle it
                 return
 
         # detect_and_slice_recording uses its own session management.
@@ -205,7 +207,8 @@ class Project:
 
             if not recording:
                 print(
-                    f"Recording with id {recording_id} not found for project {self.project_id}. Processing aborted."
+                    f"Recording with id {recording_id} not found for project {
+                        self.project_id}. Processing aborted."
                 )
                 return
 
@@ -214,9 +217,11 @@ class Project:
                 db_processing_session, recording_id, output_sample_dir
             )
             # The status of the 'recording' object here might be stale if detect_and_slice_recording committed changes.
-            # The caller (e.g., API route) should re-fetch the recording if it needs the latest status immediately.
+            # The caller (e.g., API route) should re-fetch the recording if it
+            # needs the latest status immediately.
         except Exception as e:
-            # General error handling for the processing call itself, though detect_and_slice should also have its own.
+            # General error handling for the processing call itself, though
+            # detect_and_slice should also have its own.
             print(
                 f"An unexpected error occurred during process_recording setup for recording {recording_id}: {e}"
             )

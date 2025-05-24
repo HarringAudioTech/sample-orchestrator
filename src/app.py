@@ -55,14 +55,17 @@ def create_app() -> Flask:
     # --- Database Initialization ---
     # This is called every time create_app() is run.
     # init_db() itself is idempotent (CREATE TABLE IF NOT EXISTS).
-    # For development, this is convenient. For production, consider CLI commands.
+    # For development, this is convenient. For production, consider CLI
+    # commands.
     with app.app_context():
         # Initialize the database and create tables.
         # The database URL is taken from src.database.utils.DATABASE_URL.
-        # get_session_local().bind.engine.url provides the actual URL being used.
+        # get_session_local().bind.engine.url provides the actual URL being
+        # used.
         init_db()
         app.logger.info(
-            f"Database initialized. DB located at: {get_session_local().bind.engine.url}"
+            f"Database initialized. DB located at: {
+                get_session_local().bind.engine.url}"
         )
 
     # --- Request-scoped Database Session (Alternative) ---
@@ -79,7 +82,8 @@ def create_app() -> Flask:
     #     if db is not None:
     #         db.close()
     #
-    # Routes would then access `g.db`. This can simplify session handling in routes.
+    # Routes would then access `g.db`. This can simplify session handling in
+    # routes.
 
     # --- Register Blueprints ---
     app.register_blueprint(projects_bp)
@@ -92,22 +96,19 @@ def create_app() -> Flask:
     def not_found_error(error):
         """Handles 404 Not Found errors with a JSON response."""
         app.logger.warning(f"404 Not Found: {request.path} (Error: {error})")
-        return (
-            jsonify(
-                {
-                    "error": "Not Found",
-                    "message": "The requested URL was not found on the server.",
-                }
-            ),
-            404,
-        )
+        return (jsonify({"error": "Not Found",
+                         "message": "The requested URL was not found on the server.",
+                         }),
+                404,
+                )
 
     @app.errorhandler(500)
     def internal_server_error(error):
         """Handles 500 Internal Server Error with a JSON response."""
         app.logger.error(
-            f"500 Internal Server Error: {request.path} (Error: {error})", exc_info=True
-        )
+            f"500 Internal Server Error: {
+                request.path} (Error: {error})",
+            exc_info=True)
         return (
             jsonify(
                 {
@@ -146,8 +147,7 @@ if __name__ == "__main__":
                 )
             except OSError as e:
                 current_app_instance.logger.error(
-                    f"Error creating data directory {folder_path}: {e}", exc_info=True
-                )
+                    f"Error creating data directory {folder_path}: {e}", exc_info=True)
                 # Depending on severity, might exit here.
 
     # Note: For production, use a dedicated WSGI server like Gunicorn or Waitress

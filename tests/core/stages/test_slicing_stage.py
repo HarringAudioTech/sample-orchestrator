@@ -306,4 +306,3 @@ def test_internal_get_audio_details_all_fail(mock_wave_open_gad_fails, mock_aubi
     with pytest.raises(ValueError, match="Could not determine audio details"):
         _get_audio_details_for_slicing("fake_path.wav")
 
-```

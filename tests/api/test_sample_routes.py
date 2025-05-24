@@ -172,26 +172,3 @@ def test_root_path_sample_routes(client):
     data = response.get_json()
     assert "message" in data
     assert "Welcome to the Audio Processing API!" in data["message"]
-```
-
-All specified unit tests (Database, Core, API) have now been created.
-The `tests/` directory structure mirrors `src/` where appropriate:
-- `tests/database/test_models.py`
-- `tests/core/test_project.py`
-- `tests/core/test_audio_processor.py` (with `tests/fixtures/dummy_audio.wav`)
-- `tests/api/test_project_routes.py`
-- `tests/api/test_recording_routes.py`
-- `tests/api/test_sample_routes.py`
-
-Key features implemented in tests:
--   In-memory SQLite database for test isolation.
--   `src/database/utils.py` was adapted to support test-specific engines.
--   `pytest` fixtures for app setup, test client, database session management, and sample data creation.
--   Mocking of external dependencies (file system, `aubio` calls, other class methods) using `unittest.mock`.
--   Flask's test client for API endpoint testing.
--   Tests for CRUD operations, relationships, core logic, and API request/response validation.
--   Error handling tests for API endpoints (e.g., resource not found, invalid input).
--   A dummy WAV file (`tests/fixtures/dummy_audio.wav`) was created and used for testing audio processing.
--   Tests clean up after themselves, primarily through the in-memory database and scoped fixtures.
-
-The subtask is now complete.

@@ -26,9 +26,11 @@ DEFAULT_SAMPLES_BASE_DIR = "data/projects"
 # --- Blueprints ---
 # Blueprint for project-related operations.
 projects_bp = Blueprint("projects", __name__, url_prefix="/projects")
-# Blueprint for recording-related operations (those not directly under a project).
+# Blueprint for recording-related operations (those not directly under a
+# project).
 recordings_bp = Blueprint("recordings", __name__, url_prefix="/recordings")
-# Blueprint for sample-related operations (those not directly under a recording).
+# Blueprint for sample-related operations (those not directly under a
+# recording).
 samples_bp = Blueprint("samples", __name__, url_prefix="/samples")
 
 
@@ -170,7 +172,8 @@ def add_project_recording(project_id: int):
         JSON: The created recording object (201) or an error message (400, 404, 500).
     """
     # Initialize CoreProject first to check if project_id is valid.
-    # CoreProject's constructor manages its own session for loading the project model.
+    # CoreProject's constructor manages its own session for loading the
+    # project model.
     try:
         core_proj = CoreProject(project_id=project_id)
     except ValueError as e:  # Raised if project not found by CoreProject
@@ -183,7 +186,8 @@ def add_project_recording(project_id: int):
     recording_name = request.form.get("name")
 
     if not recording_name:
-        return jsonify({"error": "Recording name is required in form data"}), 400
+        return jsonify(
+            {"error": "Recording name is required in form data"}), 400
     if file.filename == "":
         return jsonify({"error": "No selected file (filename is empty)"}), 400
 
@@ -230,7 +234,9 @@ def add_project_recording(project_id: int):
             file_path=file_path, name=recording_name
         )
         current_app.logger.info(
-            f"Recording '{new_recording_model.name}' (ID: {new_recording_model.id}) added to project {project_id}."
+            f"Recording '{
+                new_recording_model.name}' (ID: {
+                new_recording_model.id}) added to project {project_id}."
         )
         return jsonify(model_to_dict(new_recording_model)), 201
     except (
@@ -259,7 +265,8 @@ def add_project_recording(project_id: int):
                     f"Error cleaning up orphaned file {file_path}: {rm_e}",
                     exc_info=True,
                 )
-        return jsonify({"error": f"Could not add recording to database: {e}"}), 500
+        return jsonify(
+            {"error": f"Could not add recording to database: {e}"}), 500
 
 
 @projects_bp.route("/<int:project_id>/recordings", methods=["GET"])
@@ -381,7 +388,8 @@ def process_recording_endpoint(recording_id: int):
                 500,
             )
 
-        # Project query not strictly needed if project_id is on recording, but good for validation
+        # Project query not strictly needed if project_id is on recording, but
+        # good for validation
         project = (
             db.query(ProjectModel)
             .filter(ProjectModel.id == recording.project_id)
@@ -389,8 +397,8 @@ def process_recording_endpoint(recording_id: int):
         )
         if not project:
             current_app.logger.error(
-                f"Project {recording.project_id} associated with recording {recording_id} not found."
-            )
+                f"Project {
+                    recording.project_id} associated with recording {recording_id} not found.")
             return (
                 jsonify(
                     {"error": f"Associated project {recording.project_id} not found."}
@@ -404,8 +412,7 @@ def process_recording_endpoint(recording_id: int):
 
         if not initial_data or not os.path.exists(initial_data):
             current_app.logger.error(
-                f"Recording file path '{initial_data}' for recording {recording_id} not found or is invalid."
-            )
+                f"Recording file path '{initial_data}' for recording {recording_id} not found or is invalid.")
             return (
                 jsonify(
                     {
@@ -474,8 +481,7 @@ def process_recording_endpoint(recording_id: int):
             try:
                 workflow_instance = WorkflowClass()
                 current_app.logger.info(
-                    f"Executing {processing_type} for recording {recording_id}."
-                )
+                    f"Executing {processing_type} for recording {recording_id}.")
                 processing_result = workflow_instance.run(
                     initial_data=initial_data,
                     initial_data_type=initial_data_type,
@@ -488,7 +494,9 @@ def process_recording_endpoint(recording_id: int):
                 )
                 return (
                     jsonify(
-                        {"error": f"Failed to execute {processing_type}: {str(e)}"}
+                        {
+                            "error": f"Failed to execute {processing_type}: {
+                                str(e)}"}
                     ),
                     500,
                 )
@@ -504,8 +512,7 @@ def process_recording_endpoint(recording_id: int):
             processing_type = "ad-hoc stage chain"
             try:
                 current_app.logger.info(
-                    f"Executing {processing_type} for recording {recording_id}. Chain: {stages_chain}"
-                )
+                    f"Executing {processing_type} for recording {recording_id}. Chain: {stages_chain}")
                 processing_result = execute_stage_chain(
                     initial_data=initial_data,
                     initial_data_type=initial_data_type,
@@ -520,9 +527,10 @@ def process_recording_endpoint(recording_id: int):
                 return (
                     jsonify(
                         {
-                            "error": f"Configuration error in stage chain: {str(e)}. Available stages: {list(STAGE_REGISTRY.keys())}"
-                        }
-                    ),
+                            "error": f"Configuration error in stage chain: {
+                                str(e)}. Available stages: {
+                                list(
+                                    STAGE_REGISTRY.keys())}"}),
                     400,
                 )
             except TypeError as e:  # E.g. type mismatch between stages
@@ -541,7 +549,9 @@ def process_recording_endpoint(recording_id: int):
                 )
                 return (
                     jsonify(
-                        {"error": f"Failed to execute {processing_type}: {str(e)}"}
+                        {
+                            "error": f"Failed to execute {processing_type}: {
+                                str(e)}"}
                     ),
                     500,
                 )
@@ -586,7 +596,8 @@ def process_recording_endpoint(recording_id: int):
             f"Critical error in process_recording_endpoint for recording {recording_id}: {e}",
             exc_info=True,
         )
-        return jsonify({"error": f"An unexpected server error occurred: {str(e)}"}), 500
+        return jsonify(
+            {"error": f"An unexpected server error occurred: {str(e)}"}), 500
     finally:
         db.close()
 

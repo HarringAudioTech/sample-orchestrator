@@ -152,7 +152,8 @@ class AudioProcessingStage(ABC):
 
 
 if __name__ == "__main__":
-    # Example of how a concrete stage might be defined (for illustration purposes):
+    # Example of how a concrete stage might be defined (for illustration
+    # purposes):
 
     class ExampleFilePathProcessor(AudioProcessingStage):
         @property
@@ -179,8 +180,7 @@ if __name__ == "__main__":
             # In a real scenario, 'data' would be a file path (string).
             # This example just demonstrates parameter usage.
             print(
-                f"Processing file: {data} with params: {params} and context: {context}"
-            )
+                f"Processing file: {data} with params: {params} and context: {context}")
             output_filename = params.get("prefix", "") + data.split("/")[-1]
 
             # Simulate creating a new file path or list of paths
@@ -194,7 +194,9 @@ if __name__ == "__main__":
         stage = ExampleFilePathProcessor()
         print(f"Stage: {stage.name}, Description: {stage.description}")
         print(
-            f"Input type: {stage.input_type}, Output type: {stage.output_type}")
+            f"Input type: {
+                stage.input_type}, Output type: {
+                stage.output_type}")
         print(f"Default params: {stage.default_params}")
 
         # Simulate processing

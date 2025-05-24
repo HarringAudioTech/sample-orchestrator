@@ -66,7 +66,8 @@ class NoiseReductionStage(AudioProcessingStage):
         """
         if not isinstance(data, np.ndarray):
             # This check is good practice, though the stage runner might also do type validation
-            # based on DATA_TYPE_AUDIO_BUFFER_MONO if it were more specific (e.g. checking for np.ndarray).
+            # based on DATA_TYPE_AUDIO_BUFFER_MONO if it were more specific
+            # (e.g. checking for np.ndarray).
             logger.error(
                 f"[{self.name}] Input data is not a NumPy array, but type: {type(data)}"
             )
@@ -86,7 +87,8 @@ class NoiseReductionStage(AudioProcessingStage):
         )
 
         # Placeholder logic: slightly attenuate the signal to simulate some processing.
-        # A real implementation would use a noise reduction algorithm (e.g., spectral gating).
+        # A real implementation would use a noise reduction algorithm (e.g.,
+        # spectral gating).
         processed_data = data * 0.98  # Apply a 2% attenuation as a placeholder effect
 
         logger.info(f"[{self.name}] Placeholder noise reduction applied.")

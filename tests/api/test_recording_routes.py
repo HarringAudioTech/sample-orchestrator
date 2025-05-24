@@ -299,4 +299,3 @@ def test_process_recording_invalid_recording_file_path(app, client, sample_proje
     response = client.post(f'/recordings/{rec_id}/process', json={"workflow_name": "example_slicing_workflow"}) # Assuming example_slicing_workflow is registered
     assert response.status_code == 400
     assert "Recording file path not found or invalid" in response.get_json()["error"]
-```

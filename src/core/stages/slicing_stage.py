@@ -17,7 +17,8 @@ from src.core.processing_stages import (
 from src.core.stage_runner import register_stage
 from src.database.models import Recording as RecordingModel, Sample as SampleModel
 
-# Project model might not be needed directly if project_id is passed in context.
+# Project model might not be needed directly if project_id is passed in
+# context.
 
 # Import aubio for audio processing
 from aubio import source as aubio_source, notes as aubio_notes
@@ -41,8 +42,7 @@ def _get_audio_details_for_slicing(path: str) -> tuple[int, int, int]:
             channels == 0
         ):  # Aubio might return 0 channels for some files it can't fully parse
             logger.warning(
-                f"Aubio reported 0 channels for {path}. Attempting fallback with wave module."
-            )
+                f"Aubio reported 0 channels for {path}. Attempting fallback with wave module.")
             raise RuntimeError("Aubio reported 0 channels.")  # Force fallback
         logger.info(
             f"Audio details from Aubio for {path}: SR={samplerate}, Frames={total_frames}, Channels={channels}"
@@ -50,16 +50,14 @@ def _get_audio_details_for_slicing(path: str) -> tuple[int, int, int]:
         return samplerate, total_frames, channels
     except Exception as e_aubio:
         logger.warning(
-            f"Error getting full audio details for {path} with aubio ({e_aubio}). Falling back to wave module."
-        )
+            f"Error getting full audio details for {path} with aubio ({e_aubio}). Falling back to wave module.")
         try:
             with wave.open(path, "rb") as wf:
                 samplerate = wf.getframerate()
                 total_frames = wf.getnframes()
                 channels = wf.getnchannels()
                 logger.info(
-                    f"Audio details from wave module for {path}: SR={samplerate}, Frames={total_frames}, Channels={channels}"
-                )
+                    f"Audio details from wave module for {path}: SR={samplerate}, Frames={total_frames}, Channels={channels}")
                 return samplerate, total_frames, channels
         except Exception as e_wave:
             logger.error(
@@ -100,7 +98,8 @@ class SlicingStage(AudioProcessingStage):
             "hop_size": 256,  # Hop size for aubio analysis
             "window_size": 512,  # FFT window size for aubio analysis
             "silence_threshold_db": -40,  # Silence threshold in dB for note detection
-            # Factor for min inter-onset interval (multiplied by hop_size/samplerate)
+            # Factor for min inter-onset interval (multiplied by
+            # hop_size/samplerate)
             "min_ioi_seconds_factor": 2.0,
         }
 
@@ -148,7 +147,8 @@ class SlicingStage(AudioProcessingStage):
 
         db_session: Session = context["db_session"]
         recording_id: int = context["recording_id"]
-        # project_id: int = context["project_id"] # Not directly used in this version of slicing logic, but good to have in context
+        # project_id: int = context["project_id"] # Not directly used in this
+        # version of slicing logic, but good to have in context
         output_sample_dir: str = context["output_sample_dir"]
 
         # --- Fetch Recording and Update Status ---
@@ -184,8 +184,7 @@ class SlicingStage(AudioProcessingStage):
                 samplerate == 0 or num_channels == 0
             ):  # total_frames_in_source could be 0 for empty file
                 raise RuntimeError(
-                    f"Could not determine valid samplerate ({samplerate}Hz) or channels ({num_channels}) for {data}."
-                )
+                    f"Could not determine valid samplerate ({samplerate}Hz) or channels ({num_channels}) for {data}.")
 
             # --- Aubio Setup ---
             hop_size = params.get("hop_size", self.default_params["hop_size"])
@@ -194,7 +193,8 @@ class SlicingStage(AudioProcessingStage):
             )  # May not be used by 'default' notes method
 
             audio_source_obj = aubio_source(data, samplerate, hop_size)
-            # Aubio might adjust samplerate if it was 0 initially, so re-assign.
+            # Aubio might adjust samplerate if it was 0 initially, so
+            # re-assign.
             actual_samplerate = audio_source_obj.samplerate
 
             notes_obj = aubio_notes(
@@ -202,8 +202,8 @@ class SlicingStage(AudioProcessingStage):
             notes_obj.set_param(
                 "silence",
                 params.get(
-                    "silence_threshold_db", self.default_params["silence_threshold_db"]
-                ),
+                    "silence_threshold_db",
+                    self.default_params["silence_threshold_db"]),
             )
             min_ioi_calc = (
                 hop_size
@@ -288,7 +288,8 @@ class SlicingStage(AudioProcessingStage):
 
                 count = sample_filename_counters.get(midi_pitch, 0) + 1
                 sample_filename_counters[midi_pitch] = count
-                sample_filename = f"rec_{recording_id}_sample_midi{midi_pitch}_v{note_info['velocity']}_{count}.wav"
+                sample_filename = f"rec_{recording_id}_sample_midi{midi_pitch}_v{
+                    note_info['velocity']}_{count}.wav"
                 output_sample_path = os.path.join(
                     output_sample_dir, sample_filename)
 
@@ -301,7 +302,8 @@ class SlicingStage(AudioProcessingStage):
                             slice_duration_frames)
 
                         # Use original file's channels for saving slice
-                        # _get_audio_details_for_slicing returns channels from original file
+                        # _get_audio_details_for_slicing returns channels from
+                        # original file
                         slice_channels = num_channels
 
                         with wave.open(output_sample_path, "wb") as wf_out:
@@ -330,7 +332,9 @@ class SlicingStage(AudioProcessingStage):
                     end_time_seconds=float(end_frame) / actual_samplerate,
                     sample_type="one-shot",
                     midi_pitch=midi_pitch,
-                    metadata_json=f'{{"velocity": {note_info["velocity"]}, "source_start_frame": {start_frame}, "source_end_frame": {end_frame}}}',
+                    metadata_json=f'{
+                        {"velocity": {
+                            note_info["velocity"]}, "source_start_frame": {start_frame}, "source_end_frame": {end_frame}}}',
                 )
                 db_session.add(new_sample_db)
                 db_session.flush()  # Flush to get ID for the dict, commit happens at the end
