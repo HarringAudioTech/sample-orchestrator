@@ -8,8 +8,9 @@ The application can be run directly using `python -m src.app` for development.
 """
 
 import os
-from flask import Flask, jsonify  # g is not used in current session management
+from flask import Flask, jsonify, request  # g is not used in current session management
 from src.api.routes import projects_bp, recordings_bp, samples_bp
+from src.ui.routes import ui_bp  # Import the UI blueprint
 from src.database.utils import (
     init_db,
     get_session_local,
@@ -90,6 +91,10 @@ def create_app() -> Flask:
     app.register_blueprint(recordings_bp)
     app.register_blueprint(samples_bp)
     app.logger.info("API Blueprints registered.")
+
+    # Register UI Blueprint
+    app.register_blueprint(ui_bp, url_prefix='/ui')
+    app.logger.info(f"UI Blueprint registered with prefix /ui. Templates expected at {ui_bp.template_folder} relative to blueprint, and {app.template_folder} relative to app root.")
 
     # --- Basic Error Handling ---
     @app.errorhandler(404)
