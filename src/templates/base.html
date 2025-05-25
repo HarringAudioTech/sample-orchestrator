@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}My Orchestrator UI{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <header>
+        <h1>Orchestrator Dashboard</h1>
+        <nav>
+            <ul>
+                <li><a href="{{ url_for('ui_bp.dashboard') }}">Dashboard</a></li>
+                <li><a href="{{ url_for('ui_bp.create_project_form') }}">Create New Project</a></li>
+                <!-- Add more links here as new pages are created -->
+            </ul>
+        </nav>
+    </header>
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+    <footer>
+        <p>&copy; 2024 My Orchestrator</p>
+    </footer>
+</body>
+</html>
