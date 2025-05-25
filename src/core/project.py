@@ -1,22 +1,45 @@
 import os
 import wave
+import logging  # Added logging
+from typing import List
 from sqlalchemy.orm import Session
-from src.database.models import Project as ProjectModel, Recording as RecordingModel
+from sqlalchemy.exc import SQLAlchemyError  # To catch DB errors specifically
+from src.database.models import (
+    Project as ProjectModel,
+    Recording as RecordingModel,
+    MidiDevice as MidiDeviceModel,
+    MidiCaptureSession as MidiCaptureSessionModel,
+    MidiFile as MidiFileModel,
+)
 from src.database.utils import get_db, SessionLocal
+from src.core.midi_capture import (
+    MidiRecorder,
+    list_available_midi_devices,
+)
 from aubio import (
     source,
-)  # aubio.notes is not directly used here, but in audio_processor
+)
+
+# Configure basic logging
+# In a larger application, this would likely be configured in a central place.
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
 
 
 class Project:
     """
-    Manages operations related to a specific project, such as adding,
-    retrieving, and processing audio recordings associated with it.
+    Manages operations related to a specific project.
+
+    This includes handling audio recordings (adding, listing, processing) and
+    MIDI capture sessions (listing devices, creating sessions, listing sessions and files).
+    Each instance of this class is tied to a specific project existing in the database.
 
     Attributes:
         project_id (int): The ID of the project this instance manages.
         project_model (ProjectModel): The SQLAlchemy model instance for this project,
-                                      loaded from the database.
+                                      loaded from the database during initialization.
     """
 
     def __init__(self, project_id: int):
@@ -27,95 +50,115 @@ class Project:
             project_id (int): The ID of the project to load.
 
         Raises:
-            ValueError: If no project with the given `project_id` is found in the database.
+            ValueError: If no project with the given `project_id` is found.
+            SQLAlchemyError: If there's an issue communicating with the database.
         """
+        logger.info(f"Initializing Project core for project_id: {project_id}")
         # Uses a new session that is closed after loading.
-        db_gen = get_db()
+        # Consider if this session should be managed by the caller or be longer-lived
+        # if multiple operations are performed on the Project instance.
+        # For now, __init__ uses its own short-lived session.
+        db_gen = get_db()  # get_db() should ideally be configurable for test/prod
         db: Session = next(db_gen)
         try:
-            self.project_model = (
-                db.query(ProjectModel).filter(
-                    ProjectModel.id == project_id).first()
+            project_model = (
+                db.query(ProjectModel).filter(ProjectModel.id == project_id).first()
             )
-            if not self.project_model:
+            if not project_model:
+                logger.error(f"Project with id {project_id} not found in database.")
                 raise ValueError(f"Project with id {project_id} not found")
+            self.project_model = project_model
             self.project_id = project_id
+            logger.info(
+                f"Successfully initialized Project core for project: {self.project_model.name}"
+            )
+        except SQLAlchemyError as e:
+            logger.error(
+                f"Database error during Project initialization for project_id {project_id}: {e}"
+            )
+            raise
         finally:
-            next(db_gen, None)  # Ensure generator is exhausted and session closed
+            try:
+                next(db_gen, None)  # Ensure generator is exhausted and session closed
+            except StopIteration:  # Handle if generator is already exhausted
+                pass
 
     def add_recording(self, file_path: str, name: str) -> RecordingModel:
         """
         Adds a new audio recording to the current project.
 
-        This method extracts metadata (duration, samplerate, channels) from the
-        audio file, creates a new Recording entry in the database, and associates
+        Extracts metadata (duration, samplerate, channels) from the audio file,
+        creates a new `RecordingModel` entry in the database, and associates
         it with this project.
 
         Args:
-            file_path (str): The absolute or relative path to the audio file.
+            file_path (str): The path to the audio file.
             name (str): A user-friendly name for this recording.
 
         Returns:
-            RecordingModel: The newly created SQLAlchemy Recording model instance.
+            RecordingModel: The newly created SQLAlchemy `RecordingModel` instance.
 
         Raises:
             FileNotFoundError: If the audio file at `file_path` does not exist.
-            Exception: Can re-raise exceptions from `aubio.source` or `wave.open`
-                       if audio file metadata extraction fails for other reasons.
+            SQLAlchemyError: If any database operations fail.
+            Exception: Can re-raise exceptions from audio metadata extraction
+                       (e.g., `aubio.source`, `wave.open`) if issues occur.
         """
-        db: Session = SessionLocal()  # New session for this transaction
+        logger.info(
+            f"Adding recording '{name}' from path '{file_path}' to project ID {self.project_id}."
+        )
+        db: Session = SessionLocal()
         try:
             if not os.path.exists(file_path):
-                raise FileNotFoundError(
-                    f"Recording file not found: {file_path}")
+                logger.error(f"Recording file not found: {file_path}")
+                raise FileNotFoundError(f"Recording file not found: {file_path}")
 
             duration_seconds = None
             samplerate = None
             channels = None
 
             try:
-                # Use aubio to get samplerate, as it will be used for
-                # processing
-                s = source(
-                    file_path, 0, 512
-                )  # hop_size = 512, samplerate = 0 (use original)
+                s = source(file_path, 0, 512)
                 samplerate = s.samplerate
-                # Use wave module for duration and channels as it's more direct
-                # for these properties
                 with wave.open(file_path, "rb") as wf:
                     frames = wf.getnframes()
                     rate_wave = wf.getframerate()
                     duration_seconds = frames / float(rate_wave)
                     channels = wf.getnchannels()
-                    if (
-                        samplerate == 0
-                    ):  # If aubio couldn't determine samplerate (e.g. non-wav)
+                    if samplerate == 0:
                         samplerate = rate_wave
                     elif samplerate != rate_wave:
-                        # This can happen if aubio and wave interpret file differently, or if aubio was forced to resample
-                        # For consistency, if aubio provides a samplerate,
-                        # prefer it.
-                        print(
-                            f"Warning: aubio samplerate {samplerate} and wave module samplerate {rate_wave} differ for {file_path}. Using aubio's.")
+                        logger.warning(
+                            f"Aubio samplerate {samplerate} and wave module samplerate {rate_wave} "
+                            f"differ for {file_path}. Using aubio's."
+                        )
             except Exception as e:
-                # Log error but proceed to add recording entry without full
-                # metadata if necessary
-                print(
-                    f"Error getting audio properties for {file_path}: {e}. Recording will be added with available metadata.")
+                logger.error(
+                    f"Error getting audio properties for {file_path}: {e}. "
+                    "Recording will be added with available metadata.",
+                    exc_info=True,
+                )
 
             new_recording = RecordingModel(
                 project_id=self.project_id,
                 name=name,
-                file_path=file_path,  # Store the original path
+                file_path=file_path,
                 duration_seconds=duration_seconds,
                 samplerate=samplerate,
                 channels=channels,
-                status="pending",  # Initial status
+                status="pending",
             )
             db.add(new_recording)
             db.commit()
             db.refresh(new_recording)
+            logger.info(
+                f"Successfully added recording '{new_recording.name}' with ID {new_recording.id}."
+            )
             return new_recording
+        except SQLAlchemyError as e:
+            db.rollback()
+            logger.error(f"Database error adding recording '{name}': {e}")
+            raise
         finally:
             db.close()
 
@@ -127,9 +170,15 @@ class Project:
             recording_id (int): The ID of the recording to retrieve.
 
         Returns:
-            RecordingModel | None: The SQLAlchemy Recording model instance if found,
-                                   otherwise None.
+            RecordingModel | None: The `RecordingModel` instance if found and belonging
+                                   to this project, otherwise `None`.
+
+        Raises:
+            SQLAlchemyError: If there's an issue communicating with the database.
         """
+        logger.debug(
+            f"Retrieving recording ID {recording_id} for project ID {self.project_id}."
+        )
         db_gen = get_db()
         db: Session = next(db_gen)
         try:
@@ -141,59 +190,87 @@ class Project:
                 )
                 .first()
             )
+            if recording:
+                logger.debug(f"Found recording: {recording.name}")
+            else:
+                logger.debug(
+                    f"Recording ID {recording_id} not found for project ID {self.project_id}."
+                )
             return recording
+        except SQLAlchemyError as e:
+            logger.error(f"Database error retrieving recording ID {recording_id}: {e}")
+            raise
         finally:
-            next(db_gen, None)
+            try:
+                next(db_gen, None)
+            except StopIteration:
+                pass
 
     def list_recordings(self) -> list[RecordingModel]:
         """
         Lists all recordings associated with this project.
 
         Returns:
-            list[RecordingModel]: A list of SQLAlchemy Recording model instances.
+            list[RecordingModel]: A list of `RecordingModel` instances.
+
+        Raises:
+            SQLAlchemyError: If there's an issue communicating with the database.
         """
+        logger.debug(f"Listing all recordings for project ID {self.project_id}.")
         db_gen = get_db()
         db: Session = next(db_gen)
         try:
             recordings = (
                 db.query(RecordingModel)
                 .filter(RecordingModel.project_id == self.project_id)
+                .order_by(RecordingModel.created_at.desc())  # Example ordering
                 .all()
             )
+            logger.debug(
+                f"Found {len(recordings)} recordings for project ID {self.project_id}."
+            )
             return recordings
+        except SQLAlchemyError as e:
+            logger.error(
+                f"Database error listing recordings for project ID {self.project_id}: {e}"
+            )
+            raise
         finally:
-            next(db_gen, None)
+            try:
+                next(db_gen, None)
+            except StopIteration:
+                pass
 
     def process_recording(self, recording_id: int, output_sample_dir: str):
         """
-        Initiates the audio processing (note detection and slicing) for a specific recording.
+        Initiates audio processing for a specific recording.
 
-        This method uses the `detect_and_slice_recording` function from `audio_processor.py`.
-        It ensures the output directory for samples exists and then calls the processing function.
-        The processing function itself handles database updates for sample creation and
-        recording status changes.
+        Uses `detect_and_slice_recording` from `audio_processor.py`. Ensures the
+        output directory exists. The processing function handles DB updates for
+        samples and recording status.
 
         Args:
             recording_id (int): The ID of the recording to process.
-            output_sample_dir (str): The directory path where sliced samples should be saved.
+            output_sample_dir (str): Path where sliced samples should be saved.
+
+        Raises:
+            SQLAlchemyError: If database interaction fails during pre-check.
+            Exception: Can re-raise exceptions from `detect_and_slice_recording`.
         """
-        # Import here to avoid circular dependencies at module load time
-        from .audio_processor import detect_and_slice_recording
+        logger.info(
+            f"Initiating processing for recording ID {recording_id} in project {self.project_id}."
+        )
+        from .audio_processor import detect_and_slice_recording  # Avoid circular import
 
-        if not os.path.exists(output_sample_dir):
-            try:
-                os.makedirs(output_sample_dir)
-                print(f"Created output directory: {output_sample_dir}")
-            except OSError as e:
-                print(
-                    f"Error creating output directory {output_sample_dir}: {e}. Processing aborted.")
-                # Optionally, update recording status to 'failed' here or let
-                # detect_and_slice_recording handle it
-                return
+        try:
+            os.makedirs(output_sample_dir, exist_ok=True)
+            logger.debug(f"Ensured output directory exists: {output_sample_dir}")
+        except OSError as e:
+            logger.error(
+                f"Error creating output directory {output_sample_dir}: {e}. Processing aborted."
+            )
+            return  # Or raise custom error
 
-        # detect_and_slice_recording uses its own session management.
-        # We fetch the recording first to ensure it belongs to this project.
-        # A new session is used for this check and for the processing call.
         db_processing_session = SessionLocal()
         try:
             recording = (
@@ -206,159 +283,253 @@ class Project:
             )
 
             if not recording:
-                print(
-                    f"Recording with id {recording_id} not found for project {
-                        self.project_id}. Processing aborted."
+                logger.warning(
+                    f"Recording ID {recording_id} not found for project {self.project_id}. Processing aborted."
                 )
                 return
 
-            # Call the processing function, passing the session for it to use
+            logger.info(
+                f"Calling detect_and_slice_recording for recording ID {recording_id}."
+            )
             detect_and_slice_recording(
                 db_processing_session, recording_id, output_sample_dir
             )
-            # The status of the 'recording' object here might be stale if detect_and_slice_recording committed changes.
-            # The caller (e.g., API route) should re-fetch the recording if it
-            # needs the latest status immediately.
-        except Exception as e:
-            # General error handling for the processing call itself, though
-            # detect_and_slice should also have its own.
-            print(
-                f"An unexpected error occurred during process_recording setup for recording {recording_id}: {e}"
+            logger.info(f"Processing task submitted for recording ID {recording_id}.")
+        except SQLAlchemyError as e:  # Catch DB errors from the pre-check query
+            logger.error(
+                f"Database error in process_recording pre-check for recording {recording_id}: {e}"
             )
-            # Optionally update recording status to 'failed' if not already handled by detect_and_slice_recording
-            # For example:
-            # if recording and recording.status not in ["processed", "failed"]:
-            #     recording.status = "failed"
-            #     db_processing_session.add(recording) # Ensure it's part of session if modified
-            #     db_processing_session.commit()
+            raise
+        except Exception as e:
+            logger.error(
+                f"An unexpected error occurred during process_recording setup for recording {recording_id}: {e}",
+                exc_info=True,
+            )
+            # Consider updating recording status to 'failed' here if appropriate and not handled by called function
+            raise
         finally:
             db_processing_session.close()
 
+    # --- MIDI Capture Related Methods ---
 
-if __name__ == "__main__":
-    # Example Usage (requires a database with a project)
-    # This section is for demonstration or direct script execution testing.
-    # Ensure your database is initialized (`python -m src.database.utils`)
-    # and has at least one project.
+    def list_midi_devices(self) -> List[MidiDeviceModel]:
+        """
+        Lists available MIDI input devices and syncs them with the database.
 
-    # --- Example: Create a project first (if running this as a script) ---
-    # from src.database.utils import init_db
-    # init_db() # Run once to create tables
+        This method utilizes `list_available_midi_devices` from `midi_capture.py`,
+        which handles the discovery of devices via `mido` and their persistence
+        in the database.
 
-    # temp_db_session_gen = get_db()
-    # temp_db_session = next(temp_db_session_gen)
-    # try:
-    #     # Check if a test project exists or create one
-    #     example_project_model = temp_db_session.query(ProjectModel).filter(ProjectModel.name == "CLI Test Project").first()
-    #     if not example_project_model:
-    #         example_project_model = ProjectModel(name="CLI Test Project", description="A project for CLI testing")
-    #         temp_db_session.add(example_project_model)
-    #         temp_db_session.commit()
-    #         temp_db_session.refresh(example_project_model)
-    #         print(f"Created project with ID: {example_project_model.id}")
-    #     cli_project_id = example_project_model.id
-    # finally:
-    #     next(temp_db_session_gen, None)
-    #
-    # print(f"Using project ID for CLI test: {cli_project_id}")
-    # project_manager = Project(project_id=cli_project_id)
+        Returns:
+            List[MidiDeviceModel]: A list of `MidiDeviceModel` instances representing
+                                   all currently available MIDI input devices.
 
-    # --- Create a dummy WAV file for testing add_recording ---
-    # import soundfile as sf # You might need to pip install soundfile
-    # dummy_file_path = "dummy_cli_audio.wav"
-    # if not os.path.exists(dummy_file_path):
-    #     sf.write(dummy_file_path, [0.0] * 44100, 44100, subtype='PCM_16') # 1 second of silence
-    #     print(f"Created dummy audio file: {dummy_file_path}")
+        Raises:
+            SQLAlchemyError: If database interaction fails within `list_available_midi_devices`.
+            Exception: If `mido` backend calls fail within `list_available_midi_devices`.
+        """
+        logger.info(f"Listing MIDI devices for project ID {self.project_id}.")
+        db: Session = SessionLocal()
+        try:
+            devices = list_available_midi_devices(db)
+            logger.info(f"Found {len(devices)} MIDI devices.")
+            return devices
+        except Exception as e:
+            logger.error(
+                f"Error listing MIDI devices in Project.list_midi_devices: {e}",
+                exc_info=True,
+            )
+            raise
+        finally:
+            db.close()
 
-    # try:
-    #     print(f"\nListing recordings before adding: {len(project_manager.list_recordings())} recordings.")
-    #     new_rec = project_manager.add_recording(file_path=dummy_file_path, name="CLI Test Recording 1")
-    #     print(f"Added recording: ID {new_rec.id}, Name: {new_rec.name}, Duration: {new_rec.duration_seconds}s, Status: {new_rec.status}")
+    def create_midi_capture_session(
+        self, session_name: str, selected_device_names: list[str]
+    ) -> MidiRecorder:
+        """
+        Initializes a `MidiRecorder` for a new MIDI capture session.
 
-    #     retrieved_rec = project_manager.get_recording(new_rec.id)
-    #     if retrieved_rec:
-    #         print(f"Retrieved recording: {retrieved_rec.name}")
-    #     else:
-    #         print(f"Could not retrieve recording ID {new_rec.id}")
+        A `MidiCaptureSessionModel` entry is created in the database via the
+        `MidiRecorder`'s constructor. The database session used for this
+        initialization is then closed. The returned `MidiRecorder` instance
+        requires a new database session to be passed to its `start_recording`
+        and `stop_recording` methods by the caller.
 
-    #     print(f"Listing recordings after adding: {len(project_manager.list_recordings())} recordings.")
+        Args:
+            session_name (str): The user-defined name for the new MIDI capture session.
+            selected_device_names (list[str]): A list of names of MIDI input devices
+                                               to be used for this session. These devices
+                                               should exist in the database (e.g., by prior
+                                               call to `list_midi_devices`).
 
-    #     # --- Test processing (requires audio_processor.py and its dependencies) ---
-    #     if new_rec:
-    #         output_dir_cli = f"data/projects/{cli_project_id}/samples_cli_test_rec_{new_rec.id}"
-    #         # Ensure base data directory exists if not managed by app startup
-    #         if not os.path.exists(f"data/projects/{cli_project_id}"):
-    #             os.makedirs(f"data/projects/{cli_project_id}", exist_ok=True)
+        Returns:
+            MidiRecorder: An instance of `MidiRecorder` configured for the new session.
 
-    #         print(f"\nAttempting to process recording ID: {new_rec.id} into {output_dir_cli}")
-    #         project_manager.process_recording(new_rec.id, output_dir_cli)
+        Raises:
+            ValueError: If `project_id` is invalid, or if no valid devices are found
+                        based on `selected_device_names` (raised by `MidiRecorder`).
+            SQLAlchemyError: If database operations fail during `MidiRecorder` initialization.
+        """
+        logger.info(
+            f"Creating MIDI capture session '{session_name}' for project ID {self.project_id} "
+            f"with devices: {selected_device_names}"
+        )
+        db: Session = SessionLocal()
+        try:
+            recorder = MidiRecorder(
+                project_id=self.project_id,
+                selected_device_names=selected_device_names,
+                session_name=session_name,
+                db=db,
+            )
+            logger.info(
+                f"Successfully initialized MidiRecorder for session '{session_name}'."
+            )
+            return recorder
+        except Exception as e:
+            logger.error(
+                f"Error creating MIDI capture session '{session_name}' in Project: {e}",
+                exc_info=True,
+            )
+            raise
+        finally:
+            db.close()
 
-    #         # Verify status and samples (requires a new session to see committed changes from process_recording)
-    #         verify_db_gen = get_db()
-    #         verify_db = next(verify_db_gen)
-    #         try:
-    #             updated_rec_status = verify_db.query(RecordingModel.status).filter(RecordingModel.id == new_rec.id).scalar()
-    #             print(f"Status of recording {new_rec.id} after processing attempt: {updated_rec_status}")
-    #             samples_from_db = verify_db.query(SampleModel).filter(SampleModel.recording_id == new_rec.id).all()
-    #             print(f"Found {len(samples_from_db)} samples in DB for recording {new_rec.id}.")
-    #             for s_db in samples_from_db:
-    #                 print(f"  - Sample: {s_db.name}, Path: {s_db.file_path}")
-    #         finally:
-    #             next(verify_db_gen, None)
-    #         print(f"Check filesystem for samples in: {output_dir_cli}")
+    def list_midi_capture_sessions(self) -> List[MidiCaptureSessionModel]:
+        """
+        Lists all MIDI capture sessions associated with the current project.
 
-    # except ValueError as e:
-    #     print(f"ValueError: {e}")
-    # except FileNotFoundError as e:
-    #     print(f"FileNotFoundError: {e}")
-    # except Exception as e:
-    #     print(f"An unexpected error occurred during CLI example: {e}")
-    #     import traceback
-    #     traceback.print_exc()
-    # finally:
-    #     if os.path.exists(dummy_file_path):
-    #         # os.remove(dummy_file_path) # Keep it for multiple runs if desired
-    #         # print(f"Cleaned up dummy audio file: {dummy_file_path}")
-    #         pass
-    # Example Usage (requires a database with a project)
-    # First, ensure your database is initialized and has a project
-    # from src.database.utils import init_db
-    # init_db() # Make sure this is run once to create tables
+        Returns:
+            List[MidiCaptureSessionModel]: A list of `MidiCaptureSessionModel` instances,
+                                           ordered by creation date (most recent first).
 
-    # db_session = SessionLocal()
-    # example_project = ProjectModel(name="Test Project", description="A project for testing")
-    # db_session.add(example_project)
-    # db_session.commit()
-    # project_id = example_project.id
-    # db_session.close()
+        Raises:
+            SQLAlchemyError: If there's an issue communicating with the database.
+        """
+        logger.debug(f"Listing MIDI capture sessions for project ID {self.project_id}.")
+        db: Session = SessionLocal()
+        try:
+            sessions = (
+                db.query(MidiCaptureSessionModel)
+                .filter(MidiCaptureSessionModel.project_id == self.project_id)
+                .order_by(MidiCaptureSessionModel.created_at.desc())
+                .all()
+            )
+            logger.debug(
+                f"Found {len(sessions)} MIDI capture sessions for project ID {self.project_id}."
+            )
+            return sessions
+        except SQLAlchemyError as e:
+            logger.error(
+                f"Database error listing MIDI capture sessions for project ID {self.project_id}: {e}"
+            )
+            raise
+        finally:
+            db.close()
 
-    # print(f"Using project ID: {project_id}")
+    def get_midi_capture_session(
+        self, session_id: int
+    ) -> MidiCaptureSessionModel | None:
+        """
+        Retrieves a specific MIDI capture session by its ID.
 
-    # project_manager = Project(project_id=project_id)
+        Ensures that the retrieved session belongs to the current project.
 
-    # Create a dummy wav file for testing
-    # import soundfile as sf
-    # dummy_file_path = "dummy_audio.wav"
-    # sf.write(dummy_file_path, [0.0] * 44100, 44100) # 1 second of silence
+        Args:
+            session_id (int): The ID of the MIDI capture session to retrieve.
 
-    # try:
-    #     print(f"Listing recordings before adding: {project_manager.list_recordings()}")
-    #     new_rec = project_manager.add_recording(file_path=dummy_file_path, name="Test Recording 1")
-    #     print(f"Added recording: {new_rec.id}, Name: {new_rec.name}, Duration: {new_rec.duration_seconds}s, Status: {new_rec.status}")
-    #     retrieved_rec = project_manager.get_recording(new_rec.id)
-    #     print(f"Retrieved recording: {retrieved_rec.name}")
-    #     print(f"Listing recordings after adding: {project_manager.list_recordings()}")
+        Returns:
+            MidiCaptureSessionModel | None: The `MidiCaptureSessionModel` instance
+                                             if found and belonging to this project,
+                                             otherwise `None`.
 
-    # Test processing (will be fully implemented later)
-    # output_dir = f"data/projects/{project_id}/samples"
-    # project_manager.process_recording(new_rec.id, output_dir)
-    # print(f"Called process_recording for recording {new_rec.id}. Check status in DB and files in {output_dir}")
+        Raises:
+            SQLAlchemyError: If there's an issue communicating with the database.
+        """
+        logger.debug(
+            f"Retrieving MIDI capture session ID {session_id} for project ID {self.project_id}."
+        )
+        db: Session = SessionLocal()
+        try:
+            session = (
+                db.query(MidiCaptureSessionModel)
+                .filter(
+                    MidiCaptureSessionModel.id == session_id,
+                    MidiCaptureSessionModel.project_id == self.project_id,
+                )
+                .first()
+            )
+            if session:
+                logger.debug(f"Found MIDI capture session: {session.name}")
+            else:
+                logger.debug(
+                    f"MIDI capture session ID {session_id} not found for project ID {self.project_id}."
+                )
+            return session
+        except SQLAlchemyError as e:
+            logger.error(
+                f"Database error retrieving MIDI capture session ID {session_id}: {e}"
+            )
+            raise
+        finally:
+            db.close()
 
-    # except ValueError as e:
-    #     print(f"Error: {e}")
-    # except FileNotFoundError as e:
-    #     print(f"Error: {e}")
-    # finally:
-    #     if os.path.exists(dummy_file_path):
-    #         os.remove(dummy_file_path)
-    pass
+    def get_midi_files_for_session(self, session_id: int) -> List[MidiFileModel]:
+        """
+        Retrieves all MIDI data entries associated with a specific MIDI capture session.
+
+        This method first verifies that the session belongs to the current project.
+        The returned `MidiFileModel` instances will contain the raw MIDI data
+        in their `midi_data` attribute.
+
+        Args:
+            session_id (int): The ID of the MIDI capture session whose MIDI data entries
+                              are to be retrieved.
+
+        Returns:
+            List[MidiFileModel]: A list of `MidiFileModel` instances, each representing
+                                  a stored MIDI recording (containing binary MIDI data).
+                                  The list is ordered by creation date (oldest first).
+                                  Returns an empty list if the session is not found,
+                                  does not belong to this project, or has no associated MIDI data.
+
+        Raises:
+            SQLAlchemyError: If there's an issue communicating with the database.
+        """
+        logger.debug(
+            f"Retrieving MIDI files for session ID {session_id} (project ID {self.project_id})."
+        )
+        db: Session = SessionLocal()
+        try:
+            capture_session = (
+                db.query(MidiCaptureSessionModel)
+                .filter(
+                    MidiCaptureSessionModel.id == session_id,
+                    MidiCaptureSessionModel.project_id == self.project_id,
+                )
+                .first()
+            )
+
+            if not capture_session:
+                logger.warning(
+                    f"MIDI capture session ID {session_id} not found or does not belong to project ID {self.project_id}."
+                )
+                return []
+
+            midi_files = (
+                db.query(MidiFileModel)
+                .filter(MidiFileModel.midi_capture_session_id == session_id)
+                .order_by(MidiFileModel.created_at.asc())
+                .all()
+            )
+            logger.debug(
+                f"Found {len(midi_files)} MIDI files for session ID {session_id}."
+            )
+            return midi_files
+        except SQLAlchemyError as e:
+            logger.error(
+                f"Database error retrieving MIDI files for session ID {session_id}: {e}"
+            )
+            raise
+        finally:
+            db.close()

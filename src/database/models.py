@@ -7,6 +7,7 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    LargeBinary,  # Added LargeBinary
 )
 from sqlalchemy.orm import relationship, declarative_base
 from sqlalchemy.sql import func
@@ -98,9 +99,8 @@ class Sample(Base):
 
     recording = relationship("Recording", back_populates="samples")
     sample_mapping_items = relationship(
-        "SampleMappingItem",
-        back_populates="sample",
-        cascade="all, delete-orphan")
+        "SampleMappingItem", back_populates="sample", cascade="all, delete-orphan"
+    )
 
 
 class SampleMapping(Base):
@@ -147,10 +147,8 @@ class SampleMappingItem(Base):
     sample_id = Column(Integer, ForeignKey("samples.id"), nullable=False)
     key_range_start = Column(Integer, nullable=True)  # MIDI note number
     key_range_end = Column(Integer, nullable=True)  # MIDI note number
-    velocity_range_start = Column(
-        Integer, nullable=True)  # MIDI velocity (0-127)
-    velocity_range_end = Column(
-        Integer, nullable=True)  # MIDI velocity (0-127)
+    velocity_range_start = Column(Integer, nullable=True)  # MIDI velocity (0-127)
+    velocity_range_end = Column(Integer, nullable=True)  # MIDI velocity (0-127)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     # updated_at is not strictly necessary here as this table is primarily an
     # association table.
@@ -168,3 +166,78 @@ class SampleMappingItem(Base):
 # it will also be deleted if it's an orphan (no longer referenced by a parent).
 # This is generally useful for owned relationships like Project ->
 # Recordings -> Samples.
+
+
+class MidiDevice(Base):
+    """
+    Represents a MIDI input device.
+    """
+
+    __tablename__ = "midi_devices"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    name = Column(String, nullable=False, unique=True)
+    system_identifier = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    midi_files = relationship("MidiFile", back_populates="device")
+
+
+class MidiCaptureSession(Base):
+    """
+    Represents a session of capturing MIDI data.
+    """
+
+    __tablename__ = "midi_capture_sessions"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    name = Column(String, nullable=False)
+    start_time = Column(DateTime(timezone=True), nullable=True)
+    end_time = Column(DateTime(timezone=True), nullable=True)
+    status = Column(
+        String, nullable=False, default="pending"
+    )  # e.g., "pending", "recording", "completed", "failed"
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    project = relationship("Project", back_populates="midi_capture_sessions")
+    midi_files = relationship(
+        "MidiFile", back_populates="capture_session", cascade="all, delete-orphan"
+    )
+
+
+class MidiFile(Base):
+    """
+    Represents MIDI data recorded during a capture session from a specific device.
+
+    The actual MIDI data is stored in the `midi_data` attribute as binary (blob) content.
+    """
+
+    __tablename__ = "midi_files"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    midi_capture_session_id = Column(
+        Integer, ForeignKey("midi_capture_sessions.id"), nullable=False
+    )
+    midi_device_id = Column(Integer, ForeignKey("midi_devices.id"), nullable=False)
+    channel_number = Column(Integer, nullable=False)
+    midi_data = Column(LargeBinary, nullable=False)  # Replaced file_path with midi_data
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    capture_session = relationship("MidiCaptureSession", back_populates="midi_files")
+    device = relationship("MidiDevice", back_populates="midi_files")
+
+
+# Add relationship to Project model
+Project.midi_capture_sessions = relationship(
+    "MidiCaptureSession", back_populates="project", cascade="all, delete-orphan"
+)
