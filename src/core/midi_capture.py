@@ -18,8 +18,8 @@ from src.database.utils import SessionLocal
 # Configure basic logging
 # In a larger application, this would likely be configured in a central place.
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -71,24 +71,26 @@ def list_available_midi_devices(db: Session) -> list[MidiDevice]:
 
     try:
         for name in device_names:
-            device = db.query(MidiDevice).filter(MidiDevice.name == name).first()
+            device = db.query(MidiDevice).filter(
+                MidiDevice.name == name).first()
             if device:
                 logger.debug(
-                    f"MIDI device '{name}' found in database. Updating timestamp."
-                )
+                    f"MIDI device '{name}' found in database. Updating timestamp.")
                 device.updated_at = datetime.datetime.utcnow()
                 db.add(device)
             else:
-                logger.info(f"New MIDI device '{name}' detected. Adding to database.")
-                # Assuming name can serve as a basic system_identifier initially
+                logger.info(
+                    f"New MIDI device '{name}' detected. Adding to database.")
+                # Assuming name can serve as a basic system_identifier
+                # initially
                 device = MidiDevice(name=name, system_identifier=name)
                 db.add(device)
             found_or_created_devices.append(device)
 
         db.commit()
         logger.info(
-            f"Successfully synchronized {len(found_or_created_devices)} MIDI devices with the database."
-        )
+            f"Successfully synchronized {
+                len(found_or_created_devices)} MIDI devices with the database.")
     except SQLAlchemyError as e:
         db.rollback()
         logger.error(f"Database error while synchronizing MIDI devices: {e}")
@@ -123,7 +125,8 @@ def get_midi_device_by_name(db: Session, name: str) -> MidiDevice | None:
         logger.error(f"Database error querying for MIDI device '{name}': {e}")
         raise
     except Exception as e:  # Should be rare, but good practice
-        logger.error(f"Unexpected error querying for MIDI device '{name}': {e}")
+        logger.error(
+            f"Unexpected error querying for MIDI device '{name}': {e}")
         raise
 
 
@@ -193,7 +196,9 @@ class MidiRecorder:
             )
             if not project:
                 logger.error(f"Project with ID {self.project_id} not found.")
-                raise ValueError(f"Project with ID {self.project_id} not found.")
+                raise ValueError(
+                    f"Project with ID {
+                        self.project_id} not found.")
 
             self.capture_session = MidiCaptureSession(
                 project_id=self.project_id,
@@ -204,8 +209,9 @@ class MidiRecorder:
             db.flush()  # Obtain capture_session.id for path generation if needed early
 
             logger.info(
-                f"Created MidiCaptureSession '{self.session_name}' with ID {self.capture_session.id}."
-            )
+                f"Created MidiCaptureSession '{
+                    self.session_name}' with ID {
+                    self.capture_session.id}.")
 
             resolved_devices = []
             for device_name in self.selected_device_names:
@@ -214,8 +220,7 @@ class MidiRecorder:
                     resolved_devices.append(device)
                 else:
                     logger.warning(
-                        f"MIDI device '{device_name}' not found in database. It will be skipped."
-                    )
+                        f"MIDI device '{device_name}' not found in database. It will be skipped.")
 
             if not resolved_devices:
                 db.rollback()
@@ -237,11 +242,14 @@ class MidiRecorder:
 
         except SQLAlchemyError as e:
             db.rollback()
-            logger.error(f"Database error during MidiRecorder initialization: {e}")
+            logger.error(
+                f"Database error during MidiRecorder initialization: {e}")
             raise
         except ValueError as ve:  # Specific ValueErrors already logged by their source
-            # db.rollback() # Rollback handled by specific error locations or not needed if before add.
-            logger.error(f"Value error during MidiRecorder initialization: {ve}")
+            # db.rollback() # Rollback handled by specific error locations or
+            # not needed if before add.
+            logger.error(
+                f"Value error during MidiRecorder initialization: {ve}")
             raise
         except Exception as e:
             db.rollback()
@@ -322,20 +330,20 @@ class MidiRecorder:
         try:
             os.makedirs(device_specific_dir, exist_ok=True)
             logger.debug(
-                f"Ensured device-specific directory exists: {device_specific_dir}"
-            )
+                f"Ensured device-specific directory exists: {device_specific_dir}")
         except OSError as e:
             logger.error(
-                f"Failed to create device-specific directory {device_specific_dir}: {e}"
-            )
+                f"Failed to create device-specific directory {device_specific_dir}: {e}")
             raise
 
-        filename = f"channel_{channel if channel >= 0 else 'sys'}.mid"  # Handle system messages channel (-1)
+        # Handle system messages channel (-1)
+        filename = f"channel_{channel if channel >= 0 else 'sys'}.mid"
         return os.path.join(device_specific_dir, filename)
 
     # The _get_output_directory method is kept for potential future use (e.g., storing
     # other session-related files, or if the directory structure itself is useful metadata),
-    # even though MIDI files themselves are now stored as blobs in the database.
+    # even though MIDI files themselves are now stored as blobs in the
+    # database.
 
     def start_recording(self, db: Session):
         """
@@ -353,7 +361,8 @@ class MidiRecorder:
             Exception: Can re-raise errors from `mido.open_input`.
         """
         if self.active:
-            logger.warning("Start recording called but recording is already active.")
+            logger.warning(
+                "Start recording called but recording is already active.")
             return
         if not self.capture_session:
             logger.error(
@@ -363,29 +372,33 @@ class MidiRecorder:
                 "MidiRecorder not properly initialized (no capture session)."
             )
         if not self.target_devices:
-            logger.warning("No target devices configured for recording. Cannot start.")
+            logger.warning(
+                "No target devices configured for recording. Cannot start.")
             return
 
         logger.info(
-            f"Starting MIDI recording for session ID: {self.capture_session.id}"
-        )
+            f"Starting MIDI recording for session ID: {
+                self.capture_session.id}")
         opened_ports_count = 0
         try:
             for device_model in self.target_devices:
                 try:
                     port = mido.open_input(
                         device_model.name,
-                        callback=lambda msg, dn=device_model.name: self._midi_callback(
-                            msg, dn
-                        ),
+                        callback=lambda msg,
+                        dn=device_model.name: self._midi_callback(
+                            msg,
+                            dn),
                     )
                     self.midi_inputs[device_model.name] = port
                     opened_ports_count += 1
-                    logger.info(f"Successfully opened MIDI input: {device_model.name}")
+                    logger.info(
+                        f"Successfully opened MIDI input: {
+                            device_model.name}")
                 except Exception as e:
                     logger.error(
-                        f"Error opening MIDI device {device_model.name}: {e}. This device will be skipped."
-                    )
+                        f"Error opening MIDI device {
+                            device_model.name}: {e}. This device will be skipped.")
 
             if opened_ports_count == 0:
                 self.capture_session.status = "failed"
@@ -403,8 +416,9 @@ class MidiRecorder:
             db.add(self.capture_session)
             db.commit()
             logger.info(
-                f"Recording started for session: '{self.capture_session.name}' (ID: {self.capture_session.id})"
-            )
+                f"Recording started for session: '{
+                    self.capture_session.name}' (ID: {
+                    self.capture_session.id})")
 
         except SQLAlchemyError as e:
             db.rollback()
@@ -415,7 +429,9 @@ class MidiRecorder:
             self.midi_inputs.clear()
             raise
         except Exception as e:
-            logger.error(f"Generic error in start_recording: {e}", exc_info=True)
+            logger.error(
+                f"Generic error in start_recording: {e}",
+                exc_info=True)
             if self.capture_session and self.capture_session.status != "failed":
                 self.capture_session.status = "failed"
                 self.capture_session.updated_at = datetime.datetime.utcnow()
@@ -443,7 +459,8 @@ class MidiRecorder:
             device_name (str): The name of the MIDI device that sent the message.
         """
         if not self.active:
-            # logger.debug("MIDI callback called while not active. Ignoring message.") # Can be too verbose
+            # logger.debug("MIDI callback called while not active. Ignoring
+            # message.") # Can be too verbose
             return
 
         # logger.debug(f"MIDI from {device_name}: {msg}") # Can be very verbose
@@ -458,12 +475,13 @@ class MidiRecorder:
 
             if file_key not in self.midi_files:
                 mido_file = mido.MidiFile(type=1)
-                track_name = f"{sanitize_filename(device_name)}_ch{channel if channel >=0 else 'sys'}"
+                track_name = f"{
+                    sanitize_filename(device_name)}_ch{
+                    channel if channel >= 0 else 'sys'}"
                 mido_file.add_track(name=track_name)
                 self.midi_files[file_key] = mido_file
                 logger.debug(
-                    f"Created new mido.MidiFile for device '{device_name}', channel {channel}."
-                )
+                    f"Created new mido.MidiFile for device '{device_name}', channel {channel}.")
 
             self.midi_files[file_key].tracks[0].append(msg)
 
@@ -504,39 +522,37 @@ class MidiRecorder:
             )
 
         logger.info(
-            f"Stopping MIDI recording for session ID: {self.capture_session.id}"
-        )
+            f"Stopping MIDI recording for session ID: {
+                self.capture_session.id}")
         try:
             for device_name, port in self.midi_inputs.items():
                 try:
                     port.close()
                     logger.info(f"Closed MIDI input: {device_name}")
                 except Exception as e:
-                    logger.error(f"Error closing MIDI device {device_name}: {e}")
+                    logger.error(
+                        f"Error closing MIDI device {device_name}: {e}")
             self.midi_inputs.clear()
 
             saved_file_count = 0
             if not self.midi_files:
-                logger.info("No MIDI messages were captured during this session.")
+                logger.info(
+                    "No MIDI messages were captured during this session.")
 
             for (device_name, channel), mido_file_obj in self.midi_files.items():
                 device_model = next(
-                    (dev for dev in self.target_devices if dev.name == device_name),
-                    None,
-                )
+                    (dev for dev in self.target_devices if dev.name == device_name), None, )
 
                 if not device_model:
                     logger.error(
-                        f"Critical: Could not find device model for {device_name} during stop_recording. Skipping saving its MIDI file."
-                    )
+                        f"Critical: Could not find device model for {device_name} during stop_recording. Skipping saving its MIDI file.")
                     continue
 
                 # Removed: filepath = self._get_midi_filepath(device_name, channel)
                 try:
                     if not mido_file_obj.tracks or not mido_file_obj.tracks[0]:
                         logger.info(
-                            f"No messages recorded for {device_name}, channel {channel}. Skipping database save."
-                        )
+                            f"No messages recorded for {device_name}, channel {channel}. Skipping database save.")
                         continue
 
                     # Serialize MIDI data to bytes
@@ -546,8 +562,8 @@ class MidiRecorder:
                     midi_buffer.close()
 
                     logger.info(
-                        f"Serialized MIDI data for device {device_name}, channel {channel} for database storage ({len(binary_midi_data)} bytes)."
-                    )
+                        f"Serialized MIDI data for device {device_name}, channel {channel} for database storage ({
+                            len(binary_midi_data)} bytes).")
 
                     new_midi_file_record = MidiFile(
                         midi_capture_session_id=self.capture_session.id,
@@ -574,15 +590,17 @@ class MidiRecorder:
             db.add(self.capture_session)
             db.commit()
             logger.info(
-                f"Recording stopped for session: '{self.capture_session.name}'. {saved_file_count} MIDI file(s) saved."
-            )
+                f"Recording stopped for session: '{
+                    self.capture_session.name}'. {saved_file_count} MIDI file(s) saved.")
 
         except SQLAlchemyError as e:
             db.rollback()
             logger.error(f"Database error during stop_recording: {e}")
             raise
         except Exception as e:
-            logger.error(f"Generic error in stop_recording: {e}", exc_info=True)
+            logger.error(
+                f"Generic error in stop_recording: {e}",
+                exc_info=True)
             if self.capture_session:
                 self.capture_session.status = "failed"
                 self.capture_session.updated_at = datetime.datetime.utcnow()

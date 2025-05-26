@@ -23,8 +23,8 @@ from aubio import (
 # Configure basic logging
 # In a larger application, this would likely be configured in a central place.
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -62,24 +62,25 @@ class Project:
         db: Session = next(db_gen)
         try:
             project_model = (
-                db.query(ProjectModel).filter(ProjectModel.id == project_id).first()
-            )
+                db.query(ProjectModel).filter(
+                    ProjectModel.id == project_id).first())
             if not project_model:
-                logger.error(f"Project with id {project_id} not found in database.")
+                logger.error(
+                    f"Project with id {project_id} not found in database.")
                 raise ValueError(f"Project with id {project_id} not found")
             self.project_model = project_model
             self.project_id = project_id
             logger.info(
-                f"Successfully initialized Project core for project: {self.project_model.name}"
-            )
+                f"Successfully initialized Project core for project: {
+                    self.project_model.name}")
         except SQLAlchemyError as e:
             logger.error(
-                f"Database error during Project initialization for project_id {project_id}: {e}"
-            )
+                f"Database error during Project initialization for project_id {project_id}: {e}")
             raise
         finally:
             try:
-                next(db_gen, None)  # Ensure generator is exhausted and session closed
+                # Ensure generator is exhausted and session closed
+                next(db_gen, None)
             except StopIteration:  # Handle if generator is already exhausted
                 pass
 
@@ -105,13 +106,14 @@ class Project:
                        (e.g., `aubio.source`, `wave.open`) if issues occur.
         """
         logger.info(
-            f"Adding recording '{name}' from path '{file_path}' to project ID {self.project_id}."
-        )
+            f"Adding recording '{name}' from path '{file_path}' to project ID {
+                self.project_id}.")
         db: Session = SessionLocal()
         try:
             if not os.path.exists(file_path):
                 logger.error(f"Recording file not found: {file_path}")
-                raise FileNotFoundError(f"Recording file not found: {file_path}")
+                raise FileNotFoundError(
+                    f"Recording file not found: {file_path}")
 
             duration_seconds = None
             samplerate = None
@@ -152,8 +154,9 @@ class Project:
             db.commit()
             db.refresh(new_recording)
             logger.info(
-                f"Successfully added recording '{new_recording.name}' with ID {new_recording.id}."
-            )
+                f"Successfully added recording '{
+                    new_recording.name}' with ID {
+                    new_recording.id}.")
             return new_recording
         except SQLAlchemyError as e:
             db.rollback()
@@ -177,8 +180,8 @@ class Project:
             SQLAlchemyError: If there's an issue communicating with the database.
         """
         logger.debug(
-            f"Retrieving recording ID {recording_id} for project ID {self.project_id}."
-        )
+            f"Retrieving recording ID {recording_id} for project ID {
+                self.project_id}.")
         db_gen = get_db()
         db: Session = next(db_gen)
         try:
@@ -194,11 +197,12 @@ class Project:
                 logger.debug(f"Found recording: {recording.name}")
             else:
                 logger.debug(
-                    f"Recording ID {recording_id} not found for project ID {self.project_id}."
-                )
+                    f"Recording ID {recording_id} not found for project ID {
+                        self.project_id}.")
             return recording
         except SQLAlchemyError as e:
-            logger.error(f"Database error retrieving recording ID {recording_id}: {e}")
+            logger.error(
+                f"Database error retrieving recording ID {recording_id}: {e}")
             raise
         finally:
             try:
@@ -216,7 +220,9 @@ class Project:
         Raises:
             SQLAlchemyError: If there's an issue communicating with the database.
         """
-        logger.debug(f"Listing all recordings for project ID {self.project_id}.")
+        logger.debug(
+            f"Listing all recordings for project ID {
+                self.project_id}.")
         db_gen = get_db()
         db: Session = next(db_gen)
         try:
@@ -227,13 +233,14 @@ class Project:
                 .all()
             )
             logger.debug(
-                f"Found {len(recordings)} recordings for project ID {self.project_id}."
-            )
+                f"Found {
+                    len(recordings)} recordings for project ID {
+                    self.project_id}.")
             return recordings
         except SQLAlchemyError as e:
             logger.error(
-                f"Database error listing recordings for project ID {self.project_id}: {e}"
-            )
+                f"Database error listing recordings for project ID {
+                    self.project_id}: {e}")
             raise
         finally:
             try:
@@ -258,17 +265,21 @@ class Project:
             Exception: Can re-raise exceptions from `detect_and_slice_recording`.
         """
         logger.info(
-            f"Initiating processing for recording ID {recording_id} in project {self.project_id}."
+            f"Initiating processing for recording ID {recording_id} in project {
+                self.project_id}.")
+        # TODO: Refactor this method to use the new SlicingStage via
+        # stage_runner.
+        raise NotImplementedError(
+            "This processing method needs to be updated to use SlicingStage"
         )
-        from .audio_processor import detect_and_slice_recording  # Avoid circular import
 
         try:
             os.makedirs(output_sample_dir, exist_ok=True)
-            logger.debug(f"Ensured output directory exists: {output_sample_dir}")
+            logger.debug(
+                f"Ensured output directory exists: {output_sample_dir}")
         except OSError as e:
             logger.error(
-                f"Error creating output directory {output_sample_dir}: {e}. Processing aborted."
-            )
+                f"Error creating output directory {output_sample_dir}: {e}. Processing aborted.")
             return  # Or raise custom error
 
         db_processing_session = SessionLocal()
@@ -284,28 +295,31 @@ class Project:
 
             if not recording:
                 logger.warning(
-                    f"Recording ID {recording_id} not found for project {self.project_id}. Processing aborted."
-                )
+                    f"Recording ID {recording_id} not found for project {
+                        self.project_id}. Processing aborted.")
                 return
 
             logger.info(
+                # This line will now be part of the dead code
                 f"Calling detect_and_slice_recording for recording ID {recording_id}."
             )
-            detect_and_slice_recording(
-                db_processing_session, recording_id, output_sample_dir
-            )
-            logger.info(f"Processing task submitted for recording ID {recording_id}.")
+            # detect_and_slice_recording( # This line will now be part of the dead code
+            #     db_processing_session, recording_id, output_sample_dir # This line will now be part of the dead code
+            # ) # This line will now be part of the dead code
+            logger.info(
+                f"Processing task submitted for recording ID {recording_id}."
+            )  # This line will now be part of the dead code
         except SQLAlchemyError as e:  # Catch DB errors from the pre-check query
             logger.error(
-                f"Database error in process_recording pre-check for recording {recording_id}: {e}"
-            )
+                f"Database error in process_recording pre-check for recording {recording_id}: {e}")
             raise
         except Exception as e:
             logger.error(
                 f"An unexpected error occurred during process_recording setup for recording {recording_id}: {e}",
                 exc_info=True,
             )
-            # Consider updating recording status to 'failed' here if appropriate and not handled by called function
+            # Consider updating recording status to 'failed' here if
+            # appropriate and not handled by called function
             raise
         finally:
             db_processing_session.close()
@@ -371,9 +385,8 @@ class Project:
             SQLAlchemyError: If database operations fail during `MidiRecorder` initialization.
         """
         logger.info(
-            f"Creating MIDI capture session '{session_name}' for project ID {self.project_id} "
-            f"with devices: {selected_device_names}"
-        )
+            f"Creating MIDI capture session '{session_name}' for project ID {
+                self.project_id} " f"with devices: {selected_device_names}")
         db: Session = SessionLocal()
         try:
             recorder = MidiRecorder(
@@ -383,8 +396,7 @@ class Project:
                 db=db,
             )
             logger.info(
-                f"Successfully initialized MidiRecorder for session '{session_name}'."
-            )
+                f"Successfully initialized MidiRecorder for session '{session_name}'.")
             return recorder
         except Exception as e:
             logger.error(
@@ -406,7 +418,9 @@ class Project:
         Raises:
             SQLAlchemyError: If there's an issue communicating with the database.
         """
-        logger.debug(f"Listing MIDI capture sessions for project ID {self.project_id}.")
+        logger.debug(
+            f"Listing MIDI capture sessions for project ID {
+                self.project_id}.")
         db: Session = SessionLocal()
         try:
             sessions = (
@@ -416,13 +430,14 @@ class Project:
                 .all()
             )
             logger.debug(
-                f"Found {len(sessions)} MIDI capture sessions for project ID {self.project_id}."
-            )
+                f"Found {
+                    len(sessions)} MIDI capture sessions for project ID {
+                    self.project_id}.")
             return sessions
         except SQLAlchemyError as e:
             logger.error(
-                f"Database error listing MIDI capture sessions for project ID {self.project_id}: {e}"
-            )
+                f"Database error listing MIDI capture sessions for project ID {
+                    self.project_id}: {e}")
             raise
         finally:
             db.close()
@@ -447,8 +462,8 @@ class Project:
             SQLAlchemyError: If there's an issue communicating with the database.
         """
         logger.debug(
-            f"Retrieving MIDI capture session ID {session_id} for project ID {self.project_id}."
-        )
+            f"Retrieving MIDI capture session ID {session_id} for project ID {
+                self.project_id}.")
         db: Session = SessionLocal()
         try:
             session = (
@@ -463,18 +478,18 @@ class Project:
                 logger.debug(f"Found MIDI capture session: {session.name}")
             else:
                 logger.debug(
-                    f"MIDI capture session ID {session_id} not found for project ID {self.project_id}."
-                )
+                    f"MIDI capture session ID {session_id} not found for project ID {
+                        self.project_id}.")
             return session
         except SQLAlchemyError as e:
             logger.error(
-                f"Database error retrieving MIDI capture session ID {session_id}: {e}"
-            )
+                f"Database error retrieving MIDI capture session ID {session_id}: {e}")
             raise
         finally:
             db.close()
 
-    def get_midi_files_for_session(self, session_id: int) -> List[MidiFileModel]:
+    def get_midi_files_for_session(
+            self, session_id: int) -> List[MidiFileModel]:
         """
         Retrieves all MIDI data entries associated with a specific MIDI capture session.
 
@@ -497,8 +512,8 @@ class Project:
             SQLAlchemyError: If there's an issue communicating with the database.
         """
         logger.debug(
-            f"Retrieving MIDI files for session ID {session_id} (project ID {self.project_id})."
-        )
+            f"Retrieving MIDI files for session ID {session_id} (project ID {
+                self.project_id}).")
         db: Session = SessionLocal()
         try:
             capture_session = (
@@ -512,8 +527,8 @@ class Project:
 
             if not capture_session:
                 logger.warning(
-                    f"MIDI capture session ID {session_id} not found or does not belong to project ID {self.project_id}."
-                )
+                    f"MIDI capture session ID {session_id} not found or does not belong to project ID {
+                        self.project_id}.")
                 return []
 
             midi_files = (
@@ -523,13 +538,12 @@ class Project:
                 .all()
             )
             logger.debug(
-                f"Found {len(midi_files)} MIDI files for session ID {session_id}."
-            )
+                f"Found {
+                    len(midi_files)} MIDI files for session ID {session_id}.")
             return midi_files
         except SQLAlchemyError as e:
             logger.error(
-                f"Database error retrieving MIDI files for session ID {session_id}: {e}"
-            )
+                f"Database error retrieving MIDI files for session ID {session_id}: {e}")
             raise
         finally:
             db.close()

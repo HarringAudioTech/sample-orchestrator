@@ -264,7 +264,8 @@ except Exception as e:
     # Log error if registration fails, e.g. if BaseWorkflow is not fully
     # defined
     logger.critical(
-        f"Failed to register ExampleSlicingWorkflow: {e}", exc_info=True)
+        f"Failed to register ExampleSlicingWorkflow: {e}",
+        exc_info=True)
 
 
 if __name__ == "__main__":
@@ -387,7 +388,8 @@ if __name__ == "__main__":
             )
         except Exception as e:
             logger.error(
-                f"Could not inspect workflow class {wf_class.__name__}: {e}")
+                f"Could not inspect workflow class {
+                    wf_class.__name__}: {e}")
 
     # --- Example Workflow Execution ---
     logger.info("\n--- Testing ExampleSlicingWorkflow ---")

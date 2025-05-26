@@ -49,7 +49,9 @@ def get_session_local(engine_instance=None) -> sessionmaker:
     global _SessionLocal
     if engine_instance:
         return sessionmaker(
-            autocommit=False, autoflush=False, bind=engine_instance)
+            autocommit=False,
+            autoflush=False,
+            bind=engine_instance)
     if _SessionLocal is None:
         _SessionLocal = sessionmaker(
             autocommit=False, autoflush=False, bind=get_engine()
@@ -119,6 +121,10 @@ def get_db(engine_instance=None) -> Session:
     finally:
         db.close()
 
+
+# Create the global SessionLocal instance that other modules expect to import.
+# This should be the session *factory* (the result of sessionmaker()).
+SessionLocal = get_session_local()
 
 if __name__ == "__main__":
     # This allows running this script directly to initialize the main application database.

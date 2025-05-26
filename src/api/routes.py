@@ -8,6 +8,7 @@ import os
 from flask import Blueprint, request, jsonify, current_app
 from werkzeug.utils import secure_filename
 from sqlalchemy.orm import Session
+
 # init_db is not directly used in routes
 from src.database.utils import SessionLocal
 from src.database.models import (
@@ -210,8 +211,7 @@ def add_project_recording(project_id: int):
                 exc_info=True,
             )
             return (
-                jsonify(
-                    {"error": f"Could not create upload directory: {e.strerror}"}),
+                jsonify({"error": f"Could not create upload directory: {e.strerror}"}),
                 500,
             )
 
@@ -308,10 +308,8 @@ def get_recording_details(recording_id: int):
     """
     db: Session = get_db_session()
     try:
-        recording = (
-            db.query(RecordingModel).filter(
-                RecordingModel.id == recording_id).first()
-        )
+        recording = (db.query(RecordingModel).filter(
+            RecordingModel.id == recording_id).first())
         if not recording:
             return jsonify({"error": "Recording not found"}), 404
         return jsonify(model_to_dict(recording)), 200
@@ -369,10 +367,8 @@ def process_recording_endpoint(recording_id: int):
         )
 
         # --- Fetch Recording and Project ---
-        recording = (
-            db.query(RecordingModel).filter(
-                RecordingModel.id == recording_id).first()
-        )
+        recording = (db.query(RecordingModel).filter(
+            RecordingModel.id == recording_id).first())
         if not recording:
             return jsonify({"error": "Recording not found"}), 404
         if not recording.project_id:
@@ -449,8 +445,7 @@ def process_recording_endpoint(recording_id: int):
                 exc_info=True,
             )
             return (
-                jsonify(
-                    {"error": f"Could not create output directory: {e.strerror}"}),
+                jsonify({"error": f"Could not create output directory: {e.strerror}"}),
                 500,
             )
 
@@ -496,7 +491,8 @@ def process_recording_endpoint(recording_id: int):
                     jsonify(
                         {
                             "error": f"Failed to execute {processing_type}: {
-                                str(e)}"}
+                                str(e)}"
+                        }
                     ),
                     500,
                 )
@@ -530,7 +526,9 @@ def process_recording_endpoint(recording_id: int):
                             "error": f"Configuration error in stage chain: {
                                 str(e)}. Available stages: {
                                 list(
-                                    STAGE_REGISTRY.keys())}"}),
+                                    STAGE_REGISTRY.keys())}"
+                        }
+                    ),
                     400,
                 )
             except TypeError as e:  # E.g. type mismatch between stages
@@ -551,7 +549,8 @@ def process_recording_endpoint(recording_id: int):
                     jsonify(
                         {
                             "error": f"Failed to execute {processing_type}: {
-                                str(e)}"}
+                                str(e)}"
+                        }
                     ),
                     500,
                 )
@@ -616,18 +615,14 @@ def list_recording_samples(recording_id: int):
     db: Session = get_db_session()
     try:
         # First, verify the recording exists to provide a clear 404 if not.
-        recording = (
-            db.query(RecordingModel).filter(
-                RecordingModel.id == recording_id).first()
-        )
+        recording = (db.query(RecordingModel).filter(
+            RecordingModel.id == recording_id).first())
         if not recording:
             return jsonify({"error": "Recording not found"}), 404
 
         # Then, query for its samples.
-        samples = (
-            db.query(SampleModel).filter(
-                SampleModel.recording_id == recording_id).all()
-        )
+        samples = (db.query(SampleModel).filter(
+            SampleModel.recording_id == recording_id).all())
         return jsonify([model_to_dict(s) for s in samples]), 200
     finally:
         db.close()

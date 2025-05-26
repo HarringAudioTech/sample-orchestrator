@@ -8,7 +8,8 @@ The application can be run directly using `python -m src.app` for development.
 """
 
 import os
-from flask import Flask, jsonify, request  # g is not used in current session management
+# g is not used in current session management
+from flask import Flask, jsonify, request
 from src.api.routes import projects_bp, recordings_bp, samples_bp
 from src.ui.routes import ui_bp  # Import the UI blueprint
 from src.database.utils import (
@@ -51,7 +52,8 @@ def create_app() -> Flask:
 
     app.logger.info(f"UPLOAD_FOLDER set to: {app.config['UPLOAD_FOLDER']}")
     app.logger.info(
-        f"SAMPLES_BASE_DIR set to: {app.config['SAMPLES_BASE_DIR']}")
+        f"SAMPLES_BASE_DIR set to: {
+            app.config['SAMPLES_BASE_DIR']}")
 
     # --- Database Initialization ---
     # This is called every time create_app() is run.
@@ -93,8 +95,11 @@ def create_app() -> Flask:
     app.logger.info("API Blueprints registered.")
 
     # Register UI Blueprint
-    app.register_blueprint(ui_bp, url_prefix='/ui')
-    app.logger.info(f"UI Blueprint registered with prefix /ui. Templates expected at {ui_bp.template_folder} relative to blueprint, and {app.template_folder} relative to app root.")
+    app.register_blueprint(ui_bp, url_prefix="/ui")
+    app.logger.info(
+        f"UI Blueprint registered with prefix /ui. Templates expected at {
+            ui_bp.template_folder} relative to blueprint, and {
+            app.template_folder} relative to app root.")
 
     # --- Basic Error Handling ---
     @app.errorhandler(404)
@@ -113,7 +118,8 @@ def create_app() -> Flask:
         app.logger.error(
             f"500 Internal Server Error: {
                 request.path} (Error: {error})",
-            exc_info=True)
+            exc_info=True,
+        )
         return (
             jsonify(
                 {

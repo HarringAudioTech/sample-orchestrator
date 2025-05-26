@@ -221,10 +221,8 @@ class SlicingStage(AudioProcessingStage):
                 samples, read = audio_source_obj()
                 new_note_events = notes_obj(samples)
                 for note_event in new_note_events:
-                    onset_frame = (
-                        frames_read_count - read +
-                        int(notes_obj.get_last_pos())
-                    )
+                    onset_frame = (frames_read_count - read +
+                                   int(notes_obj.get_last_pos()))
                     detected_notes_list.append(
                         {
                             "midi_pitch": int(note_event[0]),

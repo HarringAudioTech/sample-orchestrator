@@ -196,7 +196,8 @@ if __name__ == "__main__":
         print(
             f"Input type: {
                 stage.input_type}, Output type: {
-                stage.output_type}")
+                stage.output_type}"
+        )
         print(f"Default params: {stage.default_params}")
 
         # Simulate processing
@@ -208,7 +209,9 @@ if __name__ == "__main__":
         run_context = {"project_id": 123, "user_id": "test_user"}
 
         output_data = stage.process(
-            input_data, params=run_params, context=run_context)
+            input_data,
+            params=run_params,
+            context=run_context)
         print(f"Processed output: {output_data}")
 
     print("AudioProcessingStage and data type constants defined.")

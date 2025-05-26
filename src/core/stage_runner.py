@@ -380,7 +380,8 @@ if __name__ == "__main__":
             f"Successfully caught expected TypeError for mismatch: {e}")
     except Exception as e:
         logger.error(
-            f"Unexpected error during type mismatch test: {e}", exc_info=True)
+            f"Unexpected error during type mismatch test: {e}",
+            exc_info=True)
 
     # --- Test case: Unregistered stage ---
     logger.info("\n--- Testing Unregistered Stage ---")
