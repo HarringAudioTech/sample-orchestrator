@@ -389,7 +389,8 @@ if __name__ == "__main__":
         except Exception as e:
             logger.error(
                 f"Could not inspect workflow class {
-                    wf_class.__name__}: {e}")
+                    wf_class.__name__}: {e}"
+            )
 
     # --- Example Workflow Execution ---
     logger.info("\n--- Testing ExampleSlicingWorkflow ---")

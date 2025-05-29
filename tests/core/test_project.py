@@ -3,7 +3,7 @@ import os
 import shutil
 from unittest.mock import patch, MagicMock, call
 from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker # Added sessionmaker
+from sqlalchemy.orm import Session, sessionmaker  # Added sessionmaker
 from src.database.models import (
     Base,
     Project as ProjectModel,
@@ -29,8 +29,11 @@ def test_engine():
 def test_session_factory(test_engine):
     return sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
 
+
 @pytest.fixture(scope="function")
-def db_session(test_session_factory: sessionmaker): # db_session now uses the factory from the same engine
+def db_session(
+    test_session_factory: sessionmaker,
+):  # db_session now uses the factory from the same engine
     session = test_session_factory()
     try:
         yield session
@@ -40,7 +43,9 @@ def db_session(test_session_factory: sessionmaker): # db_session now uses the fa
 
 # --- Core Project Test Fixtures ---
 @pytest.fixture
-def test_project_instance(db_session: Session, test_session_factory: sessionmaker): # Add factory here
+def test_project_instance(
+    db_session: Session, test_session_factory: sessionmaker
+):  # Add factory here
     """Creates a ProjectModel in the DB and returns a CoreProject instance for it."""
     project_model = ProjectModel(
         name="Test Core Project", description="Project for core tests"
@@ -49,7 +54,9 @@ def test_project_instance(db_session: Session, test_session_factory: sessionmake
     db_session.commit()
     db_session.refresh(project_model)
     # Pass the factory to CoreProject
-    core_project = CoreProject(project_id=project_model.id, session_factory=test_session_factory)
+    core_project = CoreProject(
+        project_id=project_model.id, session_factory=test_session_factory
+    )
     return (
         core_project,
         project_model,
@@ -60,7 +67,9 @@ def test_project_instance(db_session: Session, test_session_factory: sessionmake
 
 
 # Test __init__
-def test_project_init_success(db_session: Session, test_session_factory: sessionmaker):
+def test_project_init_success(
+        db_session: Session,
+        test_session_factory: sessionmaker):
     project_model = ProjectModel(
         name="Init Test", description="Testing CoreProject init"
     )
@@ -68,15 +77,21 @@ def test_project_init_success(db_session: Session, test_session_factory: session
     db_session.commit()
     db_session.refresh(project_model)
 
-    core_project = CoreProject(project_id=project_model.id, session_factory=test_session_factory)
+    core_project = CoreProject(
+        project_id=project_model.id, session_factory=test_session_factory
+    )
     assert core_project.project_id == project_model.id
     assert core_project.project_model is not None
     assert core_project.project_model.name == "Init Test"
 
 
-def test_project_init_not_found(db_session: Session, test_session_factory: sessionmaker):
+def test_project_init_not_found(
+    db_session: Session, test_session_factory: sessionmaker
+):
     with pytest.raises(ValueError, match="Project with id 999 not found"):
-        CoreProject(project_id=999, session_factory=test_session_factory)  # Assuming project 999 does not exist
+        CoreProject(
+            project_id=999, session_factory=test_session_factory
+        )  # Assuming project 999 does not exist
 
 
 # Test add_recording
@@ -141,6 +156,7 @@ def test_add_recording(
     mock_aubio_source.assert_called_with(dummy_file_path, 0, 512)
     mock_wave_open.assert_called_with(dummy_file_path, "rb")
 
+
 # The get_session_local(db_session.bind)() call for verify_session is problematic
 # because db_session.bind is not how the engine is typically accessed from a session.
 # It should use the test_session_factory for consistency if creating a new session.
@@ -169,7 +185,8 @@ def test_add_recording_file_not_found(
 
     # Ensure no recording was added to the DB
     # CoreProject.add_recording will use self.session_factory (which is test_session_factory here)
-    # So, querying with db_session (which comes from the same factory) should see the data.
+    # So, querying with db_session (which comes from the same factory) should
+    # see the data.
     count = (
         db_session.query(RecordingModel)
         .filter(RecordingModel.project_id == core_project.project_id)
@@ -179,7 +196,9 @@ def test_add_recording_file_not_found(
 
 
 # Test get_recording
-def test_get_recording(test_project_instance, db_session: Session): # db_session comes from test_session_factory
+def test_get_recording(
+    test_project_instance, db_session: Session
+):  # db_session comes from test_session_factory
     core_project, project_model = test_project_instance
 
     # First, add a recording using the model directly for setup
@@ -230,8 +249,9 @@ def test_list_recordings_empty(test_project_instance):
     assert len(recordings_list) == 0
 
 
-# Tests for process_recording (test_process_recording, test_process_recording_output_dir_exists, 
-# test_process_recording_recording_not_found) are removed as the method now raises NotImplementedError.
+# Tests for process_recording (test_process_recording, test_process_recording_output_dir_exists,
+# test_process_recording_recording_not_found) are removed as the method
+# now raises NotImplementedError.
 
 # Cleanup test directories if they were actually created (though most are mocked)
 # This is more for illustration, as mocks prevent actual creation.

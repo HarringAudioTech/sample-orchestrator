@@ -73,7 +73,8 @@ class NoiseReductionStage(AudioProcessingStage):
             )
             raise TypeError(
                 f"Input data for {
-                    self.name} must be a NumPy array.")
+                    self.name} must be a NumPy array."
+            )
 
         amount = params.get("amount", self.default_params["amount"])
         aggressiveness = params.get(

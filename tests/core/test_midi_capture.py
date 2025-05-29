@@ -342,10 +342,16 @@ class TestMidiRecorder:
         # Check caplog for the warning message
         found_log = False
         for record in caplog.records:
-            if "Warning: MIDI device 'Device 3' not found in database" in record.message and record.levelname == "WARNING":
+            if (
+                "Warning: MIDI device 'Device 3' not found in database"
+                in record.message
+                and record.levelname == "WARNING"
+            ):
                 found_log = True
                 break
-        assert found_log, "Log message 'Warning: MIDI device 'Device 3' not found in database' not found"
+        assert (
+            found_log
+        ), "Log message 'Warning: MIDI device 'Device 3' not found in database' not found"
 
         # Test if all devices are non-existent
         with pytest.raises(
@@ -439,7 +445,9 @@ class TestMidiRecorder:
             recorder.start_recording(db_session)
 
         assert recorder.active is True
-        self.mock_mido_open_input.assert_called_with("Device 1", callback=ANY) # Corrected assertion
+        self.mock_mido_open_input.assert_called_with(
+            "Device 1", callback=ANY
+        )  # Corrected assertion
         assert len(recorder.midi_inputs) == 1
         assert recorder.midi_inputs["Device 1"] == self.mock_port
 
@@ -528,7 +536,7 @@ class TestMidiRecorder:
         assert isinstance(mfile_ch1, mido.MidiFile)
         assert len(mfile_ch1.tracks) == 1
         # Track contains track_name MetaMessage + actual message
-        assert len(mfile_ch1.tracks[0]) == 2 
+        assert len(mfile_ch1.tracks[0]) == 2
         assert mfile_ch1.tracks[0][1] == msg_ch1
 
         # Simulate a system common message (no channel)
@@ -589,7 +597,7 @@ class TestMidiRecorder:
         device_name_sanitized = sanitize_filename("Device 1")
         channel = 0
         track_name = f"{device_name_sanitized}_ch{channel}"
-        track = mfile.add_track(name=track_name) # Add track WITH name
+        track = mfile.add_track(name=track_name)  # Add track WITH name
         track.extend([msg1, msg2])
         recorder.midi_files[("Device 1", 0)] = mfile
 
@@ -766,11 +774,22 @@ class TestProjectMidiMethods:
     ):
         proj_id = test_project_instance.project_id
         # Create some sessions directly
+        s1_time = datetime.datetime.utcnow()
+        s2_time = s1_time + datetime.timedelta(
+            seconds=1
+        )  # Ensure s2 is recognizably newer
+
         s1 = MidiCaptureSessionModel(
-            project_id=proj_id, name="Session 1", status="completed"
+            project_id=proj_id,
+            name="Session 1",
+            status="completed",
+            created_at=s1_time,  # Explicitly set timestamp
         )
         s2 = MidiCaptureSessionModel(
-            project_id=proj_id, name="Session 2", status="pending"
+            project_id=proj_id,
+            name="Session 2",
+            status="pending",
+            created_at=s2_time,  # Explicitly set timestamp
         )
         # A session for another project
         s_other = MidiCaptureSessionModel(
@@ -786,7 +805,7 @@ class TestProjectMidiMethods:
         assert {s.name for s in sessions} == {"Session 1", "Session 2"}
         # Default order is created_at.desc, s2 is newer if committed after s1
         # or if time is mocked. Assuming s2 is "newer".
-        assert (sessions[0].name == "Session 2")
+        assert sessions[0].name == "Session 2"
         # Actual order depends on precise created_at. Let's check for names.
 
     def test_project_get_midi_capture_session(

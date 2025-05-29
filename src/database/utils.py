@@ -59,19 +59,28 @@ def get_session_local(engine_instance=None) -> sessionmaker:
     return _SessionLocal
 
 
-def init_db(engine_instance=None):
+def init_db(engine_instance=None, database_url: str = None):
     """
     Initializes the database by creating all tables defined in `models.Base`.
 
-    This function uses the provided `engine_instance` or the default engine
-    obtained from `get_engine()`. It's typically called once at application startup
-    or before running tests that require a database schema.
+    Uses the provided `engine_instance` if available. Otherwise, uses `database_url`
+    to create a new engine. If neither is provided, uses the default global engine.
+    It's typically called once at application startup or before running tests
+    that require a database schema.
 
     Args:
         engine_instance (sqlalchemy.engine.Engine, optional): An existing SQLAlchemy engine.
-            If None, the default engine is used. Defaults to None.
+        database_url (str, optional): A database URL to create a new engine if `engine_instance` is not provided.
+            If None and no `engine_instance`, uses the global `DATABASE_URL`.
     """
-    current_engine = engine_instance or get_engine()
+    current_engine = None
+    if engine_instance:
+        current_engine = engine_instance
+    elif database_url:
+        current_engine = get_engine(database_url=database_url)
+    else:
+        current_engine = get_engine()  # Uses default global DATABASE_URL
+
     Base.metadata.create_all(bind=current_engine)
     print(
         f"Database initialized with engine: {

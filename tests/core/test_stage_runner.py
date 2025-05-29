@@ -140,7 +140,10 @@ def test_register_stage_reregistration(caplog):
     assert any(
         f"Stage name '{
             MockStageA_FilePathToBuffer.name}' from class '{
-            MockStageA_Variant.__name__}' is already registered. Overwriting" in record.message for record in caplog.records)
+            MockStageA_Variant.__name__}' is already registered. Overwriting"
+        in record.message
+        for record in caplog.records
+    )
 
 
 def test_register_stage_type_error_not_subclass():
@@ -253,7 +256,8 @@ def test_execute_stage_chain_type_mismatch(registered_mock_stages):
     # Need to re-register if input_type change matters to registry (it doesn't for current STAGE_REGISTRY)
     # but the instance created by execute_stage_chain will have this modified
     # input_type.
-    # To modify class attribute for test, assign directly to MockStageC_BufferToFilePath.input_type
+    # To modify class attribute for test, assign directly to
+    # MockStageC_BufferToFilePath.input_type
     original_input_type = MockStageC_BufferToFilePath.input_type
     MockStageC_BufferToFilePath.input_type = DATA_TYPE_FILE_PATH
     try:
@@ -261,7 +265,11 @@ def test_execute_stage_chain_type_mismatch(registered_mock_stages):
             TypeError,
             match="Stage expects input type 'file_path', but received 'audio_buffer_mono'",
         ):
-            execute_stage_chain("/input.wav", DATA_TYPE_FILE_PATH, chain_def, {})
+            execute_stage_chain(
+                "/input.wav",
+                DATA_TYPE_FILE_PATH,
+                chain_def,
+                {})
     finally:
         # Reset for other tests
         MockStageC_BufferToFilePath.input_type = original_input_type

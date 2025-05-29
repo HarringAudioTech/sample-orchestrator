@@ -2,7 +2,7 @@ import os
 import wave
 import logging  # Added logging
 from typing import List
-from sqlalchemy.orm import Session, sessionmaker # Added sessionmaker
+from sqlalchemy.orm import Session, sessionmaker  # Added sessionmaker
 from sqlalchemy.exc import SQLAlchemyError  # To catch DB errors specifically
 from src.database.models import (
     Project as ProjectModel,
@@ -70,7 +70,8 @@ class Project:
             self.project_id = project_id
             logger.info(
                 f"Successfully initialized Project core for project: {
-                    self.project_model.name}")
+                    self.project_model.name}"
+            )
         except SQLAlchemyError as e:
             logger.error(
                 f"Database error during Project initialization for project_id {project_id}: {e}")
@@ -102,7 +103,8 @@ class Project:
         """
         logger.info(
             f"Adding recording '{name}' from path '{file_path}' to project ID {
-                self.project_id}.")
+                self.project_id}."
+        )
         db: Session = self.session_factory()
         try:
             if not os.path.exists(file_path):
@@ -151,7 +153,8 @@ class Project:
             logger.info(
                 f"Successfully added recording '{
                     new_recording.name}' with ID {
-                    new_recording.id}.")
+                    new_recording.id}."
+            )
             return new_recording
         except SQLAlchemyError as e:
             db.rollback()
@@ -176,7 +179,8 @@ class Project:
         """
         logger.debug(
             f"Retrieving recording ID {recording_id} for project ID {
-                self.project_id}.")
+                self.project_id}."
+        )
         db: Session = self.session_factory()
         try:
             recording = (
@@ -197,7 +201,8 @@ class Project:
             else:
                 logger.debug(
                     f"Recording ID {recording_id} not found for project ID {
-                        self.project_id}.")
+                        self.project_id}."
+                )
             return recording
         except SQLAlchemyError as e:
             logger.error(
@@ -219,7 +224,8 @@ class Project:
         """
         logger.debug(
             f"Listing all recordings for project ID {
-                self.project_id}.")
+                self.project_id}."
+        )
         db: Session = self.session_factory()
         try:
             recordings = (
@@ -231,7 +237,8 @@ class Project:
             logger.debug(
                 f"Found {
                     len(recordings)} recordings for project ID {
-                    self.project_id}.")
+                    self.project_id}."
+            )
             # Access attributes to load them before session closes
             for rec in recordings:
                 _ = rec.id
@@ -242,7 +249,8 @@ class Project:
         except SQLAlchemyError as e:
             logger.error(
                 f"Database error listing recordings for project ID {
-                    self.project_id}: {e}")
+                    self.project_id}: {e}"
+            )
             db.rollback()
             raise
         finally:
@@ -296,7 +304,8 @@ class Project:
             if not recording:
                 logger.warning(
                     f"Recording ID {recording_id} not found for project {
-                        self.project_id}. Processing aborted.")
+                        self.project_id}. Processing aborted."
+                )
                 return
 
             logger.info(
@@ -397,7 +406,9 @@ class Project:
         """
         logger.info(
             f"Creating MIDI capture session '{session_name}' for project ID {
-                self.project_id} " f"with devices: {selected_device_names}")
+                self.project_id} "
+            f"with devices: {selected_device_names}"
+        )
         db: Session = self.session_factory()
         try:
             # MidiRecorder also expects an active session for its db parameter
@@ -432,7 +443,8 @@ class Project:
         """
         logger.debug(
             f"Listing MIDI capture sessions for project ID {
-                self.project_id}.")
+                self.project_id}."
+        )
         db: Session = self.session_factory()
         try:
             sessions = (
@@ -444,7 +456,8 @@ class Project:
             logger.debug(
                 f"Found {
                     len(sessions)} MIDI capture sessions for project ID {
-                    self.project_id}.")
+                    self.project_id}."
+            )
             # Access attributes to load them before session closes
             for session_item in sessions:
                 _ = session_item.id
@@ -455,7 +468,8 @@ class Project:
         except SQLAlchemyError as e:
             logger.error(
                 f"Database error listing MIDI capture sessions for project ID {
-                    self.project_id}: {e}")
+                    self.project_id}: {e}"
+            )
             raise
         finally:
             db.close()
@@ -481,7 +495,8 @@ class Project:
         """
         logger.debug(
             f"Retrieving MIDI capture session ID {session_id} for project ID {
-                self.project_id}.")
+                self.project_id}."
+        )
         db: Session = self.session_factory()
         try:
             session = (
@@ -536,7 +551,8 @@ class Project:
         """
         logger.debug(
             f"Retrieving MIDI files for session ID {session_id} (project ID {
-                self.project_id}).")
+                self.project_id})."
+        )
         db: Session = self.session_factory()
         try:
             capture_session = (
@@ -562,7 +578,8 @@ class Project:
             )
             logger.debug(
                 f"Found {
-                    len(midi_files)} MIDI files for session ID {session_id}.")
+                    len(midi_files)} MIDI files for session ID {session_id}."
+            )
             # Access attributes to load them before session closes
             for mf in midi_files:
                 _ = mf.id

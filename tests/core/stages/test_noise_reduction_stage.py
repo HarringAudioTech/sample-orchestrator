@@ -77,7 +77,9 @@ def test_noise_reduction_stage_process_logs_parameters(caplog):
     assert (
         f"Parameters: amount={
             params['amount']}, aggressiveness={
-            params['aggressiveness']}" in caplog.text)
+            params['aggressiveness']}"
+        in caplog.text
+    )
     assert f"Input data shape: {dummy_input_data.shape}" in caplog.text
 
 

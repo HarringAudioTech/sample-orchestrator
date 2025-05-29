@@ -117,7 +117,8 @@ def setup_test_recording(db_session: Session) -> RecordingModel:
     logger.info(
         f"Created test recording ID: {
             recording.id} for project ID: {
-            project.id}")
+            project.id}"
+    )
     return recording
 
 

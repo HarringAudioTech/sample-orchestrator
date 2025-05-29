@@ -90,7 +90,8 @@ def list_available_midi_devices(db: Session) -> list[MidiDevice]:
         db.commit()
         logger.info(
             f"Successfully synchronized {
-                len(found_or_created_devices)} MIDI devices with the database.")
+                len(found_or_created_devices)} MIDI devices with the database."
+        )
     except SQLAlchemyError as e:
         db.rollback()
         logger.error(f"Database error while synchronizing MIDI devices: {e}")
@@ -198,7 +199,8 @@ class MidiRecorder:
                 logger.error(f"Project with ID {self.project_id} not found.")
                 raise ValueError(
                     f"Project with ID {
-                        self.project_id} not found.")
+                        self.project_id} not found."
+                )
 
             self.capture_session = MidiCaptureSession(
                 project_id=self.project_id,
@@ -211,7 +213,8 @@ class MidiRecorder:
             logger.info(
                 f"Created MidiCaptureSession '{
                     self.session_name}' with ID {
-                    self.capture_session.id}.")
+                    self.capture_session.id}."
+            )
 
             resolved_devices = []
             for device_name in self.selected_device_names:
@@ -378,7 +381,8 @@ class MidiRecorder:
 
         logger.info(
             f"Starting MIDI recording for session ID: {
-                self.capture_session.id}")
+                self.capture_session.id}"
+        )
         opened_ports_count = 0
         try:
             for device_model in self.target_devices:
@@ -394,7 +398,8 @@ class MidiRecorder:
                     opened_ports_count += 1
                     logger.info(
                         f"Successfully opened MIDI input: {
-                            device_model.name}")
+                            device_model.name}"
+                    )
                 except Exception as e:
                     logger.error(
                         f"Error opening MIDI device {
@@ -418,7 +423,8 @@ class MidiRecorder:
             logger.info(
                 f"Recording started for session: '{
                     self.capture_session.name}' (ID: {
-                    self.capture_session.id})")
+                    self.capture_session.id})"
+            )
 
         except SQLAlchemyError as e:
             db.rollback()
@@ -523,7 +529,8 @@ class MidiRecorder:
 
         logger.info(
             f"Stopping MIDI recording for session ID: {
-                self.capture_session.id}")
+                self.capture_session.id}"
+        )
         try:
             for device_name, port in self.midi_inputs.items():
                 try:

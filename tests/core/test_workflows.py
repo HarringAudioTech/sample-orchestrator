@@ -165,7 +165,10 @@ def test_register_workflow_reregistration(caplog):
 
     assert any(
         f"Workflow registry key '{expected_key_alpha}' (derived from class '{
-            MockWorkflowBeta.__name__}') is already registered. Overwriting" in record.message for record in caplog.records)
+            MockWorkflowBeta.__name__}') is already registered. Overwriting"
+        in record.message
+        for record in caplog.records
+    )
 
 
 def test_register_workflow_type_error_not_subclass():

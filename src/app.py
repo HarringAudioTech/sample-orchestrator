@@ -8,6 +8,7 @@ The application can be run directly using `python -m src.app` for development.
 """
 
 import os
+
 # g is not used in current session management
 from flask import Flask, jsonify, request
 from src.api.routes import projects_bp, recordings_bp, samples_bp
@@ -54,7 +55,8 @@ def create_app() -> Flask:
     app.logger.info(f"UPLOAD_FOLDER set to: {app.config['UPLOAD_FOLDER']}")
     app.logger.info(
         f"SAMPLES_BASE_DIR set to: {
-            app.config['SAMPLES_BASE_DIR']}")
+            app.config['SAMPLES_BASE_DIR']}"
+    )
 
     # --- Database Initialization ---
     # This is called every time create_app() is run.
@@ -63,14 +65,17 @@ def create_app() -> Flask:
     # commands.
     with app.app_context():
         # Initialize the database and create tables.
-        # The database URL is taken from src.database.utils.DATABASE_URL.
-        # get_session_local().bind.engine.url provides the actual URL being
-        # used.
-        init_db()
+        # If app.config["DATABASE_URL"] is set (e.g., by tests), it will be used.
+        # Otherwise, init_db will use its own default from src.database.utils.
+        db_url_to_use = app.config.get("DATABASE_URL")
+        init_db(database_url=db_url_to_use)
+
+        # For consistent logging of the DB used by init_db:
+        log_engine = (get_engine(database_url=db_url_to_use)
+                      if db_url_to_use else get_engine())
         app.logger.info(
             f"Database initialized. DB located at: {
-                get_engine().url}"  # Changed to use get_engine()
-        )
+                log_engine.url}")
 
     # --- Request-scoped Database Session (Alternative) ---
     # The current approach in routes.py is to create/close sessions per route.
@@ -100,7 +105,8 @@ def create_app() -> Flask:
     app.logger.info(
         f"UI Blueprint registered with prefix /ui. Templates expected at {
             ui_bp.template_folder} relative to blueprint, and {
-            app.template_folder} relative to app root.")
+            app.template_folder} relative to app root."
+    )
 
     # --- Basic Error Handling ---
     @app.errorhandler(404)
