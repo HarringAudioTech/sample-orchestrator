@@ -156,6 +156,7 @@ def test_create_sample(db_session: Session):
     sample = Sample(
         recording_id=recording.id,
         name="Test Sample",
+        file_path="dummy/created_sample.wav", # ADD THIS
         start_time_seconds=10.0,
         end_time_seconds=15.5,
         sample_type="one-shot",
@@ -210,12 +211,14 @@ def test_recording_has_multiple_samples(db_session: Session):
     sample1 = Sample(
         recording_id=recording.id,
         name="Sample A",
+        file_path="dummy/sample_a.wav", # ADD THIS
         start_time_seconds=1.0,
         end_time_seconds=2.0,
     )
     sample2 = Sample(
         recording_id=recording.id,
         name="Sample B",
+        file_path="dummy/sample_b.wav", # ADD THIS
         start_time_seconds=3.0,
         end_time_seconds=4.0,
     )
@@ -261,8 +264,9 @@ def test_create_sample_mapping_item(db_session: Session):
     )
     db_session.add(recording)
     sample = Sample(
-        recording_id=recording.id,
+        recording_id=recording.id, # This is present
         name="Kick Sample",
+        file_path="dummy/kick_sample_for_mapping.wav", # ADD THIS
         start_time_seconds=0.1,
         end_time_seconds=0.5,
         midi_pitch=36,
@@ -307,15 +311,17 @@ def test_sample_mapping_has_multiple_items(db_session: Session):
         file_path="rec_smi.wav")
     db_session.add(recording)
     sample1 = Sample(
-        recording_id=recording.id,
+        recording_id=recording.id, # Present
         name="Snare",
+        file_path="dummy/snare_for_mapping.wav", # ADD THIS
         start_time_seconds=0.1,
         end_time_seconds=0.4,
         midi_pitch=38,
     )
     sample2 = Sample(
-        recording_id=recording.id,
+        recording_id=recording.id, # Present
         name="HiHat",
+        file_path="dummy/hihat_for_mapping.wav", # ADD THIS
         start_time_seconds=0.5,
         end_time_seconds=0.7,
         midi_pitch=42,

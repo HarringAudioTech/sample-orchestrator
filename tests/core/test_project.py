@@ -45,8 +45,7 @@ def test_project_instance(db_session: Session):
     db_session.add(project_model)
     db_session.commit()
     db_session.refresh(project_model)
-    # CoreProject constructor handles its own session loading the project model
-    core_project = CoreProject(project_id=project_model.id)
+    core_project = CoreProject(project_id=project_model.id, db_session=db_session)
     return (
         core_project,
         project_model,
@@ -65,7 +64,7 @@ def test_project_init_success(db_session: Session):
     db_session.commit()
     db_session.refresh(project_model)
 
-    core_project = CoreProject(project_id=project_model.id)
+    core_project = CoreProject(project_id=project_model.id, db_session=db_session)
     assert core_project.project_id == project_model.id
     assert core_project.project_model is not None
     assert core_project.project_model.name == "Init Test"
@@ -73,7 +72,7 @@ def test_project_init_success(db_session: Session):
 
 def test_project_init_not_found(db_session: Session):
     with pytest.raises(ValueError, match="Project with id 999 not found"):
-        CoreProject(project_id=999)  # Assuming project 999 does not exist
+        CoreProject(project_id=999, db_session=db_session)  # Assuming project 999 does not exist
 
 
 # Test add_recording

@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 class MockStageA_FilePathToBuffer(AudioProcessingStage):
     """Mock stage: FilePath -> AudioBufferMono. Logs calls."""
 
-    _name = "mock_stage_a"
+    name = "mock_stage_a"  # Changed to class attribute
     _description = "Converts file path to mono audio buffer (mocked)."
     _input_type = DATA_TYPE_FILE_PATH
     _output_type = DATA_TYPE_AUDIO_BUFFER_MONO
@@ -34,9 +34,7 @@ class MockStageA_FilePathToBuffer(AudioProcessingStage):
     # Store calls for assertion
     call_log = []
 
-    @property
-    def name(self) -> str:
-        return self._name
+    # name property removed
 
     @property
     def description(self) -> str:
@@ -70,16 +68,14 @@ class MockStageA_FilePathToBuffer(AudioProcessingStage):
 class MockStageB_BufferToBuffer(AudioProcessingStage):
     """Mock stage: AudioBufferMono -> AudioBufferMono. Logs calls."""
 
-    _name = "mock_stage_b"
+    name = "mock_stage_b"  # Changed to class attribute
     _description = "Processes a mono audio buffer (mocked)."
     _input_type = DATA_TYPE_AUDIO_BUFFER_MONO
     _output_type = DATA_TYPE_AUDIO_BUFFER_MONO
     _default_params = {"param_b": "hello"}
     call_log = []
 
-    @property
-    def name(self) -> str:
-        return self._name
+    # name property removed
 
     @property
     def description(self) -> str:
@@ -111,16 +107,14 @@ class MockStageB_BufferToBuffer(AudioProcessingStage):
 class MockStageC_BufferToFilePath(AudioProcessingStage):
     """Mock stage: AudioBufferMono -> FilePath. Logs calls."""
 
-    _name = "mock_stage_c"
+    name = "mock_stage_c"  # Changed to class attribute
     _description = "Saves a mono audio buffer to a file path (mocked)."
     _input_type = DATA_TYPE_AUDIO_BUFFER_MONO
     _output_type = DATA_TYPE_FILE_PATH
     _default_params = {"output_filename": "output.wav"}
     call_log = []
 
-    @property
-    def name(self) -> str:
-        return self._name
+    # name property removed
 
     @property
     def description(self) -> str:

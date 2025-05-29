@@ -42,47 +42,65 @@ class Project:
                                       loaded from the database during initialization.
     """
 
-    def __init__(self, project_id: int):
+    def __init__(self, project_id: int, db_session: Session = None):
         """
         Initializes a Project instance by loading its data from the database.
 
         Args:
             project_id (int): The ID of the project to load.
+            db_session (Session, optional): An existing SQLAlchemy session.
+                If provided, this session is used for database operations.
+                If None, a new session is created for the initialization scope.
 
         Raises:
             ValueError: If no project with the given `project_id` is found.
             SQLAlchemyError: If there's an issue communicating with the database.
         """
         logger.info(f"Initializing Project core for project_id: {project_id}")
-        # Uses a new session that is closed after loading.
-        # Consider if this session should be managed by the caller or be longer-lived
-        # if multiple operations are performed on the Project instance.
-        # For now, __init__ uses its own short-lived session.
-        db_gen = get_db()  # get_db() should ideally be configurable for test/prod
-        db: Session = next(db_gen)
+        self.db = db_session  # Store the provided session, if any
+
+        _db_to_use: Session
+        _manage_session_locally = False
+        db_gen = None  # Initialize db_gen to None
+
+        if self.db:
+            _db_to_use = self.db
+            logger.debug("Using provided db_session for Project initialization.")
+        else:
+            logger.debug("No db_session provided, creating local session for Project initialization.")
+            db_gen = get_db()  # get_db() can now use app.config if in app context
+            _db_to_use = next(db_gen)
+            _manage_session_locally = True
+
         try:
             project_model = (
-                db.query(ProjectModel).filter(
-                    ProjectModel.id == project_id).first())
+                _db_to_use.query(ProjectModel)
+                .filter(ProjectModel.id == project_id)
+                .first()
+            )
             if not project_model:
                 logger.error(
-                    f"Project with id {project_id} not found in database.")
+                    f"Project with id {project_id} not found in database."
+                )
                 raise ValueError(f"Project with id {project_id} not found")
             self.project_model = project_model
             self.project_id = project_id
             logger.info(
-                f"Successfully initialized Project core for project: {
-                    self.project_model.name}")
+                f"Successfully initialized Project core for project: {self.project_model.name}"
+            )
         except SQLAlchemyError as e:
             logger.error(
-                f"Database error during Project initialization for project_id {project_id}: {e}")
+                f"Database error during Project initialization for project_id {project_id}: {e}"
+            )
             raise
         finally:
-            try:
-                # Ensure generator is exhausted and session closed
-                next(db_gen, None)
-            except StopIteration:  # Handle if generator is already exhausted
-                pass
+            if _manage_session_locally and db_gen:
+                try:
+                    # Ensure generator is exhausted and session closed if created locally
+                    next(db_gen, None)
+                    logger.debug("Closed locally managed session for Project initialization.")
+                except StopIteration:  # Handle if generator is already exhausted
+                    pass
 
     def add_recording(self, file_path: str, name: str) -> RecordingModel:
         """
@@ -106,9 +124,21 @@ class Project:
                        (e.g., `aubio.source`, `wave.open`) if issues occur.
         """
         logger.info(
-            f"Adding recording '{name}' from path '{file_path}' to project ID {
-                self.project_id}.")
-        db: Session = SessionLocal()
+            f"Adding recording '{name}' from path '{file_path}' to project ID {self.project_id}."
+        )
+        
+        _db_to_use = self.db
+        _manage_session_locally = False
+        db_gen_local = None
+
+        if _db_to_use is None:
+            logger.debug("No self.db session, creating local session for add_recording.")
+            db_gen_local = get_db()
+            _db_to_use = next(db_gen_local)
+            _manage_session_locally = True
+        else:
+            logger.debug("Using self.db session for add_recording.")
+
         try:
             if not os.path.exists(file_path):
                 logger.error(f"Recording file not found: {file_path}")
@@ -150,20 +180,25 @@ class Project:
                 channels=channels,
                 status="pending",
             )
-            db.add(new_recording)
-            db.commit()
-            db.refresh(new_recording)
+            _db_to_use.add(new_recording)
+            _db_to_use.commit()
+            _db_to_use.refresh(new_recording)
             logger.info(
-                f"Successfully added recording '{
-                    new_recording.name}' with ID {
-                    new_recording.id}.")
+                f"Successfully added recording '{new_recording.name}' with ID {new_recording.id}."
+            )
             return new_recording
         except SQLAlchemyError as e:
-            db.rollback()
+            if _db_to_use: # Check if session was successfully obtained before rollback
+                _db_to_use.rollback()
             logger.error(f"Database error adding recording '{name}': {e}")
             raise
         finally:
-            db.close()
+            if _manage_session_locally and db_gen_local:
+                try:
+                    next(db_gen_local, None)
+                    logger.debug("Closed locally managed session for add_recording.")
+                except StopIteration:
+                    pass
 
     def get_recording(self, recording_id: int) -> RecordingModel | None:
         """
@@ -180,13 +215,24 @@ class Project:
             SQLAlchemyError: If there's an issue communicating with the database.
         """
         logger.debug(
-            f"Retrieving recording ID {recording_id} for project ID {
-                self.project_id}.")
-        db_gen = get_db()
-        db: Session = next(db_gen)
+            f"Retrieving recording ID {recording_id} for project ID {self.project_id}."
+        )
+        
+        _db_to_use = self.db
+        _manage_session_locally = False
+        db_gen_local = None
+
+        if _db_to_use is None:
+            logger.debug("No self.db session, creating local session for get_recording.")
+            db_gen_local = get_db()
+            _db_to_use = next(db_gen_local)
+            _manage_session_locally = True
+        else:
+            logger.debug("Using self.db session for get_recording.")
+
         try:
             recording = (
-                db.query(RecordingModel)
+                _db_to_use.query(RecordingModel)
                 .filter(
                     RecordingModel.id == recording_id,
                     RecordingModel.project_id == self.project_id,
@@ -202,13 +248,16 @@ class Project:
             return recording
         except SQLAlchemyError as e:
             logger.error(
-                f"Database error retrieving recording ID {recording_id}: {e}")
+                f"Database error retrieving recording ID {recording_id}: {e}"
+            )
             raise
         finally:
-            try:
-                next(db_gen, None)
-            except StopIteration:
-                pass
+            if _manage_session_locally and db_gen_local:
+                try:
+                    next(db_gen_local, None)
+                    logger.debug("Closed locally managed session for get_recording.")
+                except StopIteration:
+                    pass
 
     def list_recordings(self) -> list[RecordingModel]:
         """
@@ -221,13 +270,24 @@ class Project:
             SQLAlchemyError: If there's an issue communicating with the database.
         """
         logger.debug(
-            f"Listing all recordings for project ID {
-                self.project_id}.")
-        db_gen = get_db()
-        db: Session = next(db_gen)
+            f"Listing all recordings for project ID {self.project_id}."
+        )
+
+        _db_to_use = self.db
+        _manage_session_locally = False
+        db_gen_local = None
+
+        if _db_to_use is None:
+            logger.debug("No self.db session, creating local session for list_recordings.")
+            db_gen_local = get_db()
+            _db_to_use = next(db_gen_local)
+            _manage_session_locally = True
+        else:
+            logger.debug("Using self.db session for list_recordings.")
+
         try:
             recordings = (
-                db.query(RecordingModel)
+                _db_to_use.query(RecordingModel)
                 .filter(RecordingModel.project_id == self.project_id)
                 .order_by(RecordingModel.created_at.desc())  # Example ordering
                 .all()
@@ -239,14 +299,16 @@ class Project:
             return recordings
         except SQLAlchemyError as e:
             logger.error(
-                f"Database error listing recordings for project ID {
-                    self.project_id}: {e}")
+                f"Database error listing recordings for project ID {self.project_id}: {e}"
+            )
             raise
         finally:
-            try:
-                next(db_gen, None)
-            except StopIteration:
-                pass
+            if _manage_session_locally and db_gen_local:
+                try:
+                    next(db_gen_local, None)
+                    logger.debug("Closed locally managed session for list_recordings.")
+                except StopIteration:
+                    pass
 
     def process_recording(self, recording_id: int, output_sample_dir: str):
         """
@@ -282,10 +344,22 @@ class Project:
                 f"Error creating output directory {output_sample_dir}: {e}. Processing aborted.")
             return  # Or raise custom error
 
-        db_processing_session = SessionLocal()
+        _db_to_use = self.db
+        _manage_session_locally = False
+        db_gen_local = None
+
+        if _db_to_use is None:
+            logger.debug("No self.db session, creating local session for process_recording pre-check.")
+            db_gen_local = get_db()
+            _db_to_use = next(db_gen_local)
+            _manage_session_locally = True
+        else:
+            logger.debug("Using self.db session for process_recording pre-check.")
+        
         try:
+            # The following is part of the original method's pre-check logic
             recording = (
-                db_processing_session.query(RecordingModel)
+                _db_to_use.query(RecordingModel)
                 .filter(
                     RecordingModel.id == recording_id,
                     RecordingModel.project_id == self.project_id,
@@ -322,7 +396,15 @@ class Project:
             # appropriate and not handled by called function
             raise
         finally:
-            db_processing_session.close()
+            if _manage_session_locally and db_gen_local:
+                try:
+                    next(db_gen_local, None)
+                    logger.debug("Closed locally managed session for process_recording pre-check.")
+                except StopIteration:
+                    pass
+            # Note: The original db_processing_session.close() is removed as we now use _db_to_use
+            # which is managed by the common finally block if created locally.
+            # If self.db was used, it's not closed here.
 
     # --- MIDI Capture Related Methods ---
 
@@ -343,19 +425,40 @@ class Project:
             Exception: If `mido` backend calls fail within `list_available_midi_devices`.
         """
         logger.info(f"Listing MIDI devices for project ID {self.project_id}.")
-        db: Session = SessionLocal()
+
+        _db_to_use = self.db
+        _manage_session_locally = False
+        db_gen_local = None
+
+        if _db_to_use is None:
+            logger.debug("No self.db session, creating local session for list_midi_devices.")
+            db_gen_local = get_db()
+            _db_to_use = next(db_gen_local)
+            _manage_session_locally = True
+        else:
+            logger.debug("Using self.db session for list_midi_devices.")
+        
         try:
-            devices = list_available_midi_devices(db)
+            # list_available_midi_devices itself handles DB operations, so pass the session to it.
+            devices = list_available_midi_devices(_db_to_use)
             logger.info(f"Found {len(devices)} MIDI devices.")
             return devices
-        except Exception as e:
+        except Exception as e: # Includes SQLAlchemyError from list_available_midi_devices
             logger.error(
                 f"Error listing MIDI devices in Project.list_midi_devices: {e}",
                 exc_info=True,
             )
+            # No explicit rollback here as list_available_midi_devices should handle its transaction,
+            # or if it raises an error, the session state might be uncertain.
+            # If _db_to_use is self.db, the caller manages its state.
             raise
         finally:
-            db.close()
+            if _manage_session_locally and db_gen_local:
+                try:
+                    next(db_gen_local, None)
+                    logger.debug("Closed locally managed session for list_midi_devices.")
+                except StopIteration:
+                    pass
 
     def create_midi_capture_session(
         self, session_name: str, selected_device_names: list[str]
@@ -385,27 +488,52 @@ class Project:
             SQLAlchemyError: If database operations fail during `MidiRecorder` initialization.
         """
         logger.info(
-            f"Creating MIDI capture session '{session_name}' for project ID {
-                self.project_id} " f"with devices: {selected_device_names}")
-        db: Session = SessionLocal()
+            f"Creating MIDI capture session '{session_name}' for project ID {self.project_id} "
+            f"with devices: {selected_device_names}"
+        )
+
+        _db_to_use = self.db
+        _manage_session_locally = False
+        db_gen_local = None
+
+        if _db_to_use is None:
+            logger.debug("No self.db session, creating local session for create_midi_capture_session.")
+            db_gen_local = get_db()
+            _db_to_use = next(db_gen_local)
+            _manage_session_locally = True
+        else:
+            logger.debug("Using self.db session for create_midi_capture_session.")
+
         try:
+            # MidiRecorder's constructor creates a DB entry.
+            # It should handle its own commit/rollback for that entry using the passed session.
             recorder = MidiRecorder(
                 project_id=self.project_id,
                 selected_device_names=selected_device_names,
                 session_name=session_name,
-                db=db,
+                db=_db_to_use, # Pass the resolved session to MidiRecorder
             )
             logger.info(
-                f"Successfully initialized MidiRecorder for session '{session_name}'.")
+                f"Successfully initialized MidiRecorder for session '{session_name}'."
+            )
+            # If MidiRecorder commits, and _db_to_use is self.db, that commit happens on the external session.
+            # This is generally acceptable as the method name implies creation.
             return recorder
-        except Exception as e:
+        except Exception as e: # Includes SQLAlchemyError from MidiRecorder
             logger.error(
                 f"Error creating MIDI capture session '{session_name}' in Project: {e}",
                 exc_info=True,
             )
+            # MidiRecorder should handle its own rollback on error during its init.
+            # If an error occurs here, the state of _db_to_use might depend on MidiRecorder's actions.
             raise
         finally:
-            db.close()
+            if _manage_session_locally and db_gen_local:
+                try:
+                    next(db_gen_local, None)
+                    logger.debug("Closed locally managed session for create_midi_capture_session.")
+                except StopIteration:
+                    pass
 
     def list_midi_capture_sessions(self) -> List[MidiCaptureSessionModel]:
         """
@@ -419,12 +547,24 @@ class Project:
             SQLAlchemyError: If there's an issue communicating with the database.
         """
         logger.debug(
-            f"Listing MIDI capture sessions for project ID {
-                self.project_id}.")
-        db: Session = SessionLocal()
+            f"Listing MIDI capture sessions for project ID {self.project_id}."
+        )
+
+        _db_to_use = self.db
+        _manage_session_locally = False
+        db_gen_local = None
+
+        if _db_to_use is None:
+            logger.debug("No self.db session, creating local session for list_midi_capture_sessions.")
+            db_gen_local = get_db()
+            _db_to_use = next(db_gen_local)
+            _manage_session_locally = True
+        else:
+            logger.debug("Using self.db session for list_midi_capture_sessions.")
+
         try:
             sessions = (
-                db.query(MidiCaptureSessionModel)
+                _db_to_use.query(MidiCaptureSessionModel)
                 .filter(MidiCaptureSessionModel.project_id == self.project_id)
                 .order_by(MidiCaptureSessionModel.created_at.desc())
                 .all()
@@ -436,11 +576,16 @@ class Project:
             return sessions
         except SQLAlchemyError as e:
             logger.error(
-                f"Database error listing MIDI capture sessions for project ID {
-                    self.project_id}: {e}")
+                f"Database error listing MIDI capture sessions for project ID {self.project_id}: {e}"
+            )
             raise
         finally:
-            db.close()
+            if _manage_session_locally and db_gen_local:
+                try:
+                    next(db_gen_local, None)
+                    logger.debug("Closed locally managed session for list_midi_capture_sessions.")
+                except StopIteration:
+                    pass
 
     def get_midi_capture_session(
         self, session_id: int
@@ -462,12 +607,24 @@ class Project:
             SQLAlchemyError: If there's an issue communicating with the database.
         """
         logger.debug(
-            f"Retrieving MIDI capture session ID {session_id} for project ID {
-                self.project_id}.")
-        db: Session = SessionLocal()
+            f"Retrieving MIDI capture session ID {session_id} for project ID {self.project_id}."
+        )
+
+        _db_to_use = self.db
+        _manage_session_locally = False
+        db_gen_local = None
+
+        if _db_to_use is None:
+            logger.debug("No self.db session, creating local session for get_midi_capture_session.")
+            db_gen_local = get_db()
+            _db_to_use = next(db_gen_local)
+            _manage_session_locally = True
+        else:
+            logger.debug("Using self.db session for get_midi_capture_session.")
+
         try:
             session = (
-                db.query(MidiCaptureSessionModel)
+                _db_to_use.query(MidiCaptureSessionModel)
                 .filter(
                     MidiCaptureSessionModel.id == session_id,
                     MidiCaptureSessionModel.project_id == self.project_id,
@@ -483,10 +640,16 @@ class Project:
             return session
         except SQLAlchemyError as e:
             logger.error(
-                f"Database error retrieving MIDI capture session ID {session_id}: {e}")
+                f"Database error retrieving MIDI capture session ID {session_id}: {e}"
+            )
             raise
         finally:
-            db.close()
+            if _manage_session_locally and db_gen_local:
+                try:
+                    next(db_gen_local, None)
+                    logger.debug("Closed locally managed session for get_midi_capture_session.")
+                except StopIteration:
+                    pass
 
     def get_midi_files_for_session(
             self, session_id: int) -> List[MidiFileModel]:
@@ -512,12 +675,24 @@ class Project:
             SQLAlchemyError: If there's an issue communicating with the database.
         """
         logger.debug(
-            f"Retrieving MIDI files for session ID {session_id} (project ID {
-                self.project_id}).")
-        db: Session = SessionLocal()
+            f"Retrieving MIDI files for session ID {session_id} (project ID {self.project_id})."
+        )
+
+        _db_to_use = self.db
+        _manage_session_locally = False
+        db_gen_local = None
+
+        if _db_to_use is None:
+            logger.debug("No self.db session, creating local session for get_midi_files_for_session.")
+            db_gen_local = get_db()
+            _db_to_use = next(db_gen_local)
+            _manage_session_locally = True
+        else:
+            logger.debug("Using self.db session for get_midi_files_for_session.")
+
         try:
             capture_session = (
-                db.query(MidiCaptureSessionModel)
+                _db_to_use.query(MidiCaptureSessionModel)
                 .filter(
                     MidiCaptureSessionModel.id == session_id,
                     MidiCaptureSessionModel.project_id == self.project_id,
@@ -532,18 +707,24 @@ class Project:
                 return []
 
             midi_files = (
-                db.query(MidiFileModel)
+                _db_to_use.query(MidiFileModel)
                 .filter(MidiFileModel.midi_capture_session_id == session_id)
                 .order_by(MidiFileModel.created_at.asc())
                 .all()
             )
             logger.debug(
-                f"Found {
-                    len(midi_files)} MIDI files for session ID {session_id}.")
+                f"Found {len(midi_files)} MIDI files for session ID {session_id}."
+            )
             return midi_files
         except SQLAlchemyError as e:
             logger.error(
-                f"Database error retrieving MIDI files for session ID {session_id}: {e}")
+                f"Database error retrieving MIDI files for session ID {session_id}: {e}"
+            )
             raise
         finally:
-            db.close()
+            if _manage_session_locally and db_gen_local:
+                try:
+                    next(db_gen_local, None)
+                    logger.debug("Closed locally managed session for get_midi_files_for_session.")
+                except StopIteration:
+                    pass

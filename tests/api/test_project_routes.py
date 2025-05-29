@@ -19,40 +19,25 @@ def app():
     test_db_url = "sqlite:///:memory:"
 
     # Create a Flask app configured for testing
-    flask_app = create_app()  # Your actual app factory
+    flask_app = create_app()
     flask_app.config.update(
         {
             "TESTING": True,
-            "SQLALCHEMY_DATABASE_URI": test_db_url,  # If your app uses this config key
-            "DATABASE_URL": test_db_url,  # If your app uses this for your custom utils
+            "DATABASE_URL": "sqlite:///:memory:",  # Use in-memory SQLite for tests
         }
     )
 
-    # Override database utilities to use the test database
-    # This is crucial if your routes directly call get_db or SessionLocal from
-    # utils
-    engine = get_engine(test_db_url)
-
-    # Re-initialize global engine and SessionLocal in utils for the test app context
-    # This is a bit of a hack due to the global nature of _engine and _SessionLocal in utils.py
-    # A better approach would be for utils.py to accept app.config for DB URL.
-    import src.database.utils as db_utils
-
-    db_utils._engine = engine
-    db_utils._SessionLocal = get_session_local(engine_instance=engine)
-
     with flask_app.app_context():
-        # Create tables in the in-memory DB
-        initialize_db_utils(engine_instance=engine)
+        # Initialize the database schema using the app's configured DATABASE_URL
+        # get_engine() inside initialize_db_utils will now use app.config['DATABASE_URL']
+        initialize_db_utils() 
+        # Note: The tables are created once per module. 
+        # manage_database_session will handle per-test data cleaning.
 
     yield flask_app
 
-    # Teardown: if there's any global state to clean for the app, do it here.
-    # For in-memory DB, it's usually gone when the engine/connection closes.
-    # Resetting the globals in utils for safety if other test modules use
-    # default DB.
-    db_utils._engine = None
-    db_utils._SessionLocal = None
+    # No explicit teardown needed for _engine or _SessionLocal patching, as it's removed.
+    # The in-memory database ceases to exist when the connection is closed.
 
 
 @pytest.fixture
@@ -62,35 +47,47 @@ def client(app: Flask):
 
 
 # Automatically use this for each test in this file
-@pytest.fixture(autouse=True)
+@pytest.fixture(autouse=True) # Ensures this runs for every test function
 def manage_database_session(app: Flask):
-    """Ensure each test has a fresh database session and tables are clean."""
-    engine = get_engine(
-        "sqlite:///:memory:"
-    )  # Always get a fresh in-memory engine for full isolation
-
-    # Re-assign globals in utils for this specific test function's context
-    import src.database.utils as db_utils
-
-    original_engine = db_utils._engine
-    original_session_local = db_utils._SessionLocal
-
-    db_utils._engine = engine
-    db_utils._SessionLocal = get_session_local(engine_instance=engine)
-
-    with app.app_context():  # Ensure operations are within app context
-        Base.metadata.drop_all(bind=engine)  # Drop all tables
-        Base.metadata.create_all(bind=engine)  # Create all tables
+    """
+    Ensure each test has a clean database state (empty tables).
+    Relies on the app fixture to have configured the DATABASE_URL for an 
+    in-memory DB and initialized the schema once.
+    This fixture ensures data isolation between tests by clearing data.
+    """
+    with app.app_context():
+        # Get the engine that the app is configured to use (should be in-memory)
+        # This relies on get_engine() correctly using current_app.config
+        engine = get_engine() 
+                                
+        # Clear all data from tables before each test
+        # This is faster than dropping and recreating tables if the schema is stable
+        for table in reversed(Base.metadata.sorted_tables):
+            # Use a session to execute delete statements
+            # Cannot use engine.execute(table.delete()) directly with SQLAlchemy 2.0 style
+            # A session is needed.
+            Session = get_session_local(engine_instance=engine)
+            db = Session()
+            try:
+                db.execute(table.delete())
+                db.commit()
+            except Exception as e:
+                db.rollback()
+                app.logger.error(f"Error clearing table {table.name}: {e}")
+                raise
+            finally:
+                db.close()
+        
+        # Alternative: Drop and recreate all tables (slower but robust if schema changes or complex relations)
+        # Base.metadata.drop_all(bind=engine)
+        # Base.metadata.create_all(bind=engine)
 
     yield  # Run the test
 
-    # Teardown after test: drop all tables to ensure no state leaks
-    with app.app_context():
-        Base.metadata.drop_all(bind=engine)
-
-    # Restore original engine and session local if they were set
-    db_utils._engine = original_engine
-    db_utils._SessionLocal = original_session_local
+    # Teardown after test (optional, if yield above handles it per test)
+    # For in-memory DB, data is gone anyway when connections close.
+    # If using persistent DB for tests, this is where you'd clean up.
+    # For this setup, clearing tables before each test is the primary strategy.
 
 
 # --- Project Route Tests ---

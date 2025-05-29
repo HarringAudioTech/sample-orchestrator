@@ -24,9 +24,18 @@ def get_engine(database_url: str = None):
         sqlalchemy.engine.Engine: The SQLAlchemy engine instance.
     """
     global _engine
+    from flask import current_app
+
     if database_url:
+        # If a specific URL is provided, use it directly.
         return create_engine(database_url)
+    
+    if current_app and 'DATABASE_URL' in current_app.config:
+        # If running within a Flask app context and DATABASE_URL is configured
+        return create_engine(current_app.config['DATABASE_URL'])
+
     if _engine is None:
+        # Fallback to the global default engine if no specific URL or app config is found
         _engine = create_engine(DATABASE_URL)
     return _engine
 
@@ -47,14 +56,29 @@ def get_session_local(engine_instance=None) -> sessionmaker:
         sqlalchemy.orm.sessionmaker: The SQLAlchemy sessionmaker instance.
     """
     global _SessionLocal
+    from flask import current_app
+
+    effective_engine = engine_instance
+    if not effective_engine:
+        # If no specific engine instance is provided, determine the engine to use.
+        # This will leverage the logic in get_engine(), including Flask app config.
+        effective_engine = get_engine()
+
     if engine_instance:
+        # If a specific engine_instance was provided, always create a new sessionmaker for it.
+        # This is useful for tests or scenarios needing isolated sessions with a specific DB.
         return sessionmaker(
-            autocommit=False,
-            autoflush=False,
-            bind=engine_instance)
-    if _SessionLocal is None:
+            autocommit=False, autoflush=False, bind=effective_engine
+        )
+    
+    # For the global/default SessionLocal, reuse if already created with the same engine.
+    # However, if the effective_engine is different from what _SessionLocal is bound to,
+    # a new _SessionLocal needs to be created.
+    # This handles the case where get_engine() might return a different engine
+    # (e.g., from app.config) than the one used for the initial global _SessionLocal.
+    if _SessionLocal is None or _SessionLocal.kw["bind"] != effective_engine:
         _SessionLocal = sessionmaker(
-            autocommit=False, autoflush=False, bind=get_engine()
+            autocommit=False, autoflush=False, bind=effective_engine
         )
     return _SessionLocal
 
@@ -124,6 +148,7 @@ def get_db(engine_instance=None) -> Session:
 
 # Create the global SessionLocal instance that other modules expect to import.
 # This should be the session *factory* (the result of sessionmaker()).
+# Initialize SessionLocal using the default engine resolution logic.
 SessionLocal = get_session_local()
 
 if __name__ == "__main__":

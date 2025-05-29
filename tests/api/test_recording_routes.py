@@ -26,29 +26,24 @@ def app():
     flask_app.config.update(
         {
             "TESTING": True,
-            "DATABASE_URL": test_db_url,
+            "DATABASE_URL": "sqlite:///:memory:", # Use in-memory SQLite for tests
             "UPLOAD_FOLDER": "/tmp/pytest_uploads_recordings_api",
             "SAMPLES_BASE_DIR": "/tmp/pytest_samples_base_recordings_api",
         }
     )
 
-    import src.database.utils as db_utils
-
-    engine = get_engine(test_db_url)
-    db_utils._engine = engine
-    db_utils._SessionLocal = get_session_local(engine_instance=engine)
-
     with flask_app.app_context():
-        initialize_db_utils(engine_instance=engine)
+        # Initialize the database schema using the app's configured DATABASE_URL
+        initialize_db_utils()
+        # Note: The tables are created once per module.
+        # manage_database_session will handle per-test data cleaning.
 
+    # Ensure test-specific folders exist
     os.makedirs(flask_app.config["UPLOAD_FOLDER"], exist_ok=True)
     os.makedirs(flask_app.config["SAMPLES_BASE_DIR"], exist_ok=True)
 
     yield flask_app
-
-    # Clean up global DB utils state
-    db_utils._engine = None
-    db_utils._SessionLocal = None
+    # No explicit teardown needed for _engine or _SessionLocal patching
 
 
 @pytest.fixture
@@ -56,33 +51,34 @@ def client(app: Flask):
     return app.test_client()
 
 
-@pytest.fixture(autouse=True)  # Ensures clean DB for every test in this module
+@pytest.fixture(autouse=True) # Ensures this runs for every test function
 def manage_database_session(app: Flask):
-    # This fixture now correctly uses the app's configured DATABASE_URL via get_engine()
-    # to ensure it's operating on the same in-memory DB defined in the app
-    # fixture.
-    engine = get_engine(app.config["DATABASE_URL"])
-
-    # Temporarily override global _engine and _SessionLocal in utils for this
-    # test's scope
-    import src.database.utils as db_utils
-
-    original_engine = db_utils._engine
-    original_session_local = db_utils._SessionLocal
-
-    db_utils._engine = engine  # Point utils to use this test's engine
-    db_utils._SessionLocal = get_session_local(engine_instance=engine)
-
+    """
+    Ensure each test has a clean database state (empty tables).
+    Relies on the app fixture to have configured the DATABASE_URL for an
+    in-memory DB and initialized the schema once.
+    This fixture ensures data isolation between tests by clearing data.
+    """
     with app.app_context():
-        Base.metadata.drop_all(bind=engine)  # Clear all data
-        Base.metadata.create_all(bind=engine)  # Recreate schema
+        # Get the engine that the app is configured to use (should be in-memory)
+        engine = get_engine()
+
+        # Clear all data from tables before each test
+        for table in reversed(Base.metadata.sorted_tables):
+            Session = get_session_local(engine_instance=engine)
+            db = Session()
+            try:
+                db.execute(table.delete())
+                db.commit()
+            except Exception as e:
+                db.rollback()
+                app.logger.error(f"Error clearing table {table.name}: {e}")
+                raise
+            finally:
+                db.close()
     yield
-    with app.app_context():
-        Base.metadata.drop_all(bind=engine)  # Clean up after test
-
-    # Restore original globals
-    db_utils._engine = original_engine
-    db_utils._SessionLocal = original_session_local
+    # No explicit teardown for table data needed here, as in-memory DB is ephemeral
+    # or next test will clear tables again.
 
 
 @pytest.fixture
