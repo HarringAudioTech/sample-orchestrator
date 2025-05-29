@@ -328,7 +328,7 @@ class TestMidiRecorder:
         db_session: Session,
         test_project_model: ProjectModel,
         initial_devices,
-        capsys,
+        caplog,  # Changed from capsys
     ):
         # "Device 3" does not exist, "Device 1" does.
         recorder = MidiRecorder(
@@ -339,8 +339,13 @@ class TestMidiRecorder:
         )
         assert len(recorder.target_devices) == 1
         assert recorder.target_devices[0].name == "Device 1"
-        captured = capsys.readouterr()
-        assert "Warning: MIDI device 'Device 3' not found in database" in captured.out
+        # Check caplog for the warning message
+        found_log = False
+        for record in caplog.records:
+            if "Warning: MIDI device 'Device 3' not found in database" in record.message and record.levelname == "WARNING":
+                found_log = True
+                break
+        assert found_log, "Log message 'Warning: MIDI device 'Device 3' not found in database' not found"
 
         # Test if all devices are non-existent
         with pytest.raises(
@@ -434,7 +439,7 @@ class TestMidiRecorder:
             recorder.start_recording(db_session)
 
         assert recorder.active is True
-        assert self.mock_mido_open_input.called_with("Device 1", callback=ANY)
+        self.mock_mido_open_input.assert_called_with("Device 1", callback=ANY) # Corrected assertion
         assert len(recorder.midi_inputs) == 1
         assert recorder.midi_inputs["Device 1"] == self.mock_port
 
@@ -522,8 +527,9 @@ class TestMidiRecorder:
         mfile_ch1 = recorder.midi_files[file_key_ch1]
         assert isinstance(mfile_ch1, mido.MidiFile)
         assert len(mfile_ch1.tracks) == 1
-        assert len(mfile_ch1.tracks[0]) == 1
-        assert mfile_ch1.tracks[0][0] == msg_ch1
+        # Track contains track_name MetaMessage + actual message
+        assert len(mfile_ch1.tracks[0]) == 2 
+        assert mfile_ch1.tracks[0][1] == msg_ch1
 
         # Simulate a system common message (no channel)
         msg_sys = mido.Message(
@@ -536,8 +542,9 @@ class TestMidiRecorder:
         assert file_key_sys in recorder.midi_files
         mfile_sys = recorder.midi_files[file_key_sys]
         assert len(mfile_sys.tracks) == 1
-        assert len(mfile_sys.tracks[0]) == 1
-        assert mfile_sys.tracks[0][0] == msg_sys
+        # Track contains track_name MetaMessage + actual message
+        assert len(mfile_sys.tracks[0]) == 2
+        assert mfile_sys.tracks[0][1] == msg_sys
 
         # Add another message to channel 0
         msg_ch1_off = mido.Message(
@@ -547,8 +554,9 @@ class TestMidiRecorder:
             channel=0,
             time=0.3)
         recorder._midi_callback(msg_ch1_off, device_name="Device 1")
-        assert len(mfile_ch1.tracks[0]) == 2
-        assert mfile_ch1.tracks[0][1] == msg_ch1_off
+        # Now track_name + msg_ch1 + msg_ch1_off
+        assert len(mfile_ch1.tracks[0]) == 3
+        assert mfile_ch1.tracks[0][2] == msg_ch1_off
 
     # Mock makedirs for _get_output_directory, though not strictly for MIDI
     # files.
@@ -577,8 +585,12 @@ class TestMidiRecorder:
         msg1 = mido.Message("note_on", channel=0, note=60)
         msg2 = mido.Message("note_off", channel=0, note=60)
         mfile = mido.MidiFile(type=1)
-        mfile.add_track()
-        mfile.tracks[0].extend([msg1, msg2])
+        # Simulate the recorder's track naming convention
+        device_name_sanitized = sanitize_filename("Device 1")
+        channel = 0
+        track_name = f"{device_name_sanitized}_ch{channel}"
+        track = mfile.add_track(name=track_name) # Add track WITH name
+        track.extend([msg1, msg2])
         recorder.midi_files[("Device 1", 0)] = mfile
 
         original_end_time = datetime.datetime.utcnow() - datetime.timedelta(seconds=10)

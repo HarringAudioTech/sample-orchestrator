@@ -2,7 +2,7 @@ import os
 import wave
 import logging  # Added logging
 from typing import List
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker # Added sessionmaker
 from sqlalchemy.exc import SQLAlchemyError  # To catch DB errors specifically
 from src.database.models import (
     Project as ProjectModel,
@@ -40,9 +40,10 @@ class Project:
         project_id (int): The ID of the project this instance manages.
         project_model (ProjectModel): The SQLAlchemy model instance for this project,
                                       loaded from the database during initialization.
+        session_factory (sessionmaker): The factory to create database sessions.
     """
 
-    def __init__(self, project_id: int):
+    def __init__(self, project_id: int, session_factory: sessionmaker = None):
         """
         Initializes a Project instance by loading its data from the database.
 
@@ -54,12 +55,9 @@ class Project:
             SQLAlchemyError: If there's an issue communicating with the database.
         """
         logger.info(f"Initializing Project core for project_id: {project_id}")
-        # Uses a new session that is closed after loading.
-        # Consider if this session should be managed by the caller or be longer-lived
-        # if multiple operations are performed on the Project instance.
-        # For now, __init__ uses its own short-lived session.
-        db_gen = get_db()  # get_db() should ideally be configurable for test/prod
-        db: Session = next(db_gen)
+        self.session_factory = session_factory or SessionLocal
+
+        db = self.session_factory()
         try:
             project_model = (
                 db.query(ProjectModel).filter(
@@ -76,13 +74,10 @@ class Project:
         except SQLAlchemyError as e:
             logger.error(
                 f"Database error during Project initialization for project_id {project_id}: {e}")
+            db.rollback()  # Rollback this specific session
             raise
         finally:
-            try:
-                # Ensure generator is exhausted and session closed
-                next(db_gen, None)
-            except StopIteration:  # Handle if generator is already exhausted
-                pass
+            db.close()  # Close this specific session
 
     def add_recording(self, file_path: str, name: str) -> RecordingModel:
         """
@@ -108,7 +103,7 @@ class Project:
         logger.info(
             f"Adding recording '{name}' from path '{file_path}' to project ID {
                 self.project_id}.")
-        db: Session = SessionLocal()
+        db: Session = self.session_factory()
         try:
             if not os.path.exists(file_path):
                 logger.error(f"Recording file not found: {file_path}")
@@ -182,8 +177,7 @@ class Project:
         logger.debug(
             f"Retrieving recording ID {recording_id} for project ID {
                 self.project_id}.")
-        db_gen = get_db()
-        db: Session = next(db_gen)
+        db: Session = self.session_factory()
         try:
             recording = (
                 db.query(RecordingModel)
@@ -195,6 +189,11 @@ class Project:
             )
             if recording:
                 logger.debug(f"Found recording: {recording.name}")
+                # Access attributes to load them before session closes
+                _ = recording.id
+                _ = recording.name
+                _ = recording.status
+                _ = recording.project_id
             else:
                 logger.debug(
                     f"Recording ID {recording_id} not found for project ID {
@@ -203,12 +202,10 @@ class Project:
         except SQLAlchemyError as e:
             logger.error(
                 f"Database error retrieving recording ID {recording_id}: {e}")
+            db.rollback()
             raise
         finally:
-            try:
-                next(db_gen, None)
-            except StopIteration:
-                pass
+            db.close()
 
     def list_recordings(self) -> list[RecordingModel]:
         """
@@ -223,8 +220,7 @@ class Project:
         logger.debug(
             f"Listing all recordings for project ID {
                 self.project_id}.")
-        db_gen = get_db()
-        db: Session = next(db_gen)
+        db: Session = self.session_factory()
         try:
             recordings = (
                 db.query(RecordingModel)
@@ -236,17 +232,21 @@ class Project:
                 f"Found {
                     len(recordings)} recordings for project ID {
                     self.project_id}.")
+            # Access attributes to load them before session closes
+            for rec in recordings:
+                _ = rec.id
+                _ = rec.name
+                _ = rec.status
+                _ = rec.project_id
             return recordings
         except SQLAlchemyError as e:
             logger.error(
                 f"Database error listing recordings for project ID {
                     self.project_id}: {e}")
+            db.rollback()
             raise
         finally:
-            try:
-                next(db_gen, None)
-            except StopIteration:
-                pass
+            db.close()
 
     def process_recording(self, recording_id: int, output_sample_dir: str):
         """
@@ -282,7 +282,7 @@ class Project:
                 f"Error creating output directory {output_sample_dir}: {e}. Processing aborted.")
             return  # Or raise custom error
 
-        db_processing_session = SessionLocal()
+        db_processing_session = self.session_factory()
         try:
             recording = (
                 db_processing_session.query(RecordingModel)
@@ -343,11 +343,22 @@ class Project:
             Exception: If `mido` backend calls fail within `list_available_midi_devices`.
         """
         logger.info(f"Listing MIDI devices for project ID {self.project_id}.")
-        db: Session = SessionLocal()
+        db: Session = self.session_factory()
         try:
+            # list_available_midi_devices expects a session, not a factory
+            # This is fine as we are passing an active session instance here.
             devices = list_available_midi_devices(db)
             logger.info(f"Found {len(devices)} MIDI devices.")
-            return devices
+            # Access attributes to load them before session closes
+            processed_devices = []
+            for device in devices:
+                _ = device.id
+                _ = device.name
+                # Assuming list_available_midi_devices might not add them to the session
+                # or commit, so re-querying or ensuring they are persistent might be needed
+                # if they were just created in that call. For now, just access.
+                processed_devices.append(device)
+            return processed_devices
         except Exception as e:
             logger.error(
                 f"Error listing MIDI devices in Project.list_midi_devices: {e}",
@@ -387,8 +398,9 @@ class Project:
         logger.info(
             f"Creating MIDI capture session '{session_name}' for project ID {
                 self.project_id} " f"with devices: {selected_device_names}")
-        db: Session = SessionLocal()
+        db: Session = self.session_factory()
         try:
+            # MidiRecorder also expects an active session for its db parameter
             recorder = MidiRecorder(
                 project_id=self.project_id,
                 selected_device_names=selected_device_names,
@@ -421,7 +433,7 @@ class Project:
         logger.debug(
             f"Listing MIDI capture sessions for project ID {
                 self.project_id}.")
-        db: Session = SessionLocal()
+        db: Session = self.session_factory()
         try:
             sessions = (
                 db.query(MidiCaptureSessionModel)
@@ -433,6 +445,12 @@ class Project:
                 f"Found {
                     len(sessions)} MIDI capture sessions for project ID {
                     self.project_id}.")
+            # Access attributes to load them before session closes
+            for session_item in sessions:
+                _ = session_item.id
+                _ = session_item.name
+                _ = session_item.status
+                _ = session_item.project_id
             return sessions
         except SQLAlchemyError as e:
             logger.error(
@@ -464,7 +482,7 @@ class Project:
         logger.debug(
             f"Retrieving MIDI capture session ID {session_id} for project ID {
                 self.project_id}.")
-        db: Session = SessionLocal()
+        db: Session = self.session_factory()
         try:
             session = (
                 db.query(MidiCaptureSessionModel)
@@ -476,6 +494,11 @@ class Project:
             )
             if session:
                 logger.debug(f"Found MIDI capture session: {session.name}")
+                # Access attributes to load them before session closes
+                _ = session.id
+                _ = session.name
+                _ = session.status
+                _ = session.project_id
             else:
                 logger.debug(
                     f"MIDI capture session ID {session_id} not found for project ID {
@@ -514,7 +537,7 @@ class Project:
         logger.debug(
             f"Retrieving MIDI files for session ID {session_id} (project ID {
                 self.project_id}).")
-        db: Session = SessionLocal()
+        db: Session = self.session_factory()
         try:
             capture_session = (
                 db.query(MidiCaptureSessionModel)
@@ -540,6 +563,12 @@ class Project:
             logger.debug(
                 f"Found {
                     len(midi_files)} MIDI files for session ID {session_id}.")
+            # Access attributes to load them before session closes
+            for mf in midi_files:
+                _ = mf.id
+                _ = mf.channel_number
+                _ = mf.midi_device_id
+                _ = mf.midi_capture_session_id
             return midi_files
         except SQLAlchemyError as e:
             logger.error(

@@ -580,11 +580,10 @@ class MidiRecorder:
                     )
 
             self.capture_session.end_time = datetime.datetime.utcnow()
-            self.capture_session.status = (
-                "completed"
-                if saved_file_count > 0 or not self.midi_files
-                else "completed_empty"
-            )
+            if saved_file_count > 0:
+                self.capture_session.status = "completed"
+            else:
+                self.capture_session.status = "completed_empty"
             self.active = False
 
             db.add(self.capture_session)

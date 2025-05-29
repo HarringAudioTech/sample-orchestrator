@@ -15,6 +15,7 @@ from src.ui.routes import ui_bp  # Import the UI blueprint
 from src.database.utils import (
     init_db,
     get_session_local,
+    get_engine,  # Added get_engine
 )  # Renamed SessionLocal to get_session_local
 
 
@@ -68,7 +69,7 @@ def create_app() -> Flask:
         init_db()
         app.logger.info(
             f"Database initialized. DB located at: {
-                get_session_local().bind.engine.url}"
+                get_engine().url}"  # Changed to use get_engine()
         )
 
     # --- Request-scoped Database Session (Alternative) ---

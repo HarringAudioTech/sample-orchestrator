@@ -25,34 +25,14 @@ logger = logging.getLogger(__name__)
 class MockStageA_FilePathToBuffer(AudioProcessingStage):
     """Mock stage: FilePath -> AudioBufferMono. Logs calls."""
 
-    _name = "mock_stage_a"
-    _description = "Converts file path to mono audio buffer (mocked)."
-    _input_type = DATA_TYPE_FILE_PATH
-    _output_type = DATA_TYPE_AUDIO_BUFFER_MONO
-    _default_params = {"param_a": 1}
+    name = "mock_stage_a"
+    description = "Converts file path to mono audio buffer (mocked)."
+    input_type = DATA_TYPE_FILE_PATH
+    output_type = DATA_TYPE_AUDIO_BUFFER_MONO
+    default_params = {"param_a": 1}
 
     # Store calls for assertion
     call_log = []
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-    @property
-    def description(self) -> str:
-        return self._description
-
-    @property
-    def input_type(self) -> str:
-        return self._input_type
-
-    @property
-    def output_type(self) -> str:
-        return self._output_type
-
-    @property
-    def default_params(self) -> dict:
-        return self._default_params.copy()
 
     def process(
         self, data: str, params: dict, context: dict = None
@@ -70,32 +50,12 @@ class MockStageA_FilePathToBuffer(AudioProcessingStage):
 class MockStageB_BufferToBuffer(AudioProcessingStage):
     """Mock stage: AudioBufferMono -> AudioBufferMono. Logs calls."""
 
-    _name = "mock_stage_b"
-    _description = "Processes a mono audio buffer (mocked)."
-    _input_type = DATA_TYPE_AUDIO_BUFFER_MONO
-    _output_type = DATA_TYPE_AUDIO_BUFFER_MONO
-    _default_params = {"param_b": "hello"}
+    name = "mock_stage_b"
+    description = "Processes a mono audio buffer (mocked)."
+    input_type = DATA_TYPE_AUDIO_BUFFER_MONO
+    output_type = DATA_TYPE_AUDIO_BUFFER_MONO
+    default_params = {"param_b": "hello"}
     call_log = []
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-    @property
-    def description(self) -> str:
-        return self._description
-
-    @property
-    def input_type(self) -> str:
-        return self._input_type
-
-    @property
-    def output_type(self) -> str:
-        return self._output_type
-
-    @property
-    def default_params(self) -> dict:
-        return self._default_params.copy()
 
     def process(self, data: list, params: dict, context: dict = None) -> list:
         logger.info(
@@ -111,32 +71,12 @@ class MockStageB_BufferToBuffer(AudioProcessingStage):
 class MockStageC_BufferToFilePath(AudioProcessingStage):
     """Mock stage: AudioBufferMono -> FilePath. Logs calls."""
 
-    _name = "mock_stage_c"
-    _description = "Saves a mono audio buffer to a file path (mocked)."
-    _input_type = DATA_TYPE_AUDIO_BUFFER_MONO
-    _output_type = DATA_TYPE_FILE_PATH
-    _default_params = {"output_filename": "output.wav"}
+    name = "mock_stage_c"
+    description = "Saves a mono audio buffer to a file path (mocked)."
+    input_type = DATA_TYPE_AUDIO_BUFFER_MONO
+    output_type = DATA_TYPE_FILE_PATH
+    default_params = {"output_filename": "output.wav"}
     call_log = []
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-    @property
-    def description(self) -> str:
-        return self._description
-
-    @property
-    def input_type(self) -> str:
-        return self._input_type
-
-    @property
-    def output_type(self) -> str:
-        return self._output_type
-
-    @property
-    def default_params(self) -> dict:
-        return self._default_params.copy()
 
     def process(self, data: list, params: dict, context: dict = None) -> str:
         logger.info(
@@ -313,15 +253,18 @@ def test_execute_stage_chain_type_mismatch(registered_mock_stages):
     # Need to re-register if input_type change matters to registry (it doesn't for current STAGE_REGISTRY)
     # but the instance created by execute_stage_chain will have this modified
     # input_type.
-
-    with pytest.raises(
-        TypeError,
-        match="Stage expects input type 'file_path', but received 'audio_buffer_mono'",
-    ):
-        execute_stage_chain("/input.wav", DATA_TYPE_FILE_PATH, chain_def, {})
-
-    # Reset for other tests
-    MockStageC_BufferToFilePath._input_type = DATA_TYPE_AUDIO_BUFFER_MONO
+    # To modify class attribute for test, assign directly to MockStageC_BufferToFilePath.input_type
+    original_input_type = MockStageC_BufferToFilePath.input_type
+    MockStageC_BufferToFilePath.input_type = DATA_TYPE_FILE_PATH
+    try:
+        with pytest.raises(
+            TypeError,
+            match="Stage expects input type 'file_path', but received 'audio_buffer_mono'",
+        ):
+            execute_stage_chain("/input.wav", DATA_TYPE_FILE_PATH, chain_def, {})
+    finally:
+        # Reset for other tests
+        MockStageC_BufferToFilePath.input_type = original_input_type
 
 
 def test_execute_stage_chain_initial_type_mismatch(registered_mock_stages):
