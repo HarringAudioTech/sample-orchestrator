@@ -75,11 +75,9 @@ class MockWorkflowBeta(
 # --- Tests for _camel_to_snake utility ---
 def test_camel_to_snake():
     assert _camel_to_snake("SimpleWorkflow") == "simple_workflow"
-    assert _camel_to_snake(
-        "WorkflowWithABBREVIATION") == "workflow_with_abbreviation"
+    assert _camel_to_snake("WorkflowWithABBREVIATION") == "workflow_with_abbreviation"
     assert _camel_to_snake("Already_Snake_Case") == "already_snake_case"
-    assert _camel_to_snake(
-        "ExampleSlicingWorkflow") == "example_slicing_workflow"
+    assert _camel_to_snake("ExampleSlicingWorkflow") == "example_slicing_workflow"
 
 
 # --- Tests for register_workflow ---
@@ -87,8 +85,7 @@ def test_register_workflow_success():
     # ExampleSlicingWorkflow is registered at import time of its module.
     # For this test, let's use a fresh mock one.
     register_workflow(MockWorkflowAlpha)
-    expected_key = _camel_to_snake(
-        MockWorkflowAlpha.__name__)  # "mock_workflow_alpha"
+    expected_key = _camel_to_snake(MockWorkflowAlpha.__name__)  # "mock_workflow_alpha"
     assert expected_key in WORKFLOW_REGISTRY
     assert WORKFLOW_REGISTRY[expected_key] == MockWorkflowAlpha
 
@@ -165,7 +162,10 @@ def test_register_workflow_reregistration(caplog):
 
     assert any(
         f"Workflow registry key '{expected_key_alpha}' (derived from class '{
-            MockWorkflowBeta.__name__}') is already registered. Overwriting" in record.message for record in caplog.records)
+            MockWorkflowBeta.__name__}') is already registered. Overwriting"
+        in record.message
+        for record in caplog.records
+    )
 
 
 def test_register_workflow_type_error_not_subclass():
@@ -179,9 +179,7 @@ def test_register_workflow_type_error_not_subclass():
 # --- Tests for BaseWorkflow and ExampleSlicingWorkflow ---
 
 
-@patch(
-    "src.core.workflows.execute_stage_chain"
-)  # Mock the function called by workflow.run()
+@patch("src.core.workflows.execute_stage_chain")  # Mock the function called by workflow.run()
 def test_base_workflow_run_method(mock_execute_stage_chain):
     # Use the concrete ExampleSlicingWorkflow for testing the BaseWorkflow.run() logic
     # as BaseWorkflow itself is abstract.
@@ -190,9 +188,7 @@ def test_base_workflow_run_method(mock_execute_stage_chain):
     workflow_key = _camel_to_snake(ExampleSlicingWorkflow.__name__)
     # Ensure ExampleSlicingWorkflow is in the registry for this test
     if workflow_key not in WORKFLOW_REGISTRY:
-        register_workflow(
-            ExampleSlicingWorkflow
-        )  # Register if cleared by fixture setup
+        register_workflow(ExampleSlicingWorkflow)  # Register if cleared by fixture setup
 
     WorkflowClass = WORKFLOW_REGISTRY.get(workflow_key)
     assert (
@@ -244,9 +240,7 @@ def test_base_workflow_run_method(mock_execute_stage_chain):
     assert result == "final_processed_data"
 
     expected_context_for_chain = mock_context_val.copy()
-    expected_context_for_chain["current_workflow_name"] = (
-        mock_workflow_alpha_instance.name
-    )
+    expected_context_for_chain["current_workflow_name"] = mock_workflow_alpha_instance.name
 
     mock_execute_stage_chain.assert_called_once_with(
         initial_data=initial_data_val,

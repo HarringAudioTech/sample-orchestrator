@@ -5,11 +5,12 @@ Unit tests for the SlicingStage.
 import pytest
 import os
 import shutil
+
 # import wave # No longer directly used for reading/writing by stage
 import logging
 from unittest.mock import patch, MagicMock, ANY
-import numpy as np # For librosa mocks
-import soundfile as sf # For sf.info in fixture and mock target
+import numpy as np  # For librosa mocks
+import soundfile as sf  # For sf.info in fixture and mock target
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 
@@ -31,7 +32,7 @@ logger = logging.getLogger(__name__)
 # logging.basicConfig(level=logging.DEBUG) # Uncomment for detailed test logging
 
 # --- Test Fixtures ---
-DUMMY_AUDIO_DIR = "tests/fixtures" # Make sure this directory exists with dummy_audio.wav
+DUMMY_AUDIO_DIR = "tests/fixtures"  # Make sure this directory exists with dummy_audio.wav
 DUMMY_AUDIO_FILENAME = "dummy_audio.wav"  # Created in a previous step
 DUMMY_AUDIO_PATH = os.path.join(DUMMY_AUDIO_DIR, DUMMY_AUDIO_FILENAME)
 
@@ -56,10 +57,7 @@ def test_engine():
 def db_session(test_engine):
     """Creates a new database session for a test, ensuring a clean state."""
     # Using sessionmaker directly for more control in tests
-    TestSessionLocal = sessionmaker(
-        autocommit=False,
-        autoflush=False,
-        bind=test_engine)
+    TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
     session = TestSessionLocal()
     try:
         yield session
@@ -101,9 +99,10 @@ def setup_test_recording(db_session: Session) -> RecordingModel:
         info = sf.info(DUMMY_AUDIO_PATH)
         sr, frames, channels = info.samplerate, info.frames, info.channels
         duration = info.duration
-    except Exception as e: # Catch sf.LibsndfileError or other issues
+    except Exception as e:  # Catch sf.LibsndfileError or other issues
         pytest.fail(
-            f"Could not get audio details for dummy file {DUMMY_AUDIO_PATH} using soundfile: {e}")
+            f"Could not get audio details for dummy file {DUMMY_AUDIO_PATH} using soundfile: {e}"
+        )
 
     recording = RecordingModel(
         project_id=project.id,
@@ -120,7 +119,8 @@ def setup_test_recording(db_session: Session) -> RecordingModel:
     logger.info(
         f"Created test recording ID: {
             recording.id} for project ID: {
-            project.id}")
+            project.id}"
+    )
     return recording
 
 
@@ -162,12 +162,11 @@ def test_slicing_stage_process_success(
     # These should be sample indices as SlicingStage default_params for librosa_onset_params sets units='samples'
     onset_time_1_s = 0.5
     onset_time_2_s = 1.2
-    mock_onset_samples = np.array([
-        int(onset_time_1_s * mock_samplerate),
-        int(onset_time_2_s * mock_samplerate)
-    ])
+    mock_onset_samples = np.array(
+        [int(onset_time_1_s * mock_samplerate), int(onset_time_2_s * mock_samplerate)]
+    )
     mock_onset_detect.return_value = mock_onset_samples
-    
+
     # --- Default parameters for the stage (can be overridden in params if needed) ---
     # SlicingStage will use its default_params if not overridden in the call
     # Ensure these defaults are sensible for the mocked data
@@ -191,65 +190,95 @@ def test_slicing_stage_process_success(
     )
 
     # --- Assertions ---
-    db_session.refresh(recording) # Ensure we have the latest status
+    db_session.refresh(recording)  # Ensure we have the latest status
     assert recording.status == "slicing_completed"
-    assert len(result_samples_info) == 2 # Based on two mocked onsets
+    assert len(result_samples_info) == 2  # Based on two mocked onsets
 
     # Assert librosa.load call
     mock_librosa_load.assert_called_once_with(recording.file_path, sr=None, mono=True)
 
     # Assert librosa.onset.onset_detect call
     # Construct expected args for onset_detect. It will be y, sr, and then merged params.
-    expected_onset_call_params = {**stage.default_params['librosa_onset_params'], **stage_params.get('librosa_onset_params', {})}
+    expected_onset_call_params = {
+        **stage.default_params["librosa_onset_params"],
+        **stage_params.get("librosa_onset_params", {}),
+    }
     # If units was 'frames' and converted, the call to onset_detect would still have 'frames'.
     # But since we ensure units='samples' in SlicingStage for librosa_onset_params, that's what we check.
-    expected_onset_call_params['units'] = 'samples' 
-    mock_onset_detect.assert_called_once_with(y=mock_audio_data_mono, sr=mock_samplerate, **expected_onset_call_params)
+    expected_onset_call_params["units"] = "samples"
+    mock_onset_detect.assert_called_once_with(
+        y=mock_audio_data_mono, sr=mock_samplerate, **expected_onset_call_params
+    )
 
     # Sample 1 assertions
-    sample1_info = next(s for s in result_samples_info if s["metadata_json"] == f'{{"source_onset_samples": {mock_onset_samples[0]}}}')
-    assert sample1_info["name"].startswith(f"rec_{recording.id}_sample_1_onset_S{mock_onset_samples[0]}")
-    assert sample1_info["midi_pitch"] is None # Changed from aubio
+    sample1_info = next(
+        s
+        for s in result_samples_info
+        if s["metadata_json"] == f'{{"source_onset_samples": {mock_onset_samples[0]}}}'
+    )
+    assert sample1_info["name"].startswith(
+        f"rec_{recording.id}_sample_1_onset_S{mock_onset_samples[0]}"
+    )
+    assert sample1_info["midi_pitch"] is None  # Changed from aubio
     assert os.path.exists(sample1_info["file_path"])
     assert sample1_info["file_path"].startswith(temp_output_dir_for_samples)
     expected_start_time1 = float(mock_onset_samples[0]) / mock_samplerate
-    expected_end_time1 = float(mock_onset_samples[1]) / mock_samplerate # Ends at next onset
-     # Apply max_sample_length_ms if it's shorter than next onset
-    max_len_s1 = int(stage_params.get("max_sample_length_ms", stage.default_params["max_sample_length_ms"]) / 1000 * mock_samplerate)
+    expected_end_time1 = float(mock_onset_samples[1]) / mock_samplerate  # Ends at next onset
+    # Apply max_sample_length_ms if it's shorter than next onset
+    max_len_s1 = int(
+        stage_params.get("max_sample_length_ms", stage.default_params["max_sample_length_ms"])
+        / 1000
+        * mock_samplerate
+    )
     if (mock_onset_samples[0] + max_len_s1) < mock_onset_samples[1]:
-         expected_end_time1 = float(mock_onset_samples[0] + max_len_s1) / mock_samplerate
-    
+        expected_end_time1 = float(mock_onset_samples[0] + max_len_s1) / mock_samplerate
+
     assert abs(sample1_info["start_time_seconds"] - expected_start_time1) < 1e-6
     assert abs(sample1_info["end_time_seconds"] - expected_end_time1) < 1e-6
 
-
     # Sample 2 assertions
-    sample2_info = next(s for s in result_samples_info if s["metadata_json"] == f'{{"source_onset_samples": {mock_onset_samples[1]}}}')
-    assert sample2_info["name"].startswith(f"rec_{recording.id}_sample_2_onset_S{mock_onset_samples[1]}")
+    sample2_info = next(
+        s
+        for s in result_samples_info
+        if s["metadata_json"] == f'{{"source_onset_samples": {mock_onset_samples[1]}}}'
+    )
+    assert sample2_info["name"].startswith(
+        f"rec_{recording.id}_sample_2_onset_S{mock_onset_samples[1]}"
+    )
     assert sample2_info["midi_pitch"] is None
     assert os.path.exists(sample2_info["file_path"])
-    
+
     expected_start_time2 = float(mock_onset_samples[1]) / mock_samplerate
-    expected_end_time2 = float(len(mock_audio_data_mono)) / mock_samplerate # Ends at end of audio
-    max_len_s2 = int(stage_params.get("max_sample_length_ms", stage.default_params["max_sample_length_ms"]) / 1000 * mock_samplerate)
+    expected_end_time2 = (
+        float(len(mock_audio_data_mono)) / mock_samplerate
+    )  # Ends at end of audio
+    max_len_s2 = int(
+        stage_params.get("max_sample_length_ms", stage.default_params["max_sample_length_ms"])
+        / 1000
+        * mock_samplerate
+    )
     if (mock_onset_samples[1] + max_len_s2) < len(mock_audio_data_mono):
         expected_end_time2 = float(mock_onset_samples[1] + max_len_s2) / mock_samplerate
 
     assert abs(sample2_info["start_time_seconds"] - expected_start_time2) < 1e-6
     assert abs(sample2_info["end_time_seconds"] - expected_end_time2) < 1e-6
 
-
     # Check sf.write calls
     # sf.write(sample_file_path, audio_slice, sr)
     assert mock_sf_write.call_count == 2
     # Check first call (args are call_args[0], kwargs are call_args[1])
     call1_args = mock_sf_write.call_args_list[0][0]
-    assert call1_args[0] == sample1_info["file_path"] # path
+    assert call1_args[0] == sample1_info["file_path"]  # path
     # assert np.array_equal(call1_args[1], mock_audio_data_mono[mock_onset_samples[0]:int(expected_end_time1*mock_samplerate)]) # data
-    assert call1_args[2] == mock_samplerate # sr
+    assert call1_args[2] == mock_samplerate  # sr
 
     # Check DB
-    db_samples = db_session.query(SampleModel).filter(SampleModel.recording_id == recording.id).order_by(SampleModel.start_time_seconds).all()
+    db_samples = (
+        db_session.query(SampleModel)
+        .filter(SampleModel.recording_id == recording.id)
+        .order_by(SampleModel.start_time_seconds)
+        .all()
+    )
     assert len(db_samples) == 2
     assert db_samples[0].name == sample1_info["name"]
     assert db_samples[0].midi_pitch is None
@@ -260,14 +289,16 @@ def test_slicing_stage_process_success(
     assert db_samples[1].midi_pitch is None
     assert abs(db_samples[1].start_time_seconds - expected_start_time2) < 1e-6
     assert abs(db_samples[1].end_time_seconds - expected_end_time2) < 1e-6
-    
+
     # Verify recording's samplerate and duration were updated if changed by librosa.load
     # This depends on the initial values in setup_test_recording and what librosa.load returns.
     # For this test, mock_samplerate is derived from recording.samplerate or default,
     # so it might not change unless DUMMY_AUDIO_PATH has a different native SR.
-    db_session.refresh(recording) # get latest state
+    db_session.refresh(recording)  # get latest state
     assert recording.samplerate == mock_samplerate
-    assert abs(recording.duration_seconds - (len(mock_audio_data_mono) / mock_samplerate)) < 1e-6
+    assert (
+        abs(recording.duration_seconds - (len(mock_audio_data_mono) / mock_samplerate)) < 1e-6
+    )
     context = {
         "db_session": db_session,
         "recording_id": recording.id,
@@ -314,9 +345,8 @@ def test_slicing_stage_process_success(
 
     # Verify aubio calls (simplified)
     mock_aubio_src.assert_called_with(
-        recording.file_path,
-        recording.samplerate,
-        stage.default_params["hop_size"])
+        recording.file_path, recording.samplerate, stage.default_params["hop_size"]
+    )
     mock_aubio_notes_obj_class.assert_called_with(
         "default",
         stage.default_params["window_size"],
@@ -350,9 +380,7 @@ def test_slicing_stage_input_file_not_found(
     assert recording.status == "slicing_failed"
 
 
-def test_slicing_stage_recording_not_found_in_db(
-    db_session, temp_output_dir_for_samples
-):
+def test_slicing_stage_recording_not_found_in_db(db_session, temp_output_dir_for_samples):
     stage = SlicingStage()
     context = {
         "db_session": db_session,
@@ -361,9 +389,7 @@ def test_slicing_stage_recording_not_found_in_db(
         "output_sample_dir": temp_output_dir_for_samples,
     }
     with pytest.raises(ValueError, match="Recording with id 9999 not found"):
-        stage.process(
-            data=DUMMY_AUDIO_PATH, params=stage.default_params, context=context
-        )
+        stage.process(data=DUMMY_AUDIO_PATH, params=stage.default_params, context=context)
 
 
 def test_slicing_stage_missing_context_keys(db_session, setup_test_recording):
@@ -371,9 +397,7 @@ def test_slicing_stage_missing_context_keys(db_session, setup_test_recording):
     stage = SlicingStage()
 
     # Missing db_session
-    with pytest.raises(
-        ValueError, match="Missing required key 'db_session' in context"
-    ):
+    with pytest.raises(ValueError, match="Missing required key 'db_session' in context"):
         stage.process(
             DUMMY_AUDIO_PATH,
             {},
@@ -385,12 +409,12 @@ def test_slicing_stage_missing_context_keys(db_session, setup_test_recording):
         )
 
     # Missing recording_id
-    with pytest.raises(
-        ValueError, match="Missing required key 'recording_id' in context"
-    ):
+    with pytest.raises(ValueError, match="Missing required key 'recording_id' in context"):
         stage.process(
-            DUMMY_AUDIO_PATH, {}, {
-                "db_session": db_session, "project_id": 1, "output_sample_dir": "/tmp"}, )
+            DUMMY_AUDIO_PATH,
+            {},
+            {"db_session": db_session, "project_id": 1, "output_sample_dir": "/tmp"},
+        )
 
 
 @patch(
@@ -398,10 +422,8 @@ def test_slicing_stage_missing_context_keys(db_session, setup_test_recording):
     side_effect=RuntimeError("Failed to get audio details"),
 )
 def test_slicing_stage_audio_detail_error(
-        mock_get_details,
-        db_session,
-        setup_test_recording,
-        temp_output_dir_for_samples):
+    mock_get_details, db_session, setup_test_recording, temp_output_dir_for_samples
+):
     recording = setup_test_recording
     stage = SlicingStage()
     context = {
@@ -412,10 +434,7 @@ def test_slicing_stage_audio_detail_error(
     }
 
     with pytest.raises(RuntimeError, match="Failed to get audio details"):
-        stage.process(
-            data=recording.file_path,
-            params=stage.default_params,
-            context=context)
+        stage.process(data=recording.file_path, params=stage.default_params, context=context)
 
     db_session.refresh(recording)
     assert recording.status == "slicing_failed"
@@ -438,9 +457,9 @@ def test_slicing_stage_no_notes_detected(
         channels=recording.channels,
         duration=int(recording.duration_seconds * recording.samplerate),
     )
-    mock_src_instance.side_effect = [
-        (MagicMock(), stage.default_params["hop_size"])
-    ] * 5 + [(MagicMock(), 0)]
+    mock_src_instance.side_effect = [(MagicMock(), stage.default_params["hop_size"])] * 5 + [
+        (MagicMock(), 0)
+    ]
     mock_aubio_src.return_value = mock_src_instance
 
     mock_notes_instance = MagicMock()
@@ -460,31 +479,23 @@ def test_slicing_stage_no_notes_detected(
     )
 
     db_session.refresh(recording)
-    assert (
-        recording.status == "slicing_completed"
-    )  # Process completed, even if no samples
+    assert recording.status == "slicing_completed"  # Process completed, even if no samples
     assert len(result_samples_info) == 0
     db_samples = (
-        db_session.query(SampleModel)
-        .filter(SampleModel.recording_id == recording.id)
-        .all()
+        db_session.query(SampleModel).filter(SampleModel.recording_id == recording.id).all()
     )
     assert len(db_samples) == 0
-    assert len(os.listdir(temp_output_dir_for_samples)
-               ) == 0  # No sample files created
+    assert len(os.listdir(temp_output_dir_for_samples)) == 0  # No sample files created
 
 
 # Test for _get_audio_details_for_slicing helper (optional, as it's internal)
 @patch("src.core.stages.slicing_stage.wave.open")
 @patch("src.core.stages.slicing_stage.aubio_source")
-def test_internal_get_audio_details_aubio_success(
-    mock_aubio_source_gad, mock_wave_open_gad
-):
+def test_internal_get_audio_details_aubio_success(mock_aubio_source_gad, mock_wave_open_gad):
     mock_s_gad = MagicMock(samplerate=48000, duration=96000, channels=1)
     mock_aubio_source_gad.return_value = mock_s_gad
 
-    samplerate, total_frames, channels = _get_audio_details_for_slicing(
-        "fake_path.wav")
+    samplerate, total_frames, channels = _get_audio_details_for_slicing("fake_path.wav")
     assert samplerate == 48000
     assert total_frames == 96000
     assert channels == 1
@@ -505,8 +516,7 @@ def test_internal_get_audio_details_aubio_fails_wave_success(
     mock_wf_gad.__enter__.return_value.getnchannels.return_value = 2
     mock_wave_open_gad.return_value = mock_wf_gad
 
-    samplerate, total_frames, channels = _get_audio_details_for_slicing(
-        "fake_path.wav")
+    samplerate, total_frames, channels = _get_audio_details_for_slicing("fake_path.wav")
     assert samplerate == 44100
     assert total_frames == 88200
     assert channels == 2
@@ -517,8 +527,7 @@ def test_internal_get_audio_details_aubio_fails_wave_success(
     "src.core.stages.slicing_stage.aubio_source",
     side_effect=RuntimeError("Aubio error"),
 )
-@patch("src.core.stages.slicing_stage.wave.open",
-       side_effect=wave.Error("Wave error"))
+@patch("src.core.stages.slicing_stage.wave.open", side_effect=wave.Error("Wave error"))
 def test_internal_get_audio_details_all_fail(
     mock_wave_open_gad_fails, mock_aubio_source_gad_fails
 ):

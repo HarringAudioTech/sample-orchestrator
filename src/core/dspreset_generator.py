@@ -30,10 +30,8 @@ class DecentSamplerPresetGenerator:
     """
 
     def __init__(
-            self,
-            project: Project,
-            instrument_data: InstrumentData,
-            output_base_dir: str):
+        self, project: Project, instrument_data: InstrumentData, output_base_dir: str
+    ):
         """Initializes the DecentSamplerPresetGenerator.
 
         Args:
@@ -94,13 +92,12 @@ class DecentSamplerPresetGenerator:
                 try:
                     shutil.copy2(source_artwork_path, dest_artwork_path)
                     print(
-                        f"INFO: Copied artwork: {source_artwork_path} to {dest_artwork_path}")
+                        f"INFO: Copied artwork: {source_artwork_path} to {dest_artwork_path}"
+                    )
                 except IOError as e:
-                    print(
-                        f"ERROR: Could not copy artwork file {artwork_filename}: {e}")
+                    print(f"ERROR: Could not copy artwork file {artwork_filename}: {e}")
             else:
-                print(
-                    f"WARNING: Artwork source file not found: {source_artwork_path}")
+                print(f"WARNING: Artwork source file not found: {source_artwork_path}")
 
         # Create XML structure
         # Samples are copied within _create_groups_element, which needs
@@ -198,9 +195,7 @@ class DecentSamplerPresetGenerator:
         groups_element = ET.Element("groups")
 
         if not self.project.project_model or not self.project.project_model.recordings:
-            print(
-                "INFO: No recordings found in the project. Groups element will be empty."
-            )
+            print("INFO: No recordings found in the project. Groups element will be empty.")
             return groups_element
 
         for recording_model in self.project.project_model.recordings:
@@ -220,8 +215,7 @@ class DecentSamplerPresetGenerator:
             for sample_model in recording_model.samples:
                 source_sample_path = sample_model.file_path
                 sample_filename = os.path.basename(source_sample_path)
-                dest_sample_path = os.path.join(
-                    samples_output_dir, sample_filename)
+                dest_sample_path = os.path.join(samples_output_dir, sample_filename)
 
                 # Attempt to copy the sample file
                 if os.path.exists(source_sample_path):
@@ -229,12 +223,12 @@ class DecentSamplerPresetGenerator:
                         shutil.copy2(source_sample_path, dest_sample_path)
                         # print(f"INFO: Copied sample: {source_sample_path} to {dest_sample_path}")
                     except IOError as e:
-                        print(
-                            f"ERROR: Could not copy sample file {sample_filename}: {e}")
+                        print(f"ERROR: Could not copy sample file {sample_filename}: {e}")
                         continue  # Skip this sample if copy fails
                 else:
                     print(
-                        f"WARNING: Sample source file not found, skipping: {source_sample_path}")
+                        f"WARNING: Sample source file not found, skipping: {source_sample_path}"
+                    )
                     continue  # Skip this sample if source doesn't exist
 
                 # Create the <sample> XML element

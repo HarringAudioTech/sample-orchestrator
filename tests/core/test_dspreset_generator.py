@@ -37,9 +37,7 @@ class TestDecentSamplerPresetGenerator(unittest.TestCase):
         self.mock_project.project_model = self.mock_project_model
 
         # InstrumentData
-        self.instrument_data = InstrumentData(
-            name="My Test Instrument", author="Tester"
-        )
+        self.instrument_data = InstrumentData(name="My Test Instrument", author="Tester")
 
         # Dummy source files directories
         self.dummy_artwork_src_dir = os.path.join(
@@ -52,19 +50,15 @@ class TestDecentSamplerPresetGenerator(unittest.TestCase):
         os.makedirs(self.dummy_samples_src_dir, exist_ok=True)
 
         # Dummy background image
-        self.dummy_bg_image_path = os.path.join(
-            self.dummy_artwork_src_dir, "background.png"
-        )
+        self.dummy_bg_image_path = os.path.join(self.dummy_artwork_src_dir, "background.png")
         with open(self.dummy_bg_image_path, "w") as f:
             f.write("dummy_image_content")
         self.instrument_data.ui_background_image_path = self.dummy_bg_image_path
 
         # Dummy sample files (will be created specifically in relevant tests if
         # needed)
-        self.dummy_sample1_path = os.path.join(
-            self.dummy_samples_src_dir, "s1.wav")
-        self.dummy_sample2_path = os.path.join(
-            self.dummy_samples_src_dir, "s2.wav")
+        self.dummy_sample1_path = os.path.join(self.dummy_samples_src_dir, "s1.wav")
+        self.dummy_sample2_path = os.path.join(self.dummy_samples_src_dir, "s2.wav")
         with open(self.dummy_sample1_path, "w") as f:  # Create one for general use
             f.write("s1_content")
         with open(self.dummy_sample2_path, "w") as f:
@@ -82,15 +76,12 @@ class TestDecentSamplerPresetGenerator(unittest.TestCase):
         )
         generator.generate_preset()
 
-        instrument_name_fs = self.instrument_data.name.replace(
-            " ", "_").lower()
-        expected_instrument_dir = os.path.join(
-            self.test_output_base_dir, instrument_name_fs
-        )
+        instrument_name_fs = self.instrument_data.name.replace(" ", "_").lower()
+        expected_instrument_dir = os.path.join(self.test_output_base_dir, instrument_name_fs)
 
         self.assertTrue(
-            os.path.isdir(expected_instrument_dir),
-            "Instrument directory not created.")
+            os.path.isdir(expected_instrument_dir), "Instrument directory not created."
+        )
         self.assertTrue(
             os.path.isdir(os.path.join(expected_instrument_dir, "Samples")),
             "Samples directory not created.",
@@ -101,10 +92,8 @@ class TestDecentSamplerPresetGenerator(unittest.TestCase):
         )
         self.assertTrue(
             os.path.isfile(
-                os.path.join(
-                    expected_instrument_dir,
-                    instrument_name_fs +
-                    ".dspreset")),
+                os.path.join(expected_instrument_dir, instrument_name_fs + ".dspreset")
+            ),
             ".dspreset file not created.",
         )
 
@@ -119,16 +108,11 @@ class TestDecentSamplerPresetGenerator(unittest.TestCase):
         )
         generator.generate_preset()
 
-        instrument_name_fs = self.instrument_data.name.replace(
-            " ", "_").lower()
+        instrument_name_fs = self.instrument_data.name.replace(" ", "_").lower()
         expected_artwork_file = os.path.join(
-            self.test_output_base_dir,
-            instrument_name_fs,
-            "Artwork",
-            "background.png")
-        self.assertTrue(
-            os.path.isfile(expected_artwork_file), "Artwork file not copied."
+            self.test_output_base_dir, instrument_name_fs, "Artwork", "background.png"
         )
+        self.assertTrue(os.path.isfile(expected_artwork_file), "Artwork file not copied.")
 
         dspreset_path = os.path.join(
             self.test_output_base_dir,
@@ -145,9 +129,7 @@ class TestDecentSamplerPresetGenerator(unittest.TestCase):
         # or <ui><background image="..."/></ui> if no tabs. The generator
         # creates a "main" tab.
         background_element = ui_element.find("tab/background")
-        self.assertIsNotNone(
-            background_element, "Background element not found in XML ui/tab."
-        )
+        self.assertIsNotNone(background_element, "Background element not found in XML ui/tab.")
         self.assertEqual(
             background_element.get("image"),
             os.path.join("Artwork", "background.png"),
@@ -179,14 +161,11 @@ class TestDecentSamplerPresetGenerator(unittest.TestCase):
         )
         generator.generate_preset()
 
-        instrument_name_fs = self.instrument_data.name.replace(
-            " ", "_").lower()
+        instrument_name_fs = self.instrument_data.name.replace(" ", "_").lower()
         expected_sample_file = os.path.join(
             self.test_output_base_dir, instrument_name_fs, "Samples", "s1.wav"
         )
-        self.assertTrue(
-            os.path.isfile(expected_sample_file),
-            "Sample file s1.wav not copied.")
+        self.assertTrue(os.path.isfile(expected_sample_file), "Sample file s1.wav not copied.")
 
         dspreset_path = os.path.join(
             self.test_output_base_dir,
@@ -197,20 +176,21 @@ class TestDecentSamplerPresetGenerator(unittest.TestCase):
         root = tree.getroot()
 
         sample_element = root.find("groups/group/sample")
-        self.assertIsNotNone(
-            sample_element,
-            "Sample element not found in XML.")
+        self.assertIsNotNone(sample_element, "Sample element not found in XML.")
         self.assertEqual(
             sample_element.get("path"),
             os.path.join("Samples", "s1.wav"),
             "Sample path in XML is incorrect.",
         )
-        self.assertEqual(sample_element.get("rootNote"), "60",
-                         "Sample rootNote in XML is incorrect.")
-        self.assertEqual(sample_element.get("loKey"), "58",
-                         "Sample loKey in XML is incorrect.")
-        self.assertEqual(sample_element.get("hiKey"), "62",
-                         "Sample hiKey in XML is incorrect.")
+        self.assertEqual(
+            sample_element.get("rootNote"), "60", "Sample rootNote in XML is incorrect."
+        )
+        self.assertEqual(
+            sample_element.get("loKey"), "58", "Sample loKey in XML is incorrect."
+        )
+        self.assertEqual(
+            sample_element.get("hiKey"), "62", "Sample hiKey in XML is incorrect."
+        )
         self.assertEqual(
             sample_element.get("loVel"),
             "0",
@@ -241,8 +221,7 @@ class TestDecentSamplerPresetGenerator(unittest.TestCase):
         )
         generator.generate_preset()
 
-        instrument_name_fs = self.instrument_data.name.replace(
-            " ", "_").lower()
+        instrument_name_fs = self.instrument_data.name.replace(" ", "_").lower()
         dspreset_path = os.path.join(
             self.test_output_base_dir,
             instrument_name_fs,
@@ -253,18 +232,16 @@ class TestDecentSamplerPresetGenerator(unittest.TestCase):
 
         sample_element = root.find("groups/group/sample")
         self.assertIsNotNone(
-            sample_element,
-            "Sample element not found in XML for default keyrange test.")
-        self.assertEqual(
-            sample_element.get("path"),
-            os.path.join(
-                "Samples",
-                "s2.wav"))
+            sample_element, "Sample element not found in XML for default keyrange test."
+        )
+        self.assertEqual(sample_element.get("path"), os.path.join("Samples", "s2.wav"))
         self.assertEqual(sample_element.get("rootNote"), "72")
-        self.assertEqual(sample_element.get("loKey"), "72",
-                         "loKey should default to rootNote.")
-        self.assertEqual(sample_element.get("hiKey"), "72",
-                         "hiKey should default to rootNote.")
+        self.assertEqual(
+            sample_element.get("loKey"), "72", "loKey should default to rootNote."
+        )
+        self.assertEqual(
+            sample_element.get("hiKey"), "72", "hiKey should default to rootNote."
+        )
 
     def test_xml_root_and_basic_structure(self):
         """Test the root element and basic structure of the .dspreset XML."""
@@ -273,8 +250,7 @@ class TestDecentSamplerPresetGenerator(unittest.TestCase):
         )
         generator.generate_preset()
 
-        instrument_name_fs = self.instrument_data.name.replace(
-            " ", "_").lower()
+        instrument_name_fs = self.instrument_data.name.replace(" ", "_").lower()
         dspreset_path = os.path.join(
             self.test_output_base_dir,
             instrument_name_fs,
@@ -289,18 +265,11 @@ class TestDecentSamplerPresetGenerator(unittest.TestCase):
         tree = ET.parse(dspreset_path)
         root = tree.getroot()
 
-        self.assertEqual(
-            root.tag, "DecentSampler", "Root XML tag is not DecentSampler."
-        )
-        self.assertEqual(
-            root.get("minVersion"),
-            "1.0.0",
-            "minVersion attribute is incorrect.")
+        self.assertEqual(root.tag, "DecentSampler", "Root XML tag is not DecentSampler.")
+        self.assertEqual(root.get("minVersion"), "1.0.0", "minVersion attribute is incorrect.")
         self.assertIsNotNone(root.find("ui"), "UI element not found.")
         self.assertIsNotNone(root.find("groups"), "Groups element not found.")
-        self.assertIsNotNone(
-            root.find("effects"),
-            "Effects element not found.")
+        self.assertIsNotNone(root.find("effects"), "Effects element not found.")
 
     def test_empty_project_no_samples_no_artwork(self):
         """Test behavior with an empty project (no recordings/samples) and no artwork."""
@@ -312,14 +281,9 @@ class TestDecentSamplerPresetGenerator(unittest.TestCase):
         )
         generator.generate_preset()
 
-        instrument_name_fs = self.instrument_data.name.replace(
-            " ", "_").lower()
-        expected_instrument_dir = os.path.join(
-            self.test_output_base_dir, instrument_name_fs
-        )
-        dspreset_path = os.path.join(
-            expected_instrument_dir, instrument_name_fs + ".dspreset"
-        )
+        instrument_name_fs = self.instrument_data.name.replace(" ", "_").lower()
+        expected_instrument_dir = os.path.join(self.test_output_base_dir, instrument_name_fs)
+        dspreset_path = os.path.join(expected_instrument_dir, instrument_name_fs + ".dspreset")
 
         self.assertTrue(
             os.path.isfile(dspreset_path),
@@ -330,9 +294,7 @@ class TestDecentSamplerPresetGenerator(unittest.TestCase):
         root = tree.getroot()
 
         groups_element = root.find("groups")
-        self.assertIsNotNone(
-            groups_element, "Groups element should exist even if empty."
-        )
+        self.assertIsNotNone(groups_element, "Groups element should exist even if empty.")
         self.assertEqual(
             len(list(groups_element)),
             0,
@@ -358,10 +320,12 @@ class TestDecentSamplerPresetGenerator(unittest.TestCase):
             os.path.isdir(artwork_output_dir),
             "Artwork directory should still be created.",
         )
-        self.assertEqual(len(os.listdir(samples_output_dir)),
-                         0, "Samples directory should be empty.")
-        self.assertEqual(len(os.listdir(artwork_output_dir)),
-                         0, "Artwork directory should be empty.")
+        self.assertEqual(
+            len(os.listdir(samples_output_dir)), 0, "Samples directory should be empty."
+        )
+        self.assertEqual(
+            len(os.listdir(artwork_output_dir)), 0, "Artwork directory should be empty."
+        )
 
 
 if __name__ == "__main__":

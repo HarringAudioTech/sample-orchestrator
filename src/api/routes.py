@@ -102,9 +102,7 @@ def create_project():
 
     db: Session = get_db_session()
     try:
-        new_project = ProjectModel(
-            name=data["name"], description=data.get("description")
-        )
+        new_project = ProjectModel(name=data["name"], description=data.get("description"))
         db.add(new_project)
         db.commit()
         db.refresh(new_project)
@@ -134,8 +132,7 @@ def get_project(project_id: int):
     """
     db: Session = get_db_session()
     try:
-        project = db.query(ProjectModel).filter(
-            ProjectModel.id == project_id).first()
+        project = db.query(ProjectModel).filter(ProjectModel.id == project_id).first()
         if not project:
             return jsonify({"error": "Project not found"}), 404
         return jsonify(model_to_dict(project)), 200
@@ -187,24 +184,19 @@ def add_project_recording(project_id: int):
     recording_name = request.form.get("name")
 
     if not recording_name:
-        return jsonify(
-            {"error": "Recording name is required in form data"}), 400
+        return jsonify({"error": "Recording name is required in form data"}), 400
     if file.filename == "":
         return jsonify({"error": "No selected file (filename is empty)"}), 400
 
     # Determine upload directory from app config or use default
-    upload_folder_base = current_app.config.get(
-        "UPLOAD_FOLDER", DEFAULT_UPLOAD_BASE_DIR
-    )
+    upload_folder_base = current_app.config.get("UPLOAD_FOLDER", DEFAULT_UPLOAD_BASE_DIR)
     # Ensure project-specific subdirectory for uploads
-    project_upload_dir = os.path.join(
-        upload_folder_base, f"project_{project_id}")
+    project_upload_dir = os.path.join(upload_folder_base, f"project_{project_id}")
 
     if not os.path.exists(project_upload_dir):
         try:
             os.makedirs(project_upload_dir)
-            current_app.logger.info(
-                f"Created upload directory: {project_upload_dir}")
+            current_app.logger.info(f"Created upload directory: {project_upload_dir}")
         except OSError as e:
             current_app.logger.error(
                 f"Error creating upload directory {project_upload_dir}: {e}",
@@ -230,9 +222,7 @@ def add_project_recording(project_id: int):
     # Use CoreProject instance to add the recording to the database.
     # This method handles its own database session internally.
     try:
-        new_recording_model = core_proj.add_recording(
-            file_path=file_path, name=recording_name
-        )
+        new_recording_model = core_proj.add_recording(file_path=file_path, name=recording_name)
         current_app.logger.info(
             f"Recording '{
                 new_recording_model.name}' (ID: {
@@ -258,15 +248,13 @@ def add_project_recording(project_id: int):
         if os.path.exists(file_path):
             try:
                 os.remove(file_path)
-                current_app.logger.info(
-                    f"Cleaned up orphaned file: {file_path}")
+                current_app.logger.info(f"Cleaned up orphaned file: {file_path}")
             except OSError as rm_e:
                 current_app.logger.error(
                     f"Error cleaning up orphaned file {file_path}: {rm_e}",
                     exc_info=True,
                 )
-        return jsonify(
-            {"error": f"Could not add recording to database: {e}"}), 500
+        return jsonify({"error": f"Could not add recording to database: {e}"}), 500
 
 
 @projects_bp.route("/<int:project_id>/recordings", methods=["GET"])
@@ -308,8 +296,7 @@ def get_recording_details(recording_id: int):
     """
     db: Session = get_db_session()
     try:
-        recording = (db.query(RecordingModel).filter(
-            RecordingModel.id == recording_id).first())
+        recording = db.query(RecordingModel).filter(RecordingModel.id == recording_id).first()
         if not recording:
             return jsonify({"error": "Recording not found"}), 404
         return jsonify(model_to_dict(recording)), 200
@@ -362,13 +349,10 @@ def process_recording_endpoint(recording_id: int):
 
         workflow_name = json_data.get("workflow_name")
         stages_chain = json_data.get("stages_chain")
-        output_dir_suffix = json_data.get(
-            "output_dir_suffix", "default_processing_output"
-        )
+        output_dir_suffix = json_data.get("output_dir_suffix", "default_processing_output")
 
         # --- Fetch Recording and Project ---
-        recording = (db.query(RecordingModel).filter(
-            RecordingModel.id == recording_id).first())
+        recording = db.query(RecordingModel).filter(RecordingModel.id == recording_id).first()
         if not recording:
             return jsonify({"error": "Recording not found"}), 404
         if not recording.project_id:
@@ -377,9 +361,7 @@ def process_recording_endpoint(recording_id: int):
             )
             return (
                 jsonify(
-                    {
-                        "error": "Recording is not associated with a project, cannot process."
-                    }
+                    {"error": "Recording is not associated with a project, cannot process."}
                 ),
                 500,
             )
@@ -387,18 +369,15 @@ def process_recording_endpoint(recording_id: int):
         # Project query not strictly needed if project_id is on recording, but
         # good for validation
         project = (
-            db.query(ProjectModel)
-            .filter(ProjectModel.id == recording.project_id)
-            .first()
+            db.query(ProjectModel).filter(ProjectModel.id == recording.project_id).first()
         )
         if not project:
             current_app.logger.error(
                 f"Project {
-                    recording.project_id} associated with recording {recording_id} not found.")
+                    recording.project_id} associated with recording {recording_id} not found."
+            )
             return (
-                jsonify(
-                    {"error": f"Associated project {recording.project_id} not found."}
-                ),
+                jsonify({"error": f"Associated project {recording.project_id} not found."}),
                 500,
             )
 
@@ -408,31 +387,22 @@ def process_recording_endpoint(recording_id: int):
 
         if not initial_data or not os.path.exists(initial_data):
             current_app.logger.error(
-                f"Recording file path '{initial_data}' for recording {recording_id} not found or is invalid.")
+                f"Recording file path '{initial_data}' for recording {recording_id} not found or is invalid."
+            )
             return (
                 jsonify(
-                    {
-                        "error": f"Recording file path not found or invalid: {initial_data}"
-                    }
+                    {"error": f"Recording file path not found or invalid: {initial_data}"}
                 ),
                 400,
             )
 
-        samples_base_dir = current_app.config.get(
-            "SAMPLES_BASE_DIR", DEFAULT_SAMPLES_BASE_DIR
-        )
+        samples_base_dir = current_app.config.get("SAMPLES_BASE_DIR", DEFAULT_SAMPLES_BASE_DIR)
         # Ensure project-specific base directory exists
-        project_samples_dir = os.path.join(
-            samples_base_dir, f"project_{recording.project_id}"
-        )
+        project_samples_dir = os.path.join(samples_base_dir, f"project_{recording.project_id}")
         # Then recording-specific directory
-        recording_samples_dir = os.path.join(
-            project_samples_dir, f"recording_{recording.id}"
-        )
+        recording_samples_dir = os.path.join(project_samples_dir, f"recording_{recording.id}")
         # Finally, the specific output suffix directory for this run
-        output_sample_dir_for_run = os.path.join(
-            recording_samples_dir, output_dir_suffix
-        )
+        output_sample_dir_for_run = os.path.join(recording_samples_dir, output_dir_suffix)
 
         try:
             os.makedirs(output_sample_dir_for_run, exist_ok=True)
@@ -476,7 +446,8 @@ def process_recording_endpoint(recording_id: int):
             try:
                 workflow_instance = WorkflowClass()
                 current_app.logger.info(
-                    f"Executing {processing_type} for recording {recording_id}.")
+                    f"Executing {processing_type} for recording {recording_id}."
+                )
                 processing_result = workflow_instance.run(
                     initial_data=initial_data,
                     initial_data_type=initial_data_type,
@@ -500,15 +471,14 @@ def process_recording_endpoint(recording_id: int):
         elif stages_chain:
             if not isinstance(stages_chain, list):
                 return (
-                    jsonify(
-                        {"error": "'stages_chain' must be a list of stage definitions."}
-                    ),
+                    jsonify({"error": "'stages_chain' must be a list of stage definitions."}),
                     400,
                 )
             processing_type = "ad-hoc stage chain"
             try:
                 current_app.logger.info(
-                    f"Executing {processing_type} for recording {recording_id}. Chain: {stages_chain}")
+                    f"Executing {processing_type} for recording {recording_id}. Chain: {stages_chain}"
+                )
                 processing_result = execute_stage_chain(
                     initial_data=initial_data,
                     initial_data_type=initial_data_type,
@@ -588,15 +558,12 @@ def process_recording_endpoint(recording_id: int):
             200,
         )
 
-    except (
-        Exception
-    ) as e:  # Catch-all for unexpected errors before specific processing logic
+    except Exception as e:  # Catch-all for unexpected errors before specific processing logic
         current_app.logger.error(
             f"Critical error in process_recording_endpoint for recording {recording_id}: {e}",
             exc_info=True,
         )
-        return jsonify(
-            {"error": f"An unexpected server error occurred: {str(e)}"}), 500
+        return jsonify({"error": f"An unexpected server error occurred: {str(e)}"}), 500
     finally:
         db.close()
 
@@ -615,14 +582,12 @@ def list_recording_samples(recording_id: int):
     db: Session = get_db_session()
     try:
         # First, verify the recording exists to provide a clear 404 if not.
-        recording = (db.query(RecordingModel).filter(
-            RecordingModel.id == recording_id).first())
+        recording = db.query(RecordingModel).filter(RecordingModel.id == recording_id).first()
         if not recording:
             return jsonify({"error": "Recording not found"}), 404
 
         # Then, query for its samples.
-        samples = (db.query(SampleModel).filter(
-            SampleModel.recording_id == recording_id).all())
+        samples = db.query(SampleModel).filter(SampleModel.recording_id == recording_id).all()
         return jsonify([model_to_dict(s) for s in samples]), 200
     finally:
         db.close()
@@ -641,8 +606,7 @@ def get_sample_details(sample_id: int):
     """
     db: Session = get_db_session()
     try:
-        sample = db.query(SampleModel).filter(
-            SampleModel.id == sample_id).first()
+        sample = db.query(SampleModel).filter(SampleModel.id == sample_id).first()
         if not sample:
             return jsonify({"error": "Sample not found"}), 404
         return jsonify(model_to_dict(sample)), 200

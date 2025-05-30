@@ -30,8 +30,8 @@ def app():
     with flask_app.app_context():
         # Initialize the database schema using the app's configured DATABASE_URL
         # get_engine() inside initialize_db_utils will now use app.config['DATABASE_URL']
-        initialize_db_utils() 
-        # Note: The tables are created once per module. 
+        initialize_db_utils()
+        # Note: The tables are created once per module.
         # manage_database_session will handle per-test data cleaning.
 
     yield flask_app
@@ -47,19 +47,19 @@ def client(app: Flask):
 
 
 # Automatically use this for each test in this file
-@pytest.fixture(autouse=True) # Ensures this runs for every test function
+@pytest.fixture(autouse=True)  # Ensures this runs for every test function
 def manage_database_session(app: Flask):
     """
     Ensure each test has a clean database state (empty tables).
-    Relies on the app fixture to have configured the DATABASE_URL for an 
+    Relies on the app fixture to have configured the DATABASE_URL for an
     in-memory DB and initialized the schema once.
     This fixture ensures data isolation between tests by clearing data.
     """
     with app.app_context():
         # Get the engine that the app is configured to use (should be in-memory)
         # This relies on get_engine() correctly using current_app.config
-        engine = get_engine() 
-                                
+        engine = get_engine()
+
         # Clear all data from tables before each test
         # This is faster than dropping and recreating tables if the schema is stable
         for table in reversed(Base.metadata.sorted_tables):
@@ -77,7 +77,7 @@ def manage_database_session(app: Flask):
                 raise
             finally:
                 db.close()
-        
+
         # Alternative: Drop and recreate all tables (slower but robust if schema changes or complex relations)
         # Base.metadata.drop_all(bind=engine)
         # Base.metadata.create_all(bind=engine)
@@ -119,10 +119,7 @@ def test_create_project_success(client):
 
 
 def test_create_project_missing_name(client):
-    response = client.post(
-        "/projects",
-        json={
-            "description": "Project without a name"})
+    response = client.post("/projects", json={"description": "Project without a name"})
     assert response.status_code == 400
     data = response.get_json()
     assert "error" in data

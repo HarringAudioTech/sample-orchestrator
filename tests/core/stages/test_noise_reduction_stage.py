@@ -77,7 +77,9 @@ def test_noise_reduction_stage_process_logs_parameters(caplog):
     assert (
         f"Parameters: amount={
             params['amount']}, aggressiveness={
-            params['aggressiveness']}" in caplog.text)
+            params['aggressiveness']}"
+        in caplog.text
+    )
     assert f"Input data shape: {dummy_input_data.shape}" in caplog.text
 
 
@@ -86,9 +88,7 @@ def test_noise_reduction_stage_invalid_input_type():
     invalid_data = [0.1, 0.2, 0.3]  # Not a NumPy array
     params = stage.default_params
 
-    with pytest.raises(
-        TypeError, match=f"Input data for {stage.name} must be a NumPy array."
-    ):
+    with pytest.raises(TypeError, match=f"Input data for {stage.name} must be a NumPy array."):
         stage.process(invalid_data, params, {})
 
 

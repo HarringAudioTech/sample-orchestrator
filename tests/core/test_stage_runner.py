@@ -58,8 +58,7 @@ class MockStageA_FilePathToBuffer(AudioProcessingStage):
         logger.info(
             f"[{self.name}] CALLED with data: {data}, params: {params}, context: {context}"
         )
-        self.call_log.append(
-            {"data": data, "params": params, "context": context})
+        self.call_log.append({"data": data, "params": params, "context": context})
         if not isinstance(data, str):  # Basic type check for test
             raise TypeError(f"{self.name} expected str, got {type(data)}")
         return [0.1, 0.2, 0.3]  # Mock audio buffer
@@ -97,8 +96,7 @@ class MockStageB_BufferToBuffer(AudioProcessingStage):
         logger.info(
             f"[{self.name}] CALLED with data: {data}, params: {params}, context: {context}"
         )
-        self.call_log.append(
-            {"data": data, "params": params, "context": context})
+        self.call_log.append({"data": data, "params": params, "context": context})
         if not isinstance(data, list):  # Basic type check for test
             raise TypeError(f"{self.name} expected list, got {type(data)}")
         return [d * 2 for d in data]  # Mock processing
@@ -136,8 +134,7 @@ class MockStageC_BufferToFilePath(AudioProcessingStage):
         logger.info(
             f"[{self.name}] CALLED with data: {data}, params: {params}, context: {context}"
         )
-        self.call_log.append(
-            {"data": data, "params": params, "context": context})
+        self.call_log.append({"data": data, "params": params, "context": context})
         if not isinstance(data, list):
             raise TypeError(f"{self.name} expected list, got {type(data)}")
         return f"/tmp/mock_output/{
@@ -147,9 +144,7 @@ class MockStageC_BufferToFilePath(AudioProcessingStage):
 
 
 # --- Fixture to manage STAGE_REGISTRY ---
-@pytest.fixture(
-    autouse=True
-)  # Automatically use this fixture for all tests in this module
+@pytest.fixture(autouse=True)  # Automatically use this fixture for all tests in this module
 def clear_stage_registry_and_logs():
     """Clears the STAGE_REGISTRY and mock stage call logs before each test."""
     original_registry = STAGE_REGISTRY.copy()
@@ -172,15 +167,13 @@ def clear_stage_registry_and_logs():
 def test_register_stage_success():
     register_stage(MockStageA_FilePathToBuffer)
     assert MockStageA_FilePathToBuffer.name in STAGE_REGISTRY
-    assert (STAGE_REGISTRY[MockStageA_FilePathToBuffer.name]
-            == MockStageA_FilePathToBuffer)
+    assert STAGE_REGISTRY[MockStageA_FilePathToBuffer.name] == MockStageA_FilePathToBuffer
 
 
 def test_register_stage_reregistration(caplog):
     register_stage(MockStageA_FilePathToBuffer)  # Initial registration
 
-    class MockStageA_Variant(
-            MockStageA_FilePathToBuffer):  # Same name, different class
+    class MockStageA_Variant(MockStageA_FilePathToBuffer):  # Same name, different class
         pass
 
     with caplog.at_level(logging.WARNING):
@@ -194,7 +187,10 @@ def test_register_stage_reregistration(caplog):
     assert any(
         f"Stage name '{
             MockStageA_FilePathToBuffer.name}' from class '{
-            MockStageA_Variant.__name__}' is already registered. Overwriting" in record.message for record in caplog.records)
+            MockStageA_Variant.__name__}' is already registered. Overwriting"
+        in record.message
+        for record in caplog.records
+    )
 
 
 def test_register_stage_type_error_not_subclass():
@@ -206,8 +202,7 @@ def test_register_stage_type_error_not_subclass():
 
 
 def test_register_stage_type_error_missing_name_property():
-    class StageWithoutName(
-            AudioProcessingStage):  # Missing abstract 'name' property
+    class StageWithoutName(AudioProcessingStage):  # Missing abstract 'name' property
         @property
         def description(self) -> str:
             return "No name"
@@ -255,8 +250,7 @@ def test_execute_stage_chain_success(registered_mock_stages):
     context_dict = {"project_id": 123, "user": "test_user"}
 
     chain_def = [
-        {"stage_name": "mock_stage_a", "params": {
-            "param_a": 100}},  # Override default
+        {"stage_name": "mock_stage_a", "params": {"param_a": 100}},  # Override default
         {"stage_name": "mock_stage_b"},  # Use default param_b
         {
             "stage_name": "mock_stage_c",
@@ -291,8 +285,7 @@ def test_execute_stage_chain_success(registered_mock_stages):
     assert len(MockStageC_BufferToFilePath.call_log) == 1
     stage_c_call = MockStageC_BufferToFilePath.call_log[0]
     assert stage_c_call["data"] == [0.2, 0.4, 0.6]  # Output from B
-    assert stage_c_call["params"] == {
-        "output_filename": "final_output.wav"}  # Merged
+    assert stage_c_call["params"] == {"output_filename": "final_output.wav"}  # Merged
     assert stage_c_call["context"] == context_dict
 
 
@@ -324,8 +317,7 @@ def test_execute_stage_chain_initial_type_mismatch(registered_mock_stages):
         TypeError,
         match="Stage expects input type 'file_path', but received 'audio_buffer_mono'",
     ):
-        execute_stage_chain(
-            [0.1, 0.2], DATA_TYPE_AUDIO_BUFFER_MONO, chain_def, {})
+        execute_stage_chain([0.1, 0.2], DATA_TYPE_AUDIO_BUFFER_MONO, chain_def, {})
 
 
 def test_execute_stage_chain_stage_not_found():
@@ -379,16 +371,12 @@ def test_execute_stage_chain_default_param_usage(registered_mock_stages):
     execute_stage_chain("/input.wav", DATA_TYPE_FILE_PATH, chain_def, {})
 
     assert MockStageA_FilePathToBuffer.call_log[0]["params"] == {"param_a": 1}
-    assert MockStageB_BufferToBuffer.call_log[0]["params"] == {
-        "param_b": "hello"}
+    assert MockStageB_BufferToBuffer.call_log[0]["params"] == {"param_b": "hello"}
 
 
 def test_execute_stage_chain_no_context_provided(registered_mock_stages):
     chain_def = [{"stage_name": "mock_stage_a"}]
-    execute_stage_chain(
-        "/input.wav",
-        DATA_TYPE_FILE_PATH,
-        chain_def)  # context=None
+    execute_stage_chain("/input.wav", DATA_TYPE_FILE_PATH, chain_def)  # context=None
     assert (
         MockStageA_FilePathToBuffer.call_log[0]["context"] == {}
     )  # Should default to empty dict
