@@ -8,13 +8,12 @@ packages = [{ include = "src" }]
 
 [tool.poetry.dependencies]
 python = "^3.12"
-librosa = ">=0.11.0"
+librosa = "^0.10.1"
 mido = "==1.3.2"
 pyaudio = "*"
 SQLAlchemy = ">2.0.0"
 Flask = ">3.0.0"
 numpy = ">2.0.0"
-aubio = "*"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.5"

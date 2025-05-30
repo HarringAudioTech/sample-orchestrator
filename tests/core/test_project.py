@@ -2,6 +2,7 @@ import pytest
 import os
 import shutil
 from unittest.mock import patch, MagicMock, call
+import numpy as np # Added for librosa mock
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from src.database.models import (
@@ -76,34 +77,27 @@ def test_project_init_not_found(db_session: Session):
 
 
 # Test add_recording
-@patch("src.core.project.wave.open")
-@patch("src.core.project.source")  # Mock aubio.source
 @patch("os.path.exists")
+@patch("src.core.project.librosa.load") # Updated patch target
 def test_add_recording(
+    mock_librosa_load, # Updated mock name
     mock_os_exists,
-    mock_aubio_source,
-    mock_wave_open,
     test_project_instance,
     db_session: Session,
 ):
     core_project, project_model = test_project_instance
+    mock_os_exists.return_value = True
 
-    mock_os_exists.return_value = True  # Assume file exists
-
-    # Mock for aubio.source
-    mock_s = MagicMock()
-    mock_s.samplerate = 44100
-    mock_aubio_source.return_value = mock_s
-
-    # Mock for wave.open
-    mock_wf = MagicMock()
-    mock_wf.__enter__.return_value.getnframes.return_value = 44100 * 2  # 2 seconds
-    mock_wf.__enter__.return_value.getframerate.return_value = 44100
-    mock_wf.__enter__.return_value.getnchannels.return_value = 1
-    mock_wave_open.return_value = mock_wf
+    # Setup mock for librosa.load
+    mock_sr = 44100
+    mock_channels = 2 # Test with stereo as add_recording uses mono=False
+    mock_duration_sec = 2.0
+    # For stereo, librosa.load with mono=False returns y with shape (channels, samples)
+    mock_y_stereo = np.zeros((mock_channels, int(mock_sr * mock_duration_sec)), dtype=np.float32)
+    mock_librosa_load.return_value = (mock_y_stereo, mock_sr)
 
     dummy_file_path = "/fake/path/to/audio.wav"
-    recording_name = "Test Recording Add"
+    recording_name = "Test Recording Add Librosa"
 
     new_recording_model = core_project.add_recording(
         file_path=dummy_file_path, name=recording_name
@@ -115,16 +109,16 @@ def test_add_recording(
     assert new_recording_model.name == recording_name
     assert new_recording_model.file_path == dummy_file_path
     assert new_recording_model.status == "pending"
-    assert new_recording_model.samplerate == 44100
-    assert new_recording_model.duration_seconds == 2.0
-    assert new_recording_model.channels == 1
+    
+    # Assertions for librosa-derived metadata
+    assert new_recording_model.samplerate == mock_sr
+    assert new_recording_model.duration_seconds == pytest.approx(mock_duration_sec)
+    assert new_recording_model.channels == mock_channels
 
     # Verify in DB
-    # Use a new session for verification to ensure data is committed and read
-    # fresh
     verify_session = get_session_local(
         db_session.bind
-    )()  # db_session.bind is the engine
+    )() 
     db_rec = (
         verify_session.query(RecordingModel)
         .filter(RecordingModel.id == new_recording_model.id)
@@ -132,10 +126,13 @@ def test_add_recording(
     )
     assert db_rec is not None
     assert db_rec.name == recording_name
+    assert db_rec.samplerate == mock_sr
+    assert db_rec.duration_seconds == pytest.approx(mock_duration_sec)
+    assert db_rec.channels == mock_channels
     verify_session.close()
 
-    mock_aubio_source.assert_called_with(dummy_file_path, 0, 512)
-    mock_wave_open.assert_called_with(dummy_file_path, "rb")
+    # Verify librosa.load was called correctly
+    mock_librosa_load.assert_called_once_with(dummy_file_path, sr=None, mono=False)
 
 
 @patch("os.path.exists")

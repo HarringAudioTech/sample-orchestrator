@@ -1,9 +1,12 @@
 import os
-import wave
+# import wave # Removed
 import logging  # Added logging
 from typing import List
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError  # To catch DB errors specifically
+import librosa # Added
+import numpy as np # Added
+
 from src.database.models import (
     Project as ProjectModel,
     Recording as RecordingModel,
@@ -16,9 +19,9 @@ from src.core.midi_capture import (
     MidiRecorder,
     list_available_midi_devices,
 )
-from aubio import (
-    source,
-)
+# from aubio import ( # Removed
+#     source,
+# )
 
 # Configure basic logging
 # In a larger application, this would likely be configured in a central place.
@@ -148,26 +151,29 @@ class Project:
             duration_seconds = None
             samplerate = None
             channels = None
+            # total_frames = None # Optional, but good to have, though not directly used by RecordingModel
 
             try:
-                s = source(file_path, 0, 512)
-                samplerate = s.samplerate
-                with wave.open(file_path, "rb") as wf:
-                    frames = wf.getnframes()
-                    rate_wave = wf.getframerate()
-                    duration_seconds = frames / float(rate_wave)
-                    channels = wf.getnchannels()
-                    if samplerate == 0:
-                        samplerate = rate_wave
-                    elif samplerate != rate_wave:
-                        logger.warning(
-                            f"Aubio samplerate {samplerate} and wave module samplerate {rate_wave} "
-                            f"differ for {file_path}. Using aubio's."
-                        )
+                # Load the full audio primarily to get its properties.
+                # sr=None ensures loading at native sample rate.
+                y, sr_librosa = librosa.load(file_path, sr=None, mono=False) # mono=False to get actual channels
+
+                samplerate = sr_librosa
+                duration_seconds = librosa.get_duration(y=y, sr=samplerate)
+                
+                if y.ndim == 1:
+                    channels = 1
+                else:
+                    channels = y.shape[0] # For multi-channel, librosa loads as (channels, samples)
+                
+                # total_frames = len(y) if y.ndim == 1 else y.shape[1] # Not directly stored in RecordingModel
+
+                logger.info(f"Extracted metadata using librosa for {file_path}: SR={samplerate}, Duration={duration_seconds}s, Channels={channels}")
+
             except Exception as e:
                 logger.error(
-                    f"Error getting audio properties for {file_path}: {e}. "
-                    "Recording will be added with available metadata.",
+                    f"Error getting audio properties for {file_path} using librosa: {e}. "
+                    "Recording will be added with minimal or no metadata.",
                     exc_info=True,
                 )
 
