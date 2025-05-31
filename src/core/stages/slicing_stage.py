@@ -17,56 +17,17 @@ from src.core.processing_stages import (
 from src.core.stage_runner import register_stage
 from src.database.models import Recording as RecordingModel, Sample as SampleModel
 
-# Project model might not be needed directly if project_id is passed in
-# context.
+# Project model might not be needed directly if project_id is passed in context.
 
-# Import aubio for audio processing
-from aubio import source as aubio_source, notes as aubio_notes
+# Import for audio processing
+import librosa
+import soundfile as sf
+import numpy as np
 
 # Logger for this stage
 logger = logging.getLogger(__name__)
 
-
-def _get_audio_details_for_slicing(path: str) -> tuple[int, int, int]:
-    """
-    Internal helper to get samplerate, total frames, and channels for slicing.
-    Prioritizes aubio, falls back to wave.
-    """
-    samplerate, total_frames, channels = 0, 0, 0
-    try:
-        s = aubio_source(path, 0, 512)  # samplerate=0 means use original
-        samplerate = s.samplerate
-        total_frames = s.duration  # total frames for aubio source
-        channels = s.channels
-        if (
-            channels == 0
-        ):  # Aubio might return 0 channels for some files it can't fully parse
-            logger.warning(
-                f"Aubio reported 0 channels for {path}. Attempting fallback with wave module.")
-            raise RuntimeError("Aubio reported 0 channels.")  # Force fallback
-        logger.info(
-            f"Audio details from Aubio for {path}: SR={samplerate}, Frames={total_frames}, Channels={channels}"
-        )
-        return samplerate, total_frames, channels
-    except Exception as e_aubio:
-        logger.warning(
-            f"Error getting full audio details for {path} with aubio ({e_aubio}). Falling back to wave module.")
-        try:
-            with wave.open(path, "rb") as wf:
-                samplerate = wf.getframerate()
-                total_frames = wf.getnframes()
-                channels = wf.getnchannels()
-                logger.info(
-                    f"Audio details from wave module for {path}: SR={samplerate}, Frames={total_frames}, Channels={channels}")
-                return samplerate, total_frames, channels
-        except Exception as e_wave:
-            logger.error(
-                f"Critical error getting audio details for {path} with wave (fallback): {e_wave}",
-                exc_info=True,
-            )
-            raise ValueError(
-                f"Could not determine audio details (samplerate, frames, channels) for {path} using aubio or wave."
-            ) from e_wave
+# _get_audio_details_for_slicing function removed as librosa.load handles this.
 
 
 class SlicingStage(AudioProcessingStage):
@@ -95,24 +56,27 @@ class SlicingStage(AudioProcessingStage):
     @property
     def default_params(self) -> dict:
         return {
-            "hop_size": 256,  # Hop size for aubio analysis
-            "window_size": 512,  # FFT window size for aubio analysis
-            "silence_threshold_db": -40,  # Silence threshold in dB for note detection
-            # Factor for min inter-onset interval (multiplied by
-            # hop_size/samplerate)
-            "min_ioi_seconds_factor": 2.0,
+            "librosa_onset_params": {
+                "hop_length": 512,
+                "backtrack": False,
+                "units": "samples",  # Using samples directly for easier indexing with y
+                # Default librosa values for other common params if not specified by user:
+                # wait_samples, pre_avg_samples, post_avg_samples, pre_max_samples, post_max_samples, delta_db
+                # These will be merged with user-provided librosa_onset_params
+            },
+            "min_sample_length_ms": 50,  # Minimum duration for a slice to be saved
+            "max_sample_length_ms": 10000,  # Maximum duration for a slice
         }
 
-    def process(
-        self, data: str, params: dict, context: dict = None
-    ) -> List[Dict[str, Any]]:
+    def process(self, data: str, params: dict, context: dict = None) -> List[Dict[str, Any]]:
         """
-        Processes an audio file: detects notes, slices them, and saves them.
+        Processes an audio file: detects onsets, slices them, and saves them.
 
         Args:
             data (str): The input audio file path.
-            params (dict): Parameters for slicing, merged with defaults.
-                           Expected keys: "hop_size", "window_size", "silence_threshold_db", "min_ioi_seconds_factor".
+            params (dict): Parameters for slicing. Expected keys:
+                           "librosa_onset_params" (dict for librosa.onset.onset_detect),
+                           "min_sample_length_ms", "max_sample_length_ms".
             context (dict, optional): Must contain:
                 - `db_session: Session`: SQLAlchemy session.
                 - `recording_id: int`: ID of the recording being processed.
@@ -120,19 +84,17 @@ class SlicingStage(AudioProcessingStage):
                 - `output_sample_dir: str`: Base directory to save sample files.
 
         Returns:
-            List[Dict[str, Any]]: A list of dictionaries, each representing a created sample
-                                  (e.g., `[{'id': sample.id, 'file_path': sample.file_path, ...}]`).
+            List[Dict[str, Any]]: A list of dictionaries, each representing a created sample.
 
         Raises:
             ValueError: If required keys are missing from `context` or if the recording is not found.
             FileNotFoundError: If the input audio file specified by `data` does not exist.
-            RuntimeError: If audio processing fails critically (e.g., cannot determine audio details).
+            RuntimeError: If audio processing fails critically.
         """
         logger.info(
             f"[{self.name}] Stage starting. Input file: {data}, Params: {params}, Context keys: {list(context.keys() if context else [])}"
         )
 
-        # --- Validate Context ---
         if not context:
             raise ValueError("Context is required and was not provided.")
         required_context_keys = [
@@ -147,20 +109,13 @@ class SlicingStage(AudioProcessingStage):
 
         db_session: Session = context["db_session"]
         recording_id: int = context["recording_id"]
-        # project_id: int = context["project_id"] # Not directly used in this
-        # version of slicing logic, but good to have in context
         output_sample_dir: str = context["output_sample_dir"]
 
-        # --- Fetch Recording and Update Status ---
         recording = (
-            db_session.query(RecordingModel)
-            .filter(RecordingModel.id == recording_id)
-            .first()
+            db_session.query(RecordingModel).filter(RecordingModel.id == recording_id).first()
         )
         if not recording:
-            raise ValueError(
-                f"Recording with id {recording_id} not found in the database."
-            )
+            raise ValueError(f"Recording with id {recording_id} not found in the database.")
 
         if not os.path.exists(data):
             recording.status = "slicing_failed"
@@ -169,172 +124,119 @@ class SlicingStage(AudioProcessingStage):
 
         recording.status = "slicing_active"
         db_session.commit()
-        logger.info(
-            f"[{self.name}] Recording {recording_id} status set to 'slicing_active'."
-        )
+        logger.info(f"[{self.name}] Recording {recording_id} status set to 'slicing_active'.")
 
         created_samples_info = []
         try:
-            # --- Audio Details ---
-            # This stage needs its own way to get samplerate, frames, channels
-            samplerate, total_frames_in_source, num_channels = (
-                _get_audio_details_for_slicing(data)
-            )
-            if (
-                samplerate == 0 or num_channels == 0
-            ):  # total_frames_in_source could be 0 for empty file
-                raise RuntimeError(
-                    f"Could not determine valid samplerate ({samplerate}Hz) or channels ({num_channels}) for {data}.")
+            y, sr = librosa.load(data, sr=None, mono=True)
+            total_samples = len(y)
+            actual_samplerate = sr
 
-            # --- Aubio Setup ---
-            hop_size = params.get("hop_size", self.default_params["hop_size"])
-            win_size = params.get(
-                "window_size", self.default_params["window_size"]
-            )  # May not be used by 'default' notes method
-
-            audio_source_obj = aubio_source(data, samplerate, hop_size)
-            # Aubio might adjust samplerate if it was 0 initially, so
-            # re-assign.
-            actual_samplerate = audio_source_obj.samplerate
-
-            notes_obj = aubio_notes(
-                "default", win_size, hop_size, actual_samplerate)
-            notes_obj.set_param(
-                "silence",
-                params.get(
-                    "silence_threshold_db",
-                    self.default_params["silence_threshold_db"]),
-            )
-            min_ioi_calc = (
-                hop_size
-                * params.get(
-                    "min_ioi_seconds_factor",
-                    self.default_params["min_ioi_seconds_factor"],
+            # Update recording model with actual samplerate if it was unknown or different
+            if recording.samplerate != actual_samplerate:
+                logger.info(
+                    f"[{self.name}] Updating recording {recording_id} samplerate from {recording.samplerate} to {actual_samplerate}."
                 )
-            ) / float(actual_samplerate)
-            notes_obj.set_param("minioi", min_ioi_calc)
+                recording.samplerate = actual_samplerate
+                # Duration might also change if it was based on old samplerate
+                recording.duration_seconds = librosa.get_duration(y=y, sr=sr)
 
-            # --- Note Detection Loop ---
-            detected_notes_list = []
-            frames_read_count = 0
-            while True:
-                samples, read = audio_source_obj()
-                new_note_events = notes_obj(samples)
-                for note_event in new_note_events:
-                    onset_frame = (
-                        frames_read_count - read +
-                        int(notes_obj.get_last_pos())
-                    )
-                    detected_notes_list.append(
-                        {
-                            "midi_pitch": int(note_event[0]),
-                            "velocity": int(note_event[1]),
-                            "start_frame": onset_frame,
-                        }
-                    )
-                frames_read_count += read
-                if read < hop_size:
-                    break
+            # Merge user params with stage defaults for librosa_onset_params
+            default_onset_params = self.default_params.get("librosa_onset_params", {})
+            user_onset_params = params.get("librosa_onset_params", {})
+            final_onset_params = {**default_onset_params, **user_onset_params}
+
+            # Ensure units is 'samples' for direct use, or convert if 'frames'
+            if final_onset_params.get("units") == "frames":
+                # If users provide 'frames', they must also provide 'hop_length' or accept default
+                hop_length = final_onset_params.get(
+                    "hop_length", 512
+                )  # librosa default hop_length for onset_detect
+                onset_event_indices = librosa.onset.onset_detect(
+                    y=y, sr=sr, **final_onset_params
+                )
+                onset_samples = librosa.frames_to_samples(
+                    onset_event_indices, hop_length=hop_length
+                )
+            else:  # Assume units are 'samples' or librosa handles it if not 'frames'
+                final_onset_params["units"] = "samples"  # Ensure it is samples
+                onset_samples = librosa.onset.onset_detect(y=y, sr=sr, **final_onset_params)
 
             logger.info(
-                f"[{self.name}] Detected {len(detected_notes_list)} potential notes in recording {recording_id}."
+                f"[{self.name}] Detected {len(onset_samples)} onsets in recording {recording_id}."
             )
 
-            # --- Estimate End Frames ---
-            for i in range(len(detected_notes_list)):
-                current_note_start = detected_notes_list[i]["start_frame"]
-                if i + 1 < len(detected_notes_list):
-                    next_note_start = detected_notes_list[i + 1]["start_frame"]
-                    detected_notes_list[i]["end_frame"] = max(
-                        current_note_start, next_note_start - 1
-                    )
-                else:
-                    estimated_end = (
-                        current_note_start + actual_samplerate
-                    )  # Approx 1s duration
-                    detected_notes_list[i]["end_frame"] = min(
-                        estimated_end, frames_read_count
-                    )
+            if not onset_samples.any():
+                recording.status = "slicing_completed"  # No onsets is a valid completed state
+                logger.info(f"[{self.name}] No onsets found for recording {recording_id}.")
+                db_session.commit()
+                return []
 
-            # --- Slicing and Saving ---
             if not os.path.exists(output_sample_dir):
                 os.makedirs(output_sample_dir)
                 logger.info(
                     f"[{self.name}] Created sample output directory: {output_sample_dir}"
                 )
 
-            sample_filename_counters = {}
-            for note_info in detected_notes_list:
-                midi_pitch = note_info["midi_pitch"]
-                start_frame = note_info["start_frame"]
-                end_frame = note_info.get(
-                    "end_frame", start_frame + actual_samplerate)
+            min_len_samples = int(
+                params.get("min_sample_length_ms", self.default_params["min_sample_length_ms"])
+                / 1000
+                * sr
+            )
+            max_len_samples = int(
+                params.get("max_sample_length_ms", self.default_params["max_sample_length_ms"])
+                / 1000
+                * sr
+            )
 
-                if end_frame <= start_frame:
-                    logger.warning(
-                        f"[{self.name}] Skipping note MIDI {midi_pitch} due to invalid frame range (start: {start_frame}, end: {end_frame})."
+            for i, start_sample_idx in enumerate(onset_samples):
+                start_sample = int(start_sample_idx)  # Ensure integer
+
+                if i + 1 < len(onset_samples):
+                    end_sample = int(onset_samples[i + 1])  # Ensure integer
+                else:
+                    end_sample = total_samples
+
+                # Apply max length constraint relative to start_sample
+                if (start_sample + max_len_samples) < end_sample:
+                    end_sample = start_sample + max_len_samples
+                end_sample = min(
+                    end_sample, total_samples
+                )  # Ensure it doesn't exceed audio length
+
+                slice_duration_samples = end_sample - start_sample
+
+                if slice_duration_samples < min_len_samples:
+                    logger.debug(
+                        f"[{self.name}] Skipping sample {i+1} (onset at {start_sample}) due to short duration ({slice_duration_samples} < {min_len_samples} samples)."
                     )
                     continue
 
-                start_frame = max(0, start_frame)
-                end_frame = min(frames_read_count, end_frame)
-                slice_duration_frames = end_frame - start_frame
+                audio_slice = y[start_sample:end_sample]
 
-                if slice_duration_frames <= 0:
-                    logger.warning(
-                        f"[{self.name}] Skipping sample for MIDI {midi_pitch} due to zero/negative duration after boundary checks."
-                    )
-                    continue
-
-                count = sample_filename_counters.get(midi_pitch, 0) + 1
-                sample_filename_counters[midi_pitch] = count
-                sample_filename = f"rec_{recording_id}_sample_midi{midi_pitch}_v{
-                    note_info['velocity']}_{count}.wav"
-                output_sample_path = os.path.join(
-                    output_sample_dir, sample_filename)
+                # Using onset index for filename for uniqueness, can be improved
+                sample_filename = f"rec_{recording_id}_sample_{i+1}_onset_S{start_sample}.wav"
+                output_sample_path = os.path.join(output_sample_dir, sample_filename)
 
                 try:
-                    with wave.open(
-                        data, "rb"
-                    ) as wf_in:  # 'data' is the input file path
-                        wf_in.setpos(start_frame)
-                        slice_audio_data = wf_in.readframes(
-                            slice_duration_frames)
-
-                        # Use original file's channels for saving slice
-                        # _get_audio_details_for_slicing returns channels from
-                        # original file
-                        slice_channels = num_channels
-
-                        with wave.open(output_sample_path, "wb") as wf_out:
-                            wf_out.setnchannels(slice_channels)
-                            wf_out.setsampwidth(wf_in.getsampwidth())
-                            wf_out.setframerate(
-                                actual_samplerate
-                            )  # Use samplerate from aubio processing
-                            wf_out.writeframes(slice_audio_data)
-                        logger.info(
-                            f"[{self.name}] Saved sample: {output_sample_path}")
+                    sf.write(output_sample_path, audio_slice, actual_samplerate)
+                    logger.info(f"[{self.name}] Saved sample: {output_sample_path}")
                 except Exception as e_slice:
                     logger.error(
-                        f"[{self.name}] Error slicing/saving sample for MIDI {midi_pitch} (frames {start_frame}-{end_frame}): {e_slice}",
+                        f"[{self.name}] Error saving sample slice (samples {start_sample}-{end_sample}): {e_slice}",
                         exc_info=True,
                     )
-                    continue
+                    continue  # Skip this sample
 
                 new_sample_db = SampleModel(
                     recording_id=recording_id,
                     name=sample_filename,
-                    file_path=os.path.abspath(
-                        output_sample_path
-                    ),  # Store absolute path
-                    start_time_seconds=float(start_frame) / actual_samplerate,
-                    end_time_seconds=float(end_frame) / actual_samplerate,
-                    sample_type="one-shot",
-                    midi_pitch=midi_pitch,
-                    metadata_json=f'{
-                        {"velocity": {
-                            note_info["velocity"]}, "source_start_frame": {start_frame}, "source_end_frame": {end_frame}}}',
+                    file_path=os.path.abspath(output_sample_path),
+                    start_time_seconds=float(start_sample) / actual_samplerate,
+                    end_time_seconds=float(end_sample) / actual_samplerate,
+                    sample_type="one-shot",  # Default or make configurable
+                    midi_pitch=None,  # Librosa onsets don't directly give MIDI pitch
+                    metadata_json=f'{{"source_onset_samples": {start_sample}}}',
                 )
                 db_session.add(new_sample_db)
                 db_session.flush()  # Flush to get ID for the dict, commit happens at the end

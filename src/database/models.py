@@ -62,9 +62,7 @@ class Recording(Base):
     )
 
     project = relationship("Project", back_populates="recordings")
-    samples = relationship(
-        "Sample", back_populates="recording", cascade="all, delete-orphan"
-    )
+    samples = relationship("Sample", back_populates="recording", cascade="all, delete-orphan")
 
 
 class Sample(Base):
@@ -77,9 +75,7 @@ class Sample(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     recording_id = Column(Integer, ForeignKey("recordings.id"), nullable=False)
-    name = Column(
-        String, nullable=False
-    )  # Often derived from recording name, pitch, etc.
+    name = Column(String, nullable=False)  # Often derived from recording name, pitch, etc.
     file_path = Column(
         String, nullable=False, unique=True
     )  # Path to the individual sample's audio file
@@ -113,9 +109,7 @@ class SampleMapping(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
-    name = Column(
-        String, nullable=False
-    )  # E.g., "Piano C4-D#4 Layer 1", "Kick Drum Pad"
+    name = Column(String, nullable=False)  # E.g., "Piano C4-D#4 Layer 1", "Kick Drum Pad"
     mapping_type = Column(
         String
     )  # E.g., "drum_kit_pad", "instrument_key_zone", "velocity_layer"
@@ -141,9 +135,7 @@ class SampleMappingItem(Base):
     __tablename__ = "sample_mapping_items"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    sample_mapping_id = Column(
-        Integer, ForeignKey("sample_mappings.id"), nullable=False
-    )
+    sample_mapping_id = Column(Integer, ForeignKey("sample_mappings.id"), nullable=False)
     sample_id = Column(Integer, ForeignKey("samples.id"), nullable=False)
     key_range_start = Column(Integer, nullable=True)  # MIDI note number
     key_range_end = Column(Integer, nullable=True)  # MIDI note number
@@ -153,9 +145,7 @@ class SampleMappingItem(Base):
     # updated_at is not strictly necessary here as this table is primarily an
     # association table.
 
-    sample_mapping = relationship(
-        "SampleMapping", back_populates="sample_mapping_items"
-    )
+    sample_mapping = relationship("SampleMapping", back_populates="sample_mapping_items")
     sample = relationship("Sample", back_populates="sample_mapping_items")
 
 
@@ -227,7 +217,8 @@ class MidiFile(Base):
     )
     midi_device_id = Column(Integer, ForeignKey("midi_devices.id"), nullable=False)
     channel_number = Column(Integer, nullable=False)
-    midi_data = Column(LargeBinary, nullable=False)  # Replaced file_path with midi_data
+    # Replaced file_path with midi_data
+    midi_data = Column(LargeBinary, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

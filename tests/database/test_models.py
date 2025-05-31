@@ -1,16 +1,25 @@
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
-from src.database.models import Base, Project, Recording, Sample, SampleMapping, SampleMappingItem # Import all models
+from src.database.models import (
+    Base,
+    Project,
+    Recording,
+    Sample,
+    SampleMapping,
+    SampleMappingItem,
+)  # Import all models
 from src.database.utils import init_db as initialize_db_utils, get_db as get_db_utils
 
+
 # --- Test Database Fixtures ---
-@pytest.fixture(scope="function") # "function" scope ensures a fresh DB for each test function
+@pytest.fixture(scope="function")  # "function" scope ensures a fresh DB for each test function
 def test_engine():
     """Creates an in-memory SQLite engine for testing."""
     engine = create_engine("sqlite:///:memory:")
-    initialize_db_utils(engine_instance=engine) # Use the modified init_db
+    initialize_db_utils(engine_instance=engine)  # Use the modified init_db
     return engine
+
 
 @pytest.fixture(scope="function")
 def db_session(test_engine):
@@ -22,9 +31,11 @@ def db_session(test_engine):
     try:
         yield session
     finally:
-        session.close() # Ensure session is closed
+        session.close()  # Ensure session is closed
+
 
 # --- Model Tests ---
+
 
 # Project Model Tests
 def test_create_project(db_session: Session):
@@ -43,6 +54,7 @@ def test_create_project(db_session: Session):
     assert retrieved_project is not None
     assert retrieved_project.name == "Test Project"
 
+
 def test_update_project(db_session: Session):
     project = Project(name="Initial Project Name")
     db_session.add(project)
@@ -58,6 +70,7 @@ def test_update_project(db_session: Session):
     assert updated_project.name == "Updated Project Name"
     assert updated_project.description == "Now with a description"
 
+
 def test_delete_project(db_session: Session):
     project = Project(name="To Be Deleted")
     db_session.add(project)
@@ -70,6 +83,7 @@ def test_delete_project(db_session: Session):
 
     deleted_project = db_session.query(Project).filter(Project.id == project_id).first()
     assert deleted_project is None
+
 
 # Recording Model Tests
 def test_create_recording(db_session: Session):
@@ -85,7 +99,7 @@ def test_create_recording(db_session: Session):
         duration_seconds=120.5,
         samplerate=44100,
         channels=2,
-        status="pending"
+        status="pending",
     )
     db_session.add(recording)
     db_session.commit()
@@ -96,7 +110,8 @@ def test_create_recording(db_session: Session):
     assert recording.name == "Test Recording"
     assert recording.file_path == "/path/to/recording.wav"
     assert recording.status == "pending"
-    assert recording.project.name == "Project For Recordings" # Test relationship
+    assert recording.project.name == "Project For Recordings"  # Test relationship
+
 
 def test_update_recording_status(db_session: Session):
     project = Project(name="Project For Recording Update")
@@ -110,16 +125,21 @@ def test_update_recording_status(db_session: Session):
     recording.status = "processed"
     db_session.commit()
     db_session.refresh(recording)
-    
-    updated_recording = db_session.query(Recording).filter(Recording.id == recording.id).first()
+
+    updated_recording = (
+        db_session.query(Recording).filter(Recording.id == recording.id).first()
+    )
     assert updated_recording.status == "processed"
+
 
 # Sample Model Tests
 def test_create_sample(db_session: Session):
     project = Project(name="Project For Samples")
     db_session.add(project)
     db_session.commit()
-    recording = Recording(project_id=project.id, name="Recording For Samples", file_path="rec.wav")
+    recording = Recording(
+        project_id=project.id, name="Recording For Samples", file_path="rec.wav"
+    )
     db_session.add(recording)
     db_session.commit()
     db_session.refresh(recording)
@@ -127,11 +147,12 @@ def test_create_sample(db_session: Session):
     sample = Sample(
         recording_id=recording.id,
         name="Test Sample",
+        file_path="dummy/created_sample.wav",  # ADD THIS
         start_time_seconds=10.0,
         end_time_seconds=15.5,
         sample_type="one-shot",
         midi_pitch=60,
-        metadata_json='{"key": "value"}'
+        metadata_json='{"key": "value"}',
     )
     db_session.add(sample)
     db_session.commit()
@@ -142,7 +163,8 @@ def test_create_sample(db_session: Session):
     assert sample.name == "Test Sample"
     assert sample.start_time_seconds == 10.0
     assert sample.midi_pitch == 60
-    assert sample.recording.name == "Recording For Samples" # Test relationship
+    assert sample.recording.name == "Recording For Samples"  # Test relationship
+
 
 # Relationship Tests
 def test_project_has_multiple_recordings(db_session: Session):
@@ -162,24 +184,42 @@ def test_project_has_multiple_recordings(db_session: Session):
     assert retrieved_project.recordings[0].name == "Rec 1"
     assert retrieved_project.recordings[1].name == "Rec 2"
 
+
 def test_recording_has_multiple_samples(db_session: Session):
     project = Project(name="Project For Multi-Sample Recording")
     db_session.add(project)
     db_session.commit()
-    recording = Recording(project_id=project.id, name="Multi-Sample Recording", file_path="rec_ms.wav")
+    recording = Recording(
+        project_id=project.id, name="Multi-Sample Recording", file_path="rec_ms.wav"
+    )
     db_session.add(recording)
     db_session.commit()
     db_session.refresh(recording)
 
-    sample1 = Sample(recording_id=recording.id, name="Sample A", start_time_seconds=1.0, end_time_seconds=2.0)
-    sample2 = Sample(recording_id=recording.id, name="Sample B", start_time_seconds=3.0, end_time_seconds=4.0)
+    sample1 = Sample(
+        recording_id=recording.id,
+        name="Sample A",
+        file_path="dummy/sample_a.wav",  # ADD THIS
+        start_time_seconds=1.0,
+        end_time_seconds=2.0,
+    )
+    sample2 = Sample(
+        recording_id=recording.id,
+        name="Sample B",
+        file_path="dummy/sample_b.wav",  # ADD THIS
+        start_time_seconds=3.0,
+        end_time_seconds=4.0,
+    )
     db_session.add_all([sample1, sample2])
     db_session.commit()
 
-    retrieved_recording = db_session.query(Recording).filter(Recording.id == recording.id).first()
+    retrieved_recording = (
+        db_session.query(Recording).filter(Recording.id == recording.id).first()
+    )
     assert len(retrieved_recording.samples) == 2
     assert retrieved_recording.samples[0].name == "Sample A"
     assert retrieved_recording.samples[1].name == "Sample B"
+
 
 # SampleMapping and SampleMappingItem Model Tests (Basic)
 def test_create_sample_mapping(db_session: Session):
@@ -189,9 +229,7 @@ def test_create_sample_mapping(db_session: Session):
     db_session.refresh(project)
 
     sample_mapping = SampleMapping(
-        project_id=project.id,
-        name="Drum Kit Map",
-        mapping_type="drum_kit_pad"
+        project_id=project.id, name="Drum Kit Map", mapping_type="drum_kit_pad"
     )
     db_session.add(sample_mapping)
     db_session.commit()
@@ -202,15 +240,29 @@ def test_create_sample_mapping(db_session: Session):
     assert sample_mapping.name == "Drum Kit Map"
     assert sample_mapping.project.name == "Project For Mappings"
 
+
 def test_create_sample_mapping_item(db_session: Session):
     project = Project(name="Project For Mapping Items")
     db_session.add(project)
     db_session.commit()
-    recording = Recording(project_id=project.id, name="Recording For Mapping Items", file_path="rec_mi.wav")
+    recording = Recording(
+        project_id=project.id,
+        name="Recording For Mapping Items",
+        file_path="rec_mi.wav",
+    )
     db_session.add(recording)
-    sample = Sample(recording_id=recording.id, name="Kick Sample", start_time_seconds=0.1, end_time_seconds=0.5, midi_pitch=36)
+    sample = Sample(
+        recording_id=recording.id,  # This is present
+        name="Kick Sample",
+        file_path="dummy/kick_sample_for_mapping.wav",  # ADD THIS
+        start_time_seconds=0.1,
+        end_time_seconds=0.5,
+        midi_pitch=36,
+    )
     db_session.add(sample)
-    sample_mapping = SampleMapping(project_id=project.id, name="Drum Map For Item Test", mapping_type="drum_kit")
+    sample_mapping = SampleMapping(
+        project_id=project.id, name="Drum Map For Item Test", mapping_type="drum_kit"
+    )
     db_session.add(sample_mapping)
     db_session.commit()
     db_session.refresh(project)
@@ -218,12 +270,11 @@ def test_create_sample_mapping_item(db_session: Session):
     db_session.refresh(sample)
     db_session.refresh(sample_mapping)
 
-
     item = SampleMappingItem(
         sample_mapping_id=sample_mapping.id,
         sample_id=sample.id,
         key_range_start=36,
-        key_range_end=36
+        key_range_end=36,
     )
     db_session.add(item)
     db_session.commit()
@@ -236,31 +287,61 @@ def test_create_sample_mapping_item(db_session: Session):
     assert item.sample.name == "Kick Sample"
     assert item.sample_mapping.name == "Drum Map For Item Test"
 
+
 def test_sample_mapping_has_multiple_items(db_session: Session):
     project = Project(name="Project For Multi-Item Mapping")
     db_session.add(project)
     db_session.commit()
-    recording = Recording(project_id=project.id, name="Rec For Multi-Item", file_path="rec_smi.wav")
+    recording = Recording(
+        project_id=project.id, name="Rec For Multi-Item", file_path="rec_smi.wav"
+    )
     db_session.add(recording)
-    sample1 = Sample(recording_id=recording.id, name="Snare", start_time_seconds=0.1, end_time_seconds=0.4, midi_pitch=38)
-    sample2 = Sample(recording_id=recording.id, name="HiHat", start_time_seconds=0.5, end_time_seconds=0.7, midi_pitch=42)
+    sample1 = Sample(
+        recording_id=recording.id,  # Present
+        name="Snare",
+        file_path="dummy/snare_for_mapping.wav",  # ADD THIS
+        start_time_seconds=0.1,
+        end_time_seconds=0.4,
+        midi_pitch=38,
+    )
+    sample2 = Sample(
+        recording_id=recording.id,  # Present
+        name="HiHat",
+        file_path="dummy/hihat_for_mapping.wav",  # ADD THIS
+        start_time_seconds=0.5,
+        end_time_seconds=0.7,
+        midi_pitch=42,
+    )
     db_session.add_all([sample1, sample2])
-    sample_mapping = SampleMapping(project_id=project.id, name="Drum Map Multi Test", mapping_type="drum_kit")
+    sample_mapping = SampleMapping(
+        project_id=project.id, name="Drum Map Multi Test", mapping_type="drum_kit"
+    )
     db_session.add(sample_mapping)
     db_session.commit()
-    db_session.refresh(project) # Refresh all to get IDs
+    db_session.refresh(project)  # Refresh all to get IDs
     db_session.refresh(recording)
     db_session.refresh(sample1)
     db_session.refresh(sample2)
     db_session.refresh(sample_mapping)
 
-
-    item1 = SampleMappingItem(sample_mapping_id=sample_mapping.id, sample_id=sample1.id, key_range_start=38, key_range_end=38)
-    item2 = SampleMappingItem(sample_mapping_id=sample_mapping.id, sample_id=sample2.id, key_range_start=42, key_range_end=42)
+    item1 = SampleMappingItem(
+        sample_mapping_id=sample_mapping.id,
+        sample_id=sample1.id,
+        key_range_start=38,
+        key_range_end=38,
+    )
+    item2 = SampleMappingItem(
+        sample_mapping_id=sample_mapping.id,
+        sample_id=sample2.id,
+        key_range_start=42,
+        key_range_end=42,
+    )
     db_session.add_all([item1, item2])
     db_session.commit()
 
-    retrieved_mapping = db_session.query(SampleMapping).filter(SampleMapping.id == sample_mapping.id).first()
+    retrieved_mapping = (
+        db_session.query(SampleMapping).filter(SampleMapping.id == sample_mapping.id).first()
+    )
     assert len(retrieved_mapping.sample_mapping_items) == 2
     # Order might not be guaranteed, so check names or specific attributes
     item_names = sorted([item.sample.name for item in retrieved_mapping.sample_mapping_items])

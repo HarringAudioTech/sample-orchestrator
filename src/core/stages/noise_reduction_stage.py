@@ -46,9 +46,7 @@ class NoiseReductionStage(AudioProcessingStage):
             "aggressiveness": 3,  # 1 to 5, how aggressively to target noise
         }
 
-    def process(
-        self, data: np.ndarray, params: dict, context: dict = None
-    ) -> np.ndarray:
+    def process(self, data: np.ndarray, params: dict, context: dict = None) -> np.ndarray:
         """
         Applies a placeholder noise reduction effect to the audio data.
 
@@ -72,12 +70,12 @@ class NoiseReductionStage(AudioProcessingStage):
                 f"[{self.name}] Input data is not a NumPy array, but type: {type(data)}"
             )
             raise TypeError(
-                f"Input data for {self.name} must be a NumPy array.")
+                f"Input data for {
+                    self.name} must be a NumPy array."
+            )
 
         amount = params.get("amount", self.default_params["amount"])
-        aggressiveness = params.get(
-            "aggressiveness", self.default_params["aggressiveness"]
-        )
+        aggressiveness = params.get("aggressiveness", self.default_params["aggressiveness"])
 
         logger.info(
             f"[{self.name}] Applying noise reduction (placeholder)... "
@@ -99,5 +97,4 @@ class NoiseReductionStage(AudioProcessingStage):
 try:
     register_stage(NoiseReductionStage)
 except Exception as e:
-    logger.critical(
-        f"Failed to register NoiseReductionStage: {e}", exc_info=True)
+    logger.critical(f"Failed to register NoiseReductionStage: {e}", exc_info=True)

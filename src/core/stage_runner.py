@@ -133,13 +133,15 @@ def execute_stage_chain(
     logger.info(
         f"Starting stage chain execution. Initial data type: '{current_data_type}'. Context keys: {
             list(
-                context.keys())}")
+                context.keys())}"
+    )
 
     for i, stage_info in enumerate(chain_definition):
         stage_name = stage_info.get("stage_name")
         if not stage_name:
             raise ValueError(
-                f"Missing 'stage_name' in chain definition at index {i}: {stage_info}")
+                f"Missing 'stage_name' in chain definition at index {i}: {stage_info}"
+            )
 
         StageClass = STAGE_REGISTRY.get(stage_name)
         if not StageClass:
@@ -155,9 +157,7 @@ def execute_stage_chain(
                 f"Error instantiating stage '{stage_name}' (index {i}): {e}",
                 exc_info=True,
             )
-            raise RuntimeError(
-                f"Could not instantiate stage '{stage_name}': {e}"
-            ) from e
+            raise RuntimeError(f"Could not instantiate stage '{stage_name}': {e}") from e
 
         logger.info(
             f"Executing stage {
@@ -187,13 +187,12 @@ def execute_stage_chain(
 
         logger.debug(
             f"Stage '{stage_name}' (index {i}) - Default params: {
-                stage_instance.default_params}, User params: {user_params}, Merged params: {merged_params}")
+                stage_instance.default_params}, User params: {user_params}, Merged params: {merged_params}"
+        )
 
         # --- Execute Stage ---
         try:
-            processed_data = stage_instance.process(
-                current_data, merged_params, context
-            )
+            processed_data = stage_instance.process(current_data, merged_params, context)
             logger.info(
                 f"Stage '{stage_name}' (index {i}) completed. Output type: '{
                     stage_instance.output_type}'."
@@ -352,8 +351,8 @@ if __name__ == "__main__":
         logger.error(f"Chain execution error: {e}", exc_info=True)
     except Exception as e:
         logger.error(
-            f"An unexpected error occurred during chain execution: {e}",
-            exc_info=True)
+            f"An unexpected error occurred during chain execution: {e}", exc_info=True
+        )
 
     # --- Test case: Empty chain ---
     logger.info("\n--- Testing Empty Chain ---")
@@ -361,8 +360,7 @@ if __name__ == "__main__":
         initial_file_path, DATA_TYPE_FILE_PATH, [], shared_context
     )
     assert empty_chain_output == initial_file_path
-    logger.info(
-        f"Empty chain output (should be initial data): {empty_chain_output}")
+    logger.info(f"Empty chain output (should be initial data): {empty_chain_output}")
 
     # --- Test case: Type mismatch ---
     logger.info("\n--- Testing Type Mismatch ---")
@@ -371,30 +369,21 @@ if __name__ == "__main__":
     ]  # Reverb expects audio buffer, not file path
     try:
         execute_stage_chain(
-            initial_file_path,
-            DATA_TYPE_FILE_PATH,
-            mismatch_chain,
-            shared_context)
+            initial_file_path, DATA_TYPE_FILE_PATH, mismatch_chain, shared_context
+        )
     except TypeError as e:
-        logger.info(
-            f"Successfully caught expected TypeError for mismatch: {e}")
+        logger.info(f"Successfully caught expected TypeError for mismatch: {e}")
     except Exception as e:
-        logger.error(
-            f"Unexpected error during type mismatch test: {e}", exc_info=True)
+        logger.error(f"Unexpected error during type mismatch test: {e}", exc_info=True)
 
     # --- Test case: Unregistered stage ---
     logger.info("\n--- Testing Unregistered Stage ---")
     unregistered_chain = [{"stage_name": "non_existent_stage"}]
     try:
         execute_stage_chain(
-            initial_file_path,
-            DATA_TYPE_FILE_PATH,
-            unregistered_chain,
-            shared_context)
+            initial_file_path, DATA_TYPE_FILE_PATH, unregistered_chain, shared_context
+        )
     except ValueError as e:
-        logger.info(
-            f"Successfully caught expected ValueError for unregistered stage: {e}")
+        logger.info(f"Successfully caught expected ValueError for unregistered stage: {e}")
     except Exception as e:
-        logger.error(
-            f"Unexpected error during unregistered stage test: {e}",
-            exc_info=True)
+        logger.error(f"Unexpected error during unregistered stage test: {e}", exc_info=True)

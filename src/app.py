@@ -8,12 +8,15 @@ The application can be run directly using `python -m src.app` for development.
 """
 
 import os
-from flask import Flask, jsonify, request  # g is not used in current session management
+
+# g is not used in current session management
+from flask import Flask, jsonify, request
 from src.api.routes import projects_bp, recordings_bp, samples_bp
 from src.ui.routes import ui_bp  # Import the UI blueprint
 from src.database.utils import (
     init_db,
     get_session_local,
+    get_engine,
 )  # Renamed SessionLocal to get_session_local
 
 
@@ -40,18 +43,18 @@ def create_app() -> Flask:
     # --- Configuration ---
     # Determine project root to build absolute paths for data directories.
     # __file__ is src/app.py, so project_root is one level up.
-    project_root = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), ".."))
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
     app.config["UPLOAD_FOLDER"] = os.path.join(project_root, "data", "uploads")
-    app.config["SAMPLES_BASE_DIR"] = os.path.join(
-        project_root, "data", "projects")
+    app.config["SAMPLES_BASE_DIR"] = os.path.join(project_root, "data", "projects")
     # Example: app.config['DATABASE_URL'] = os.environ.get('DATABASE_URL', 'sqlite:///./default.db')
     # The actual DATABASE_URL is currently hardcoded in src/database/utils.py
 
     app.logger.info(f"UPLOAD_FOLDER set to: {app.config['UPLOAD_FOLDER']}")
     app.logger.info(
-        f"SAMPLES_BASE_DIR set to: {app.config['SAMPLES_BASE_DIR']}")
+        f"SAMPLES_BASE_DIR set to: {
+            app.config['SAMPLES_BASE_DIR']}"
+    )
 
     # --- Database Initialization ---
     # This is called every time create_app() is run.
@@ -66,7 +69,7 @@ def create_app() -> Flask:
         init_db()
         app.logger.info(
             f"Database initialized. DB located at: {
-                get_session_local().bind.engine.url}"
+                get_engine().url}"
         )
 
     # --- Request-scoped Database Session (Alternative) ---
@@ -93,19 +96,27 @@ def create_app() -> Flask:
     app.logger.info("API Blueprints registered.")
 
     # Register UI Blueprint
-    app.register_blueprint(ui_bp, url_prefix='/ui')
-    app.logger.info(f"UI Blueprint registered with prefix /ui. Templates expected at {ui_bp.template_folder} relative to blueprint, and {app.template_folder} relative to app root.")
+    app.register_blueprint(ui_bp, url_prefix="/ui")
+    app.logger.info(
+        f"UI Blueprint registered with prefix /ui. Templates expected at {
+            ui_bp.template_folder} relative to blueprint, and {
+            app.template_folder} relative to app root."
+    )
 
     # --- Basic Error Handling ---
     @app.errorhandler(404)
     def not_found_error(error):
         """Handles 404 Not Found errors with a JSON response."""
         app.logger.warning(f"404 Not Found: {request.path} (Error: {error})")
-        return (jsonify({"error": "Not Found",
-                         "message": "The requested URL was not found on the server.",
-                         }),
-                404,
-                )
+        return (
+            jsonify(
+                {
+                    "error": "Not Found",
+                    "message": "The requested URL was not found on the server.",
+                }
+            ),
+            404,
+        )
 
     @app.errorhandler(500)
     def internal_server_error(error):
@@ -113,7 +124,8 @@ def create_app() -> Flask:
         app.logger.error(
             f"500 Internal Server Error: {
                 request.path} (Error: {error})",
-            exc_info=True)
+            exc_info=True,
+        )
         return (
             jsonify(
                 {
@@ -152,7 +164,8 @@ if __name__ == "__main__":
                 )
             except OSError as e:
                 current_app_instance.logger.error(
-                    f"Error creating data directory {folder_path}: {e}", exc_info=True)
+                    f"Error creating data directory {folder_path}: {e}", exc_info=True
+                )
                 # Depending on severity, might exit here.
 
     # Note: For production, use a dedicated WSGI server like Gunicorn or Waitress

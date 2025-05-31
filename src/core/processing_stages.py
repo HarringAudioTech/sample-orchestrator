@@ -179,8 +179,7 @@ if __name__ == "__main__":
         def process(self, data: str, params: dict, context: dict = None):
             # In a real scenario, 'data' would be a file path (string).
             # This example just demonstrates parameter usage.
-            print(
-                f"Processing file: {data} with params: {params} and context: {context}")
+            print(f"Processing file: {data} with params: {params} and context: {context}")
             output_filename = params.get("prefix", "") + data.split("/")[-1]
 
             # Simulate creating a new file path or list of paths
@@ -196,7 +195,8 @@ if __name__ == "__main__":
         print(
             f"Input type: {
                 stage.input_type}, Output type: {
-                stage.output_type}")
+                stage.output_type}"
+        )
         print(f"Default params: {stage.default_params}")
 
         # Simulate processing
@@ -207,8 +207,7 @@ if __name__ == "__main__":
 
         run_context = {"project_id": 123, "user_id": "test_user"}
 
-        output_data = stage.process(
-            input_data, params=run_params, context=run_context)
+        output_data = stage.process(input_data, params=run_params, context=run_context)
         print(f"Processed output: {output_data}")
 
     print("AudioProcessingStage and data type constants defined.")

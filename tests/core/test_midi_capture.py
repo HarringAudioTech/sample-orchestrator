@@ -64,7 +64,8 @@ def db_session():
     finally:
         session.rollback()  # Ensure a clean state for the next test
         session.close()
-        Base.metadata.drop_all(bind=engine)  # Drop tables to ensure full isolation
+        # Drop tables to ensure full isolation
+        Base.metadata.drop_all(bind=engine)
 
 
 @pytest.fixture(scope="function")
@@ -83,29 +84,21 @@ def test_project_model(db_session: Session):
 def test_project_instance(test_project_model: ProjectModel):
     """Creates a Project core class instance using a ProjectModel."""
     # The Project class __init__ uses get_db, which points to main DB.
-    # For testing, we want it to use the test DB.
-    # This is tricky if Project class directly calls get_db().
-    # For now, assume Project class might need adjustment or test-specific utility
-    # to use test_db_session for its internal __init__ loading.
-    # Temporarily patching Project's internal session fetching for its __init__
-    # This is a common challenge when classes manage their own sessions.
-    with patch(
-        "src.core.project.get_db", return_value=iter([db_session])
-    ) as mock_get_db_project:
-        # Need to yield the session from the generator context manager
-        def mock_db_generator():
-            db = get_test_session_local()()
-            try:
-                yield db
-            finally:
-                db.close()
-
-        mock_get_db_project.return_value = mock_db_generator()
-
-        project_core_instance = Project(project_id=test_project_model.id)
-        # Ensure the instance's db_session is the test one if it stores it
-        # project_core_instance.db = db_session # If project stored a session
+    # Project.__init__ now accepts db_session.
+    # We get a session from the same test session factory used by the db_session fixture.
+    db_session_for_project = get_test_session_local()()
+    try:
+        project_core_instance = Project(
+            project_id=test_project_model.id, db_session=db_session_for_project
+        )
+        # The project_core_instance will use db_session_for_project.
+        # Operations within test methods might use the db_session fixture directly.
+        # Ensure they operate on the same database if direct assertions are made.
         return project_core_instance
+    finally:
+        # Ensure the session created for the project instance is closed if the fixture scope
+        # intended it to be short-lived (which it does, as it's created here).
+        db_session_for_project.close()
 
 
 # --- Mocks for mido ---
@@ -120,9 +113,7 @@ def mock_mido_get_input_names(monkeypatch):
 
 @pytest.fixture
 def mock_mido_open_input(monkeypatch):
-    mock_port = MagicMock(
-        spec=mido.ports.BaseInput
-    )  # Make sure it behaves like a mido port
+    mock_port = MagicMock(spec=mido.ports.BaseInput)  # Make sure it behaves like a mido port
     mock_port.name = "Mock MIDI Port"
     mock_port.close = MagicMock()
     mock_port.callback = None
@@ -178,9 +169,7 @@ def test_list_available_midi_devices_existing_devices(
     db_session: Session, mock_mido_get_input_names
 ):
     # Pre-populate
-    existing_device = MidiDeviceModel(
-        name="Device A", system_identifier="Device A SysID"
-    )
+    existing_device = MidiDeviceModel(name="Device A", system_identifier="Device A SysID")
     db_session.add(existing_device)
     db_session.commit()
     db_session.refresh(existing_device)
@@ -190,16 +179,14 @@ def test_list_available_midi_devices_existing_devices(
 
     # To check updated_at, ensure some time passes or mock datetime
     with patch("src.core.midi_capture.datetime") as mock_datetime:
-        mock_datetime.datetime.utcnow.return_value = (
-            original_updated_at + datetime.timedelta(seconds=1)
+        mock_datetime.datetime.utcnow.return_value = original_updated_at + datetime.timedelta(
+            seconds=1
         )
         devices = list_available_midi_devices(db_session)
 
     assert len(devices) == 1
     db_device = (
-        db_session.query(MidiDeviceModel)
-        .filter(MidiDeviceModel.name == "Device A")
-        .one()
+        db_session.query(MidiDeviceModel).filter(MidiDeviceModel.name == "Device A").one()
     )
     assert db_device.id == existing_device.id
     assert db_device.updated_at > original_updated_at
@@ -226,11 +213,7 @@ def test_list_available_midi_devices_mixed_new_existing(
     assert len(devices) == 2
     assert db_session.query(MidiDeviceModel).count() == 2
 
-    dev_A = (
-        db_session.query(MidiDeviceModel)
-        .filter(MidiDeviceModel.name == "Device A")
-        .one()
-    )
+    dev_A = db_session.query(MidiDeviceModel).filter(MidiDeviceModel.name == "Device A").one()
     dev_B = (
         db_session.query(MidiDeviceModel)
         .filter(MidiDeviceModel.name == "New Device B")
@@ -304,9 +287,7 @@ class TestMidiRecorder:
         assert capture_session.status == "pending"
         assert recorder.capture_session == capture_session
 
-    def test_recorder_init_invalid_project_id(
-        self, db_session: Session, initial_devices
-    ):
+    def test_recorder_init_invalid_project_id(self, db_session: Session, initial_devices):
         with pytest.raises(ValueError, match="Project with ID 999 not found"):
             MidiRecorder(
                 project_id=999,
@@ -320,7 +301,7 @@ class TestMidiRecorder:
         db_session: Session,
         test_project_model: ProjectModel,
         initial_devices,
-        capsys,
+        caplog,
     ):
         # "Device 3" does not exist, "Device 1" does.
         recorder = MidiRecorder(
@@ -331,13 +312,10 @@ class TestMidiRecorder:
         )
         assert len(recorder.target_devices) == 1
         assert recorder.target_devices[0].name == "Device 1"
-        captured = capsys.readouterr()
-        assert "Warning: MIDI device 'Device 3' not found in database" in captured.out
+        assert "Warning: MIDI device 'Device 3' not found in database" in caplog.text
 
         # Test if all devices are non-existent
-        with pytest.raises(
-            ValueError, match="No valid MIDI devices were found or specified"
-        ):
+        with pytest.raises(ValueError, match="No valid MIDI devices were found or specified"):
             MidiRecorder(
                 project_id=test_project_model.id,
                 selected_device_names=["Device 3", "Device 4"],
@@ -348,9 +326,7 @@ class TestMidiRecorder:
     def test_recorder_init_empty_device_list(
         self, db_session: Session, test_project_model: ProjectModel
     ):
-        with pytest.raises(
-            ValueError, match="No valid MIDI devices were found or specified"
-        ):
+        with pytest.raises(ValueError, match="No valid MIDI devices were found or specified"):
             MidiRecorder(
                 project_id=test_project_model.id,
                 selected_device_names=[],
@@ -396,7 +372,8 @@ class TestMidiRecorder:
         # The current _get_output_directory only creates the main session capture directory.
         # The test for _get_midi_filepath was part of this test, so we just ensure
         # the remaining part for _get_output_directory is correct.
-        # mock_os_makedirs.assert_any_call was for the device specific dir, which is no longer made by _get_midi_filepath
+        # mock_os_makedirs.assert_any_call was for the device specific dir,
+        # which is no longer made by _get_midi_filepath
 
     def test_recorder_start_recording_success(
         self, db_session: Session, test_project_model: ProjectModel, initial_devices
@@ -408,9 +385,7 @@ class TestMidiRecorder:
             db=db_session,
         )
 
-        original_start_time = datetime.datetime.utcnow() - datetime.timedelta(
-            seconds=10
-        )
+        original_start_time = datetime.datetime.utcnow() - datetime.timedelta(seconds=10)
         recorder.capture_session.start_time = (
             original_start_time  # set it to something in the past
         )
@@ -423,7 +398,7 @@ class TestMidiRecorder:
             recorder.start_recording(db_session)
 
         assert recorder.active is True
-        assert self.mock_mido_open_input.called_with("Device 1", callback=ANY)
+        self.mock_mido_open_input.assert_called_with("Device 1", callback=ANY)
         assert len(recorder.midi_inputs) == 1
         assert recorder.midi_inputs["Device 1"] == self.mock_port
 
@@ -436,7 +411,7 @@ class TestMidiRecorder:
         db_session: Session,
         test_project_model: ProjectModel,
         initial_devices,
-        capsys,
+        caplog,
     ):
         recorder = MidiRecorder(
             project_id=test_project_model.id,
@@ -446,8 +421,7 @@ class TestMidiRecorder:
         )
         recorder.active = True  # Manually set to active
         recorder.start_recording(db_session)
-        captured = capsys.readouterr()
-        assert "Recording is already active." in captured.out
+        assert "Recording is already active." in caplog.text
         assert not self.mock_mido_open_input.called
 
     def test_recorder_start_recording_port_open_failure(
@@ -455,7 +429,7 @@ class TestMidiRecorder:
         db_session: Session,
         test_project_model: ProjectModel,
         initial_devices,
-        capsys,
+        caplog,
     ):
         self.mock_mido_open_input.side_effect = Exception("Failed to open port")
 
@@ -469,18 +443,12 @@ class TestMidiRecorder:
 
         assert recorder.active is False
         assert len(recorder.midi_inputs) == 0
-        captured = capsys.readouterr()
-        assert "Error opening MIDI device Device 1: Failed to open port" in captured.out
-        assert "Error opening MIDI device Device 2: Failed to open port" in captured.out
-        assert (
-            "No MIDI input ports could be opened. Recording cannot start."
-            in captured.out
-        )
+        assert "Error opening MIDI device Device 1: Failed to open port" in caplog.text
+        assert "Error opening MIDI device Device 2: Failed to open port" in caplog.text
+        assert "No MIDI input ports could be opened. Recording cannot start." in caplog.text
 
         db_session.refresh(recorder.capture_session)
-        assert (
-            recorder.capture_session.status == "failed"
-        )  # Check if status updated in DB
+        assert recorder.capture_session.status == "failed"  # Check if status updated in DB
 
     def test_recorder_midi_callback(
         self, db_session: Session, test_project_model: ProjectModel, initial_devices
@@ -503,31 +471,31 @@ class TestMidiRecorder:
         mfile_ch1 = recorder.midi_files[file_key_ch1]
         assert isinstance(mfile_ch1, mido.MidiFile)
         assert len(mfile_ch1.tracks) == 1
-        assert len(mfile_ch1.tracks[0]) == 1
-        assert mfile_ch1.tracks[0][0] == msg_ch1
+        assert len(mfile_ch1.tracks[0]) == 2  # Track name meta message + msg_ch1
+        assert mfile_ch1.tracks[0][1] == msg_ch1  # msg_ch1 is the second message
 
         # Simulate a system common message (no channel)
-        msg_sys = mido.Message(
-            "songpos", pos=123, time=0.2
-        )  # songpos does not have channel
+        msg_sys = mido.Message("songpos", pos=123, time=0.2)  # songpos does not have channel
         recorder._midi_callback(msg_sys, device_name="Device 1")
 
+        # Default channel for no-channel messages
         file_key_sys = ("Device 1", -1)  # Default channel for no-channel messages
         assert file_key_sys in recorder.midi_files
         mfile_sys = recorder.midi_files[file_key_sys]
+        assert isinstance(mfile_sys, mido.MidiFile)
         assert len(mfile_sys.tracks) == 1
-        assert len(mfile_sys.tracks[0]) == 1
-        assert mfile_sys.tracks[0][0] == msg_sys
+        assert len(mfile_sys.tracks[0]) == 2  # Track name meta message + msg_sys
+        assert mfile_sys.tracks[0][1] == msg_sys  # msg_sys is the second message
 
         # Add another message to channel 0
         msg_ch1_off = mido.Message("note_off", note=60, velocity=0, channel=0, time=0.3)
         recorder._midi_callback(msg_ch1_off, device_name="Device 1")
-        assert len(mfile_ch1.tracks[0]) == 2
-        assert mfile_ch1.tracks[0][1] == msg_ch1_off
+        assert len(mfile_ch1.tracks[0]) == 3  # Meta, msg_ch1, msg_ch1_off
+        assert mfile_ch1.tracks[0][2] == msg_ch1_off
 
-    @patch(
-        "os.makedirs"
-    )  # Mock makedirs for _get_output_directory, though not strictly for MIDI files.
+    # Mock makedirs for _get_output_directory, though not strictly for MIDI
+    # files.
+    @patch("os.makedirs")
     def test_recorder_stop_recording_success(
         self,
         mock_os_makedirs,
@@ -545,7 +513,8 @@ class TestMidiRecorder:
             db=db_session,
         )
         recorder.active = True
-        recorder.midi_inputs["Device 1"] = self.mock_port  # Simulate an opened port
+        # Simulate an opened port
+        recorder.midi_inputs["Device 1"] = self.mock_port
 
         # Populate some mock MIDI data
         msg1 = mido.Message("note_on", channel=0, note=60)
@@ -591,7 +560,8 @@ class TestMidiRecorder:
         expected_buffer.close()
 
         assert db_mf.midi_data == expected_bytes  # Compare blob data
-        # self.mock_mido_file_save.assert_called_once_with(expected_path) # Removed
+        # self.mock_mido_file_save.assert_called_once_with(expected_path) #
+        # Removed
 
         db_session.refresh(recorder.capture_session)
         assert recorder.capture_session.status == "completed"
@@ -603,7 +573,7 @@ class TestMidiRecorder:
         db_session: Session,
         test_project_model: ProjectModel,
         initial_devices,
-        capsys,
+        caplog,
     ):
         recorder = MidiRecorder(
             project_id=test_project_model.id,
@@ -613,9 +583,9 @@ class TestMidiRecorder:
         )
         recorder.active = False  # Not active
         recorder.stop_recording(db_session)
-        captured = capsys.readouterr()
-        assert "Recording is not currently active." in captured.out
-        # assert not self.mock_mido_file_save.called # mock_mido_file_save fixture is removed/changed
+        assert "Recording is not currently active." in caplog.text
+        # assert not self.mock_mido_file_save.called # mock_mido_file_save
+        # fixture is removed/changed
 
     @patch("os.makedirs")
     def test_recorder_stop_recording_no_messages(
@@ -624,7 +594,7 @@ class TestMidiRecorder:
         db_session: Session,
         test_project_model: ProjectModel,
         initial_devices,
-        capsys,
+        caplog,
     ):
         recorder = MidiRecorder(
             project_id=test_project_model.id,
@@ -633,21 +603,22 @@ class TestMidiRecorder:
             db=db_session,
         )
         recorder.active = True
-        recorder.midi_inputs["Device 1"] = self.mock_port  # Simulate an opened port
+        # Simulate an opened port
+        recorder.midi_inputs["Device 1"] = self.mock_port
         # recorder.midi_files remains empty
 
         recorder.stop_recording(db_session)
 
         assert recorder.active is False
         assert db_session.query(MidiFileModel).count() == 0
-        # assert not self.mock_mido_file_save.called # mock_mido_file_save fixture is removed/changed
+        # assert not self.mock_mido_file_save.called # mock_mido_file_save
+        # fixture is removed/changed
 
         db_session.refresh(recorder.capture_session)
         assert (
             recorder.capture_session.status == "completed_empty"
         )  # or "completed" based on implementation for empty
-        captured = capsys.readouterr()
-        assert "No MIDI messages were captured." in captured.out  # Or similar log
+        assert "No MIDI messages were captured." in caplog.text  # Or similar log
 
 
 # --- Tests for Project class MIDI methods ---
@@ -661,7 +632,8 @@ class TestProjectMidiMethods:
     def setup_project_mocks(
         self, mock_mido_get_input_names, mock_mido_open_input
     ):  # Removed mock_mido_file_save
-        # Mocks for mido needed if project methods call underlying midi_capture functions
+        # Mocks for mido needed if project methods call underlying midi_capture
+        # functions
         self.mock_mido_get_input_names = mock_mido_get_input_names
         self.mock_mido_open_input, self.mock_port = mock_mido_open_input
         # self.mock_mido_file_save = mock_mido_file_save # Removed
@@ -721,12 +693,8 @@ class TestProjectMidiMethods:
     ):
         proj_id = test_project_instance.project_id
         # Create some sessions directly
-        s1 = MidiCaptureSessionModel(
-            project_id=proj_id, name="Session 1", status="completed"
-        )
-        s2 = MidiCaptureSessionModel(
-            project_id=proj_id, name="Session 2", status="pending"
-        )
+        s1 = MidiCaptureSessionModel(project_id=proj_id, name="Session 1", status="completed")
+        s2 = MidiCaptureSessionModel(project_id=proj_id, name="Session 2", status="pending")
         # A session for another project
         s_other = MidiCaptureSessionModel(
             project_id=999, name="Other Project Session", status="completed"
@@ -739,9 +707,9 @@ class TestProjectMidiMethods:
 
         assert len(sessions) == 2
         assert {s.name for s in sessions} == {"Session 1", "Session 2"}
-        assert (
-            sessions[0].name == "Session 2"
-        )  # Default order is created_at.desc, s2 is newer if committed after s1 or if time is mocked. Assuming s2 is "newer".
+        # Default order is created_at.desc, s2 is newer if committed after s1
+        # or if time is mocked. Assuming s2 is "newer".
+        assert sessions[0].name == "Session 2"
         # Actual order depends on precise created_at. Let's check for names.
 
     def test_project_get_midi_capture_session(
@@ -797,7 +765,8 @@ class TestProjectMidiMethods:
         db_session.refresh(session)
 
         # Create MidiFileModel instances with midi_data (binary content).
-        test_midi_data_1 = b"\x4d\x54\x68\x64\x00\x00\x00\x06\x00\x01\x00\x01\x01\xe0"  # Minimal valid MIDI
+        # Minimal valid MIDI
+        test_midi_data_1 = b"\x4d\x54\x68\x64\x00\x00\x00\x06\x00\x01\x00\x01\x01\xe0"
         test_midi_data_2 = b"\x4d\x54\x68\x64\x00\x00\x00\x06\x00\x01\x00\x01\x01\xe0\x4d\x54\x72\x6b\x00\x00\x00\x04\x00\xff\x2f\x00"  # Minimal with track
         mf1 = MidiFileModel(
             midi_capture_session_id=session.id,
@@ -813,9 +782,7 @@ class TestProjectMidiMethods:
         )
         db_session.add_all([mf1, mf2])
         db_session.commit()
-        db_session.refresh(
-            mf1
-        )  # Refresh to get any db-generated values if needed by tests
+        db_session.refresh(mf1)  # Refresh to get any db-generated values if needed by tests
         db_session.refresh(mf2)
 
         with patch("src.core.project.SessionLocal", get_test_session_local()):
@@ -837,13 +804,9 @@ class TestProjectMidiMethods:
             db_session.add(session_no_files)
             db_session.commit()
             db_session.refresh(session_no_files)
-            files_empty = test_project_instance.get_midi_files_for_session(
-                session_no_files.id
-            )
+            files_empty = test_project_instance.get_midi_files_for_session(session_no_files.id)
             assert len(files_empty) == 0
 
             # Test with invalid session ID
-            files_invalid_session = test_project_instance.get_midi_files_for_session(
-                99999
-            )
+            files_invalid_session = test_project_instance.get_midi_files_for_session(99999)
             assert len(files_invalid_session) == 0
