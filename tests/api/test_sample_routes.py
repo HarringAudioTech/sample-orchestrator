@@ -30,9 +30,13 @@ def app():
         }
     )
 
+    # Create an engine instance specifically for tests, using the test DB URL
+    engine = get_engine(flask_app.config["DATABASE_URL"])
+    flask_app.test_engine = engine  # Attach to app for access in other fixtures
+
     with flask_app.app_context():
-        # Initialize the database schema using the app's configured DATABASE_URL
-        initialize_db_utils()
+        # Initialize the database schema using the test-specific engine
+        initialize_db_utils(engine_instance=engine)
         # Note: The tables are created once per module.
         # manage_database_session will handle per-test data cleaning.
 
@@ -58,8 +62,8 @@ def manage_database_session(app: Flask):
     This fixture ensures data isolation between tests by clearing data.
     """
     with app.app_context():
-        # Get the engine that the app is configured to use (should be in-memory)
-        engine = get_engine()  # Relies on get_engine() using current_app.config
+        # Retrieve the test-specific engine from the app fixture
+        engine = app.test_engine
 
         # Clear all data from tables before each test
         for table in reversed(Base.metadata.sorted_tables):
