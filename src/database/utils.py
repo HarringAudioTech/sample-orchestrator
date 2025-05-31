@@ -92,8 +92,12 @@ def init_db(engine_instance=None):
             If None, the default engine is used. Defaults to None.
     """
     current_engine = engine_instance or get_engine()
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"init_db: Engine URL: {current_engine.url}")
+    logger.info(f"init_db: Tables known to Base.metadata before create_all: {list(Base.metadata.tables.keys())}")
     Base.metadata.create_all(bind=current_engine)
-    print(
+    logger.info(
         f"Database initialized with engine: {
             current_engine.url} and tables created (if they didn't exist)."
     )

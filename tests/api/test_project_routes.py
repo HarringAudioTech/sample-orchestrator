@@ -56,9 +56,13 @@ def manage_database_session(app: Flask):
     This fixture ensures data isolation between tests by clearing data.
     """
     with app.app_context():
+        import logging
+        logger = logging.getLogger(__name__)
         # Get the engine that the app is configured to use (should be in-memory)
         # This relies on get_engine() correctly using current_app.config
         engine = get_engine()
+        logger.info(f"manage_db_session: Engine URL from get_engine(): {engine.url}")
+        logger.info(f"manage_db_session: Sorted tables from Base.metadata: {[table.name for table in Base.metadata.sorted_tables]}")
 
         # Clear all data from tables before each test
         # This is faster than dropping and recreating tables if the schema is stable
