@@ -2,7 +2,7 @@ import pytest
 import os
 import shutil
 from unittest.mock import patch, MagicMock, call
-import numpy as np # Added for librosa mock
+import numpy as np  # Added for librosa mock
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from src.database.models import (
@@ -58,9 +58,7 @@ def test_project_instance(db_session: Session):
 
 # Test __init__
 def test_project_init_success(db_session: Session):
-    project_model = ProjectModel(
-        name="Init Test", description="Testing CoreProject init"
-    )
+    project_model = ProjectModel(name="Init Test", description="Testing CoreProject init")
     db_session.add(project_model)
     db_session.commit()
     db_session.refresh(project_model)
@@ -73,14 +71,16 @@ def test_project_init_success(db_session: Session):
 
 def test_project_init_not_found(db_session: Session):
     with pytest.raises(ValueError, match="Project with id 999 not found"):
-        CoreProject(project_id=999, db_session=db_session)  # Assuming project 999 does not exist
+        CoreProject(
+            project_id=999, db_session=db_session
+        )  # Assuming project 999 does not exist
 
 
 # Test add_recording
 @patch("os.path.exists")
-@patch("src.core.project.librosa.load") # Updated patch target
+@patch("src.core.project.librosa.load")  # Updated patch target
 def test_add_recording(
-    mock_librosa_load, # Updated mock name
+    mock_librosa_load,  # Updated mock name
     mock_os_exists,
     test_project_instance,
     db_session: Session,
@@ -90,10 +90,12 @@ def test_add_recording(
 
     # Setup mock for librosa.load
     mock_sr = 44100
-    mock_channels = 2 # Test with stereo as add_recording uses mono=False
+    mock_channels = 2  # Test with stereo as add_recording uses mono=False
     mock_duration_sec = 2.0
     # For stereo, librosa.load with mono=False returns y with shape (channels, samples)
-    mock_y_stereo = np.zeros((mock_channels, int(mock_sr * mock_duration_sec)), dtype=np.float32)
+    mock_y_stereo = np.zeros(
+        (mock_channels, int(mock_sr * mock_duration_sec)), dtype=np.float32
+    )
     mock_librosa_load.return_value = (mock_y_stereo, mock_sr)
 
     dummy_file_path = "/fake/path/to/audio.wav"
@@ -116,9 +118,7 @@ def test_add_recording(
     assert new_recording_model.channels == mock_channels
 
     # Verify in DB
-    verify_session = get_session_local(
-        db_session.bind
-    )()
+    verify_session = get_session_local(db_session.bind)()
     db_rec = (
         verify_session.query(RecordingModel)
         .filter(RecordingModel.id == new_recording_model.id)
@@ -168,9 +168,8 @@ def test_get_recording(test_project_instance, db_session: Session):
 
     # First, add a recording using the model directly for setup
     rec_model = RecordingModel(
-        project_id=project_model.id,
-        name="Gettable Recording",
-        file_path="get.wav")
+        project_id=project_model.id, name="Gettable Recording", file_path="get.wav"
+    )
     db_session.add(rec_model)
     db_session.commit()
     db_session.refresh(rec_model)
@@ -183,8 +182,7 @@ def test_get_recording(test_project_instance, db_session: Session):
 
 def test_get_recording_not_found(test_project_instance):
     core_project, _ = test_project_instance
-    retrieved_rec = core_project.get_recording(
-        recording_id=999)  # Non-existent
+    retrieved_rec = core_project.get_recording(recording_id=999)  # Non-existent
     assert retrieved_rec is None
 
 
@@ -193,12 +191,8 @@ def test_list_recordings(test_project_instance, db_session: Session):
     core_project, project_model = test_project_instance
 
     # Add some recordings
-    rec1 = RecordingModel(
-        project_id=project_model.id, name="List Rec 1", file_path="lr1.wav"
-    )
-    rec2 = RecordingModel(
-        project_id=project_model.id, name="List Rec 2", file_path="lr2.wav"
-    )
+    rec1 = RecordingModel(project_id=project_model.id, name="List Rec 1", file_path="lr1.wav")
+    rec2 = RecordingModel(project_id=project_model.id, name="List Rec 2", file_path="lr2.wav")
     db_session.add_all([rec1, rec2])
     db_session.commit()
 
@@ -254,9 +248,7 @@ def test_process_recording(
     # detect_and_slice_recording is called with a SessionLocal() db session, not db_session fixture
     # So we check that it was called with any Session instance and the correct
     # recording_id and output_dir
-    assert (
-        mock_detect_slice.call_args[0][0] is not None
-    )  # Check that a db session was passed
+    assert mock_detect_slice.call_args[0][0] is not None  # Check that a db session was passed
     assert mock_detect_slice.call_args[0][1] == rec_model.id
     assert mock_detect_slice.call_args[0][2] == output_sample_dir
 
@@ -300,14 +292,14 @@ def test_process_recording_recording_not_found(test_project_instance, capsys):
     core_project, _ = test_project_instance
 
     output_sample_dir = "/tmp/non_existent_rec_samples"
-    core_project.process_recording(
-        recording_id=999, output_sample_dir=output_sample_dir
-    )
+    core_project.process_recording(recording_id=999, output_sample_dir=output_sample_dir)
 
     captured = capsys.readouterr()
     assert (
         f"Recording with id 999 not found for project {
-            core_project.project_id}" in captured.out)
+            core_project.project_id}"
+        in captured.out
+    )
     # Also check that detect_and_slice_recording was not called (implicitly,
     # as it would error or be mocked)
 

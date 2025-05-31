@@ -47,7 +47,7 @@ def client(app: Flask):
 
 
 # Automatically use this for each test in this file
-@pytest.fixture(autouse=True) # Ensures this runs for every test function
+@pytest.fixture(autouse=True)  # Ensures this runs for every test function
 def manage_database_session(app: Flask):
     """
     Ensure each test has a clean database state (empty tables).
@@ -119,10 +119,7 @@ def test_create_project_success(client):
 
 
 def test_create_project_missing_name(client):
-    response = client.post(
-        "/projects",
-        json={
-            "description": "Project without a name"})
+    response = client.post("/projects", json={"description": "Project without a name"})
     assert response.status_code == 400
     data = response.get_json()
     assert "error" in data

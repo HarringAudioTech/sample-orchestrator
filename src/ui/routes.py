@@ -44,6 +44,5 @@ def create_project_submit():
 def project_progress(project_id):
     # In the future, you would fetch project details using project_id
     return render_template(
-        "project_progress.html",
-        title=f"Project {project_id}",
-        project_id=project_id)
+        "project_progress.html", title=f"Project {project_id}", project_id=project_id
+    )

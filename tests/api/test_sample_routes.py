@@ -49,9 +49,7 @@ def client(app: Flask):
     return app.test_client()
 
 
-@pytest.fixture(autouse=True)
-def manage_database_session(app: Flask):
-@pytest.fixture(autouse=True) # Ensures this runs for every test function
+@pytest.fixture(autouse=True)  # Ensures this runs for every test function
 def manage_database_session(app: Flask):
     """
     Ensure each test has a clean database state (empty tables).
@@ -61,11 +59,11 @@ def manage_database_session(app: Flask):
     """
     with app.app_context():
         # Get the engine that the app is configured to use (should be in-memory)
-        engine = get_engine() # Relies on get_engine() using current_app.config
+        engine = get_engine()  # Relies on get_engine() using current_app.config
 
         # Clear all data from tables before each test
         for table in reversed(Base.metadata.sorted_tables):
-            Session = get_session_local(engine_instance=engine) # Use test engine
+            Session = get_session_local(engine_instance=engine)  # Use test engine
             db = Session()
             try:
                 db.execute(table.delete())
@@ -168,9 +166,7 @@ def test_list_recording_samples_no_samples(client, sample_data):
     # Create a new recording without samples
     project_id = sample_data["project_id"]
     with client.application.app_context():
-        db_session = get_session_local(
-            get_engine(client.application.config["DATABASE_URL"])
-        )()
+        db_session = get_session_local(get_engine(client.application.config["DATABASE_URL"]))()
         try:
             new_recording = RecordingModel(
                 project_id=project_id,

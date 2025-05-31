@@ -26,7 +26,7 @@ def app():
     flask_app.config.update(
         {
             "TESTING": True,
-            "DATABASE_URL": "sqlite:///:memory:", # Use in-memory SQLite for tests
+            "DATABASE_URL": "sqlite:///:memory:",  # Use in-memory SQLite for tests
             "UPLOAD_FOLDER": "/tmp/pytest_uploads_recordings_api",
             "SAMPLES_BASE_DIR": "/tmp/pytest_samples_base_recordings_api",
         }
@@ -51,7 +51,7 @@ def client(app: Flask):
     return app.test_client()
 
 
-@pytest.fixture(autouse=True) # Ensures this runs for every test function
+@pytest.fixture(autouse=True)  # Ensures this runs for every test function
 def manage_database_session(app: Flask):
     """
     Ensure each test has a clean database state (empty tables).
@@ -84,9 +84,7 @@ def manage_database_session(app: Flask):
 @pytest.fixture
 def sample_project(client):
     """Creates a sample project and returns its ID."""
-    response = client.post(
-        "/projects", json={"name": "Test Project for Recordings API"}
-    )
+    response = client.post("/projects", json={"name": "Test Project for Recordings API"})
     assert response.status_code == 201
     return response.get_json()["id"]
 
@@ -95,8 +93,7 @@ def sample_project(client):
 
 
 @patch("src.core.project.Project.add_recording")
-def test_add_project_recording_success(
-        mock_add_recording, client, sample_project):
+def test_add_project_recording_success(mock_add_recording, client, sample_project):
     project_id = sample_project
     mock_recording_instance = RecordingModel(
         id=1,
@@ -135,8 +132,7 @@ def test_add_project_recording_success(
 
 
 @patch("src.core.project.Project.list_recordings")
-def test_list_project_recordings_success(
-        mock_list_recordings, client, sample_project):
+def test_list_project_recordings_success(mock_list_recordings, client, sample_project):
     project_id = sample_project
     mock_list_recordings.return_value = [
         RecordingModel(
@@ -173,9 +169,7 @@ def test_list_project_recordings_success(
 def test_get_recording_details_success(client, sample_project):
     project_id = sample_project
     with client.application.app_context():
-        db_session = get_session_local(
-            get_engine(client.application.config["DATABASE_URL"])
-        )()
+        db_session = get_session_local(get_engine(client.application.config["DATABASE_URL"]))()
         rec = RecordingModel(
             project_id=project_id,
             name="Detail Test Rec",
@@ -230,9 +224,7 @@ def test_recording_for_processing(app, client, sample_project):
     ), f"Dummy audio file missing at {abs_dummy_audio_path}"
 
     with app.app_context():
-        db_session = get_session_local(
-            get_engine(client.application.config["DATABASE_URL"])
-        )()
+        db_session = get_session_local(get_engine(client.application.config["DATABASE_URL"]))()
         try:
             rec = RecordingModel(
                 project_id=project_id,
@@ -281,8 +273,7 @@ def test_process_recording_with_workflow_success(
         def stages_definition(self) -> list:
             return []
 
-    workflow_key = _camel_to_snake(
-        APITestWorkflow.__name__)  # "api_test_workflow"
+    workflow_key = _camel_to_snake(APITestWorkflow.__name__)  # "api_test_workflow"
 
     # Manage registry carefully for this test
     original_registry = WORKFLOW_REGISTRY.copy()
@@ -291,9 +282,7 @@ def test_process_recording_with_workflow_success(
 
     response = client.post(
         f"/recordings/{recording_id}/process",
-        json={
-            "workflow_name": workflow_key,
-            "output_dir_suffix": "api_workflow_test"},
+        json={"workflow_name": workflow_key, "output_dir_suffix": "api_workflow_test"},
     )
 
     assert response.status_code == 200
@@ -306,8 +295,7 @@ def test_process_recording_with_workflow_success(
 
     mock_workflow_run.assert_called_once()
     call_args_kwargs = mock_workflow_run.call_args[1]  # kwargs from the call
-    assert call_args_kwargs["initial_data"].endswith(
-        DUMMY_AUDIO_PATH_FOR_API_TESTS)
+    assert call_args_kwargs["initial_data"].endswith(DUMMY_AUDIO_PATH_FOR_API_TESTS)
     assert "db_session" in call_args_kwargs["context"]
     assert call_args_kwargs["context"]["recording_id"] == recording_id
 
@@ -320,8 +308,7 @@ def test_process_recording_with_stages_chain_success(
     mock_execute_chain, client, test_recording_for_processing
 ):
     recording_id = test_recording_for_processing
-    mock_execute_chain.return_value = [
-        {"sample_id": 1, "path": "/mocked/sample.wav"}]
+    mock_execute_chain.return_value = [{"sample_id": 1, "path": "/mocked/sample.wav"}]
 
     # Ensure dummy stage used in chain is registered for this test
     from src.core.stage_runner import STAGE_REGISTRY, register_stage
@@ -353,15 +340,13 @@ def test_process_recording_with_stages_chain_success(
             return {}
 
         def process(self, data, params, context=None):
-            return [{"sample_id": 1,
-                     "path": f"{context['output_sample_dir']}/s.wav"}]
+            return [{"sample_id": 1, "path": f"{context['output_sample_dir']}/s.wav"}]
 
     original_stage_registry = STAGE_REGISTRY.copy()
     STAGE_REGISTRY.clear()
     register_stage(APITestChainStage)
 
-    stages_chain_payload = [
-        {"stage_name": "api_chain_dummy_stage", "params": {}}]
+    stages_chain_payload = [{"stage_name": "api_chain_dummy_stage", "params": {}}]
 
     response = client.post(
         f"/recordings/{recording_id}/process",
@@ -379,17 +364,14 @@ def test_process_recording_with_stages_chain_success(
 
     mock_execute_chain.assert_called_once()
     call_args_kwargs = mock_execute_chain.call_args[1]
-    assert call_args_kwargs["initial_data"].endswith(
-        DUMMY_AUDIO_PATH_FOR_API_TESTS)
+    assert call_args_kwargs["initial_data"].endswith(DUMMY_AUDIO_PATH_FOR_API_TESTS)
     assert call_args_kwargs["chain_definition"] == stages_chain_payload
 
     STAGE_REGISTRY.clear()
     STAGE_REGISTRY.update(original_stage_registry)
 
 
-def test_process_recording_no_workflow_or_chain_api(
-    client, test_recording_for_processing
-):
+def test_process_recording_no_workflow_or_chain_api(client, test_recording_for_processing):
     recording_id = test_recording_for_processing
     response = client.post(
         f"/recordings/{recording_id}/process",
@@ -402,18 +384,14 @@ def test_process_recording_no_workflow_or_chain_api(
     )
 
 
-def test_process_recording_unknown_workflow_name_api(
-    client, test_recording_for_processing
-):
+def test_process_recording_unknown_workflow_name_api(client, test_recording_for_processing):
     recording_id = test_recording_for_processing
     response = client.post(
         f"/recordings/{recording_id}/process",
         json={"workflow_name": "non_existent_workflow_api"},
     )
     assert response.status_code == 400
-    assert (
-        "Workflow 'non_existent_workflow_api' not found" in response.get_json()["error"]
-    )
+    assert "Workflow 'non_existent_workflow_api' not found" in response.get_json()["error"]
 
 
 @patch(
@@ -440,9 +418,8 @@ def test_process_recording_output_dir_creation_fails_api(
         register_workflow(ExampleSlicingWorkflow)
 
     response = client.post(
-        f"/recordings/{recording_id}/process",
-        json={
-            "workflow_name": workflow_key})
+        f"/recordings/{recording_id}/process", json={"workflow_name": workflow_key}
+    )
     assert response.status_code == 500
     assert (
         "Could not create output directory: Simulated permission denied in API test"
@@ -450,12 +427,9 @@ def test_process_recording_output_dir_creation_fails_api(
     )
 
 
-def test_process_recording_invalid_recording_file_path(
-        app, client, sample_project):
+def test_process_recording_invalid_recording_file_path(app, client, sample_project):
     with app.app_context():
-        db = get_session_local(
-            get_engine(
-                client.application.config["DATABASE_URL"]))()
+        db = get_session_local(get_engine(client.application.config["DATABASE_URL"]))()
         rec = RecordingModel(
             project_id=sample_project,
             name="Rec Invalid Path",
@@ -475,5 +449,4 @@ def test_process_recording_invalid_recording_file_path(
         json={"workflow_name": "example_slicing_workflow"},
     )  # Assuming example_slicing_workflow is registered
     assert response.status_code == 400
-    assert "Recording file path not found or invalid" in response.get_json()[
-        "error"]
+    assert "Recording file path not found or invalid" in response.get_json()["error"]

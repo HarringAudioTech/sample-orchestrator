@@ -35,7 +35,9 @@ def _camel_to_snake(name: str) -> str:
     # Handle cases like "WordWord" -> "Word_Word" (e.g. SimpleWorkflow -> Simple_Workflow)
     # and also internal capitals like "wordWord" -> "word_Word".
     # The (.), if it matches an underscore, could lead to double underscores if not careful.
-    name = re.sub(r"([A-Za-z0-9])([A-Z][a-z]+)", r"\1_\2", name) # Changed (.) to ([A-Za-z0-9]) to avoid matching underscore with first group
+    name = re.sub(
+        r"([A-Za-z0-9])([A-Z][a-z]+)", r"\1_\2", name
+    )  # Changed (.) to ([A-Za-z0-9]) to avoid matching underscore with first group
 
     # Handle cases like "wordWORD" -> "word_WORD" (e.g. SimpleHTTP -> Simple_HTTP)
     # or "WordWORD" if the first rule didn't catch a transition from lowercase.
@@ -100,14 +102,13 @@ def register_workflow(workflow_class: Type["BaseWorkflow"]):
         # name.
         registry_key_name = _camel_to_snake(workflow_class.__name__)
         if not registry_key_name:
-            raise ValueError(
-                "Could not derive a valid registry key name from class name."
-            )
+            raise ValueError("Could not derive a valid registry key name from class name.")
 
     except AttributeError:  # Should not happen if BaseWorkflow is properly ABC
         raise TypeError(
             f"Workflow class '{
-                workflow_class.__name__}' seems to be missing expected structure.")
+                workflow_class.__name__}' seems to be missing expected structure."
+        )
 
     if registry_key_name in WORKFLOW_REGISTRY:
         logger.warning(
@@ -189,8 +190,9 @@ class BaseWorkflow(ABC):
         """
         pass
 
-    def run(self, initial_data: Any, initial_data_type: str,
-            context: Dict[str, Any] = None) -> Any:
+    def run(
+        self, initial_data: Any, initial_data_type: str, context: Dict[str, Any] = None
+    ) -> Any:
         """
         Executes the workflow's defined chain of processing stages.
 
@@ -274,9 +276,7 @@ try:
 except Exception as e:
     # Log error if registration fails, e.g. if BaseWorkflow is not fully
     # defined
-    logger.critical(
-        f"Failed to register ExampleSlicingWorkflow: {e}",
-        exc_info=True)
+    logger.critical(f"Failed to register ExampleSlicingWorkflow: {e}", exc_info=True)
 
 
 if __name__ == "__main__":
@@ -368,7 +368,9 @@ if __name__ == "__main__":
 
                 @property
                 def input_type(self) -> str:
-                    return "audio_buffer_mono"  # Example, SlicingStage actually takes file_path
+                    return (
+                        "audio_buffer_mono"  # Example, SlicingStage actually takes file_path
+                    )
 
                 @property
                 def output_type(self) -> str:
@@ -400,7 +402,8 @@ if __name__ == "__main__":
         except Exception as e:
             logger.error(
                 f"Could not inspect workflow class {
-                    wf_class.__name__}: {e}")
+                    wf_class.__name__}: {e}"
+            )
 
     # --- Example Workflow Execution ---
     logger.info("\n--- Testing ExampleSlicingWorkflow ---")
@@ -435,7 +438,8 @@ if __name__ == "__main__":
             "The current ExampleSlicingWorkflow definition has a type mismatch: "
             "NoiseReductionStage (placeholder) outputs audio_buffer_mono, "
             "but SlicingStage (real one) expects file_path as input. "
-            "This __main__ test will likely fail unless stages are dummied or workflow is adjusted.")
+            "This __main__ test will likely fail unless stages are dummied or workflow is adjusted."
+        )
 
         # To proceed with a runnable test, let's assume we are testing with dummy stages
         # where types are compatible, or we adjust the test data/workflow.
@@ -460,12 +464,8 @@ if __name__ == "__main__":
         # For the purpose of this __main__ test, let's assume we are testing the structure.
         # The actual execution success depends on the real stages registered.
 
-        initial_mock_data = (
-            "/path/to/some/audio_file.wav"  # SlicingStage needs a file path
-        )
-        initial_mock_data_type = (
-            "file_path"  # from processing_stages DATA_TYPE_FILE_PATH
-        )
+        initial_mock_data = "/path/to/some/audio_file.wav"  # SlicingStage needs a file path
+        initial_mock_data_type = "file_path"  # from processing_stages DATA_TYPE_FILE_PATH
 
         # If the first stage is `noise_reduction` which expects `audio_buffer_mono`,
         # this initial_data_type is wrong for it.
@@ -514,8 +514,7 @@ if __name__ == "__main__":
             # or if STAGE_REGISTRY doesn't have the real "slicing" stage.
 
             if (
-                "slicing"
-                in from_src_core_stage_runner_import_STAGE_REGISTRY_else_empty_dict()
+                "slicing" in from_src_core_stage_runner_import_STAGE_REGISTRY_else_empty_dict()
             ):  # Check if real slicing stage is there
                 logger.info(
                     f"Attempting to run '{
@@ -532,11 +531,10 @@ if __name__ == "__main__":
 
         except Exception as e:
             logger.error(
-                f"Error during __main__ test of OnlySlicingWorkflow: {e}",
-                exc_info=True)
+                f"Error during __main__ test of OnlySlicingWorkflow: {e}", exc_info=True
+            )
     else:
-        logger.error(
-            f"Workflow '{workflow_to_run_key}' not found in registry.")
+        logger.error(f"Workflow '{workflow_to_run_key}' not found in registry.")
 
     logger.info("Workflow system demonstration finished.")
 

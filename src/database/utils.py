@@ -30,9 +30,9 @@ def get_engine(database_url: str = None):
         # If a specific URL is provided, use it directly.
         return create_engine(database_url)
 
-    if current_app and 'DATABASE_URL' in current_app.config:
+    if current_app and "DATABASE_URL" in current_app.config:
         # If running within a Flask app context and DATABASE_URL is configured
-        return create_engine(current_app.config['DATABASE_URL'])
+        return create_engine(current_app.config["DATABASE_URL"])
 
     if _engine is None:
         # Fallback to the global default engine if no specific URL or app config is found
@@ -67,9 +67,7 @@ def get_session_local(engine_instance=None) -> sessionmaker:
     if engine_instance:
         # If a specific engine_instance was provided, always create a new sessionmaker for it.
         # This is useful for tests or scenarios needing isolated sessions with a specific DB.
-        return sessionmaker(
-            autocommit=False, autoflush=False, bind=effective_engine
-        )
+        return sessionmaker(autocommit=False, autoflush=False, bind=effective_engine)
 
     # For the global/default SessionLocal, reuse if already created with the same engine.
     # However, if the effective_engine is different from what _SessionLocal is bound to,
@@ -77,9 +75,7 @@ def get_session_local(engine_instance=None) -> sessionmaker:
     # This handles the case where get_engine() might return a different engine
     # (e.g., from app.config) than the one used for the initial global _SessionLocal.
     if _SessionLocal is None or _SessionLocal.kw["bind"] != effective_engine:
-        _SessionLocal = sessionmaker(
-            autocommit=False, autoflush=False, bind=effective_engine
-        )
+        _SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=effective_engine)
     return _SessionLocal
 
 
@@ -156,6 +152,4 @@ if __name__ == "__main__":
     # Useful for initial setup or manual database recreation.
     print("Initializing main database...")
     init_db()  # Uses default engine from get_engine()
-    print(
-        "To verify, you can use a SQLite browser to open 'database.db' in the project root."
-    )
+    print("To verify, you can use a SQLite browser to open 'database.db' in the project root.")

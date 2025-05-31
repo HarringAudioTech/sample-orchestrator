@@ -13,9 +13,7 @@ from src.database.utils import init_db as initialize_db_utils, get_db as get_db_
 
 
 # --- Test Database Fixtures ---
-@pytest.fixture(
-    scope="function"
-)  # "function" scope ensures a fresh DB for each test function
+@pytest.fixture(scope="function")  # "function" scope ensures a fresh DB for each test function
 def test_engine():
     """Creates an in-memory SQLite engine for testing."""
     engine = create_engine("sqlite:///:memory:")
@@ -52,9 +50,7 @@ def test_create_project(db_session: Session):
     assert project.created_at is not None
     assert project.updated_at is not None
 
-    retrieved_project = (
-        db_session.query(Project).filter(Project.id == project.id).first()
-    )
+    retrieved_project = db_session.query(Project).filter(Project.id == project.id).first()
     assert retrieved_project is not None
     assert retrieved_project.name == "Test Project"
 
@@ -70,8 +66,7 @@ def test_update_project(db_session: Session):
     db_session.commit()
     db_session.refresh(project)
 
-    updated_project = db_session.query(Project).filter(
-        Project.id == project.id).first()
+    updated_project = db_session.query(Project).filter(Project.id == project.id).first()
     assert updated_project.name == "Updated Project Name"
     assert updated_project.description == "Now with a description"
 
@@ -86,8 +81,7 @@ def test_delete_project(db_session: Session):
     db_session.delete(project)
     db_session.commit()
 
-    deleted_project = db_session.query(Project).filter(
-        Project.id == project_id).first()
+    deleted_project = db_session.query(Project).filter(Project.id == project_id).first()
     assert deleted_project is None
 
 
@@ -123,9 +117,7 @@ def test_update_recording_status(db_session: Session):
     project = Project(name="Project For Recording Update")
     db_session.add(project)
     db_session.commit()
-    recording = Recording(
-        project_id=project.id, name="Rec Status Test", file_path="test.wav"
-    )
+    recording = Recording(project_id=project.id, name="Rec Status Test", file_path="test.wav")
     db_session.add(recording)
     db_session.commit()
     db_session.refresh(recording)
@@ -135,8 +127,8 @@ def test_update_recording_status(db_session: Session):
     db_session.refresh(recording)
 
     updated_recording = (
-        db_session.query(Recording).filter(
-            Recording.id == recording.id).first())
+        db_session.query(Recording).filter(Recording.id == recording.id).first()
+    )
     assert updated_recording.status == "processed"
 
 
@@ -146,9 +138,8 @@ def test_create_sample(db_session: Session):
     db_session.add(project)
     db_session.commit()
     recording = Recording(
-        project_id=project.id,
-        name="Recording For Samples",
-        file_path="rec.wav")
+        project_id=project.id, name="Recording For Samples", file_path="rec.wav"
+    )
     db_session.add(recording)
     db_session.commit()
     db_session.refresh(recording)
@@ -156,7 +147,7 @@ def test_create_sample(db_session: Session):
     sample = Sample(
         recording_id=recording.id,
         name="Test Sample",
-        file_path="dummy/created_sample.wav", # ADD THIS
+        file_path="dummy/created_sample.wav",  # ADD THIS
         start_time_seconds=10.0,
         end_time_seconds=15.5,
         sample_type="one-shot",
@@ -188,9 +179,7 @@ def test_project_has_multiple_recordings(db_session: Session):
     db_session.commit()
 
     # Query project and check its recordings relationship
-    retrieved_project = (
-        db_session.query(Project).filter(Project.id == project.id).first()
-    )
+    retrieved_project = db_session.query(Project).filter(Project.id == project.id).first()
     assert len(retrieved_project.recordings) == 2
     assert retrieved_project.recordings[0].name == "Rec 1"
     assert retrieved_project.recordings[1].name == "Rec 2"
@@ -201,9 +190,8 @@ def test_recording_has_multiple_samples(db_session: Session):
     db_session.add(project)
     db_session.commit()
     recording = Recording(
-        project_id=project.id,
-        name="Multi-Sample Recording",
-        file_path="rec_ms.wav")
+        project_id=project.id, name="Multi-Sample Recording", file_path="rec_ms.wav"
+    )
     db_session.add(recording)
     db_session.commit()
     db_session.refresh(recording)
@@ -211,14 +199,14 @@ def test_recording_has_multiple_samples(db_session: Session):
     sample1 = Sample(
         recording_id=recording.id,
         name="Sample A",
-        file_path="dummy/sample_a.wav", # ADD THIS
+        file_path="dummy/sample_a.wav",  # ADD THIS
         start_time_seconds=1.0,
         end_time_seconds=2.0,
     )
     sample2 = Sample(
         recording_id=recording.id,
         name="Sample B",
-        file_path="dummy/sample_b.wav", # ADD THIS
+        file_path="dummy/sample_b.wav",  # ADD THIS
         start_time_seconds=3.0,
         end_time_seconds=4.0,
     )
@@ -226,8 +214,8 @@ def test_recording_has_multiple_samples(db_session: Session):
     db_session.commit()
 
     retrieved_recording = (
-        db_session.query(Recording).filter(
-            Recording.id == recording.id).first())
+        db_session.query(Recording).filter(Recording.id == recording.id).first()
+    )
     assert len(retrieved_recording.samples) == 2
     assert retrieved_recording.samples[0].name == "Sample A"
     assert retrieved_recording.samples[1].name == "Sample B"
@@ -264,18 +252,17 @@ def test_create_sample_mapping_item(db_session: Session):
     )
     db_session.add(recording)
     sample = Sample(
-        recording_id=recording.id, # This is present
+        recording_id=recording.id,  # This is present
         name="Kick Sample",
-        file_path="dummy/kick_sample_for_mapping.wav", # ADD THIS
+        file_path="dummy/kick_sample_for_mapping.wav",  # ADD THIS
         start_time_seconds=0.1,
         end_time_seconds=0.5,
         midi_pitch=36,
     )
     db_session.add(sample)
     sample_mapping = SampleMapping(
-        project_id=project.id,
-        name="Drum Map For Item Test",
-        mapping_type="drum_kit")
+        project_id=project.id, name="Drum Map For Item Test", mapping_type="drum_kit"
+    )
     db_session.add(sample_mapping)
     db_session.commit()
     db_session.refresh(project)
@@ -306,31 +293,29 @@ def test_sample_mapping_has_multiple_items(db_session: Session):
     db_session.add(project)
     db_session.commit()
     recording = Recording(
-        project_id=project.id,
-        name="Rec For Multi-Item",
-        file_path="rec_smi.wav")
+        project_id=project.id, name="Rec For Multi-Item", file_path="rec_smi.wav"
+    )
     db_session.add(recording)
     sample1 = Sample(
-        recording_id=recording.id, # Present
+        recording_id=recording.id,  # Present
         name="Snare",
-        file_path="dummy/snare_for_mapping.wav", # ADD THIS
+        file_path="dummy/snare_for_mapping.wav",  # ADD THIS
         start_time_seconds=0.1,
         end_time_seconds=0.4,
         midi_pitch=38,
     )
     sample2 = Sample(
-        recording_id=recording.id, # Present
+        recording_id=recording.id,  # Present
         name="HiHat",
-        file_path="dummy/hihat_for_mapping.wav", # ADD THIS
+        file_path="dummy/hihat_for_mapping.wav",  # ADD THIS
         start_time_seconds=0.5,
         end_time_seconds=0.7,
         midi_pitch=42,
     )
     db_session.add_all([sample1, sample2])
     sample_mapping = SampleMapping(
-        project_id=project.id,
-        name="Drum Map Multi Test",
-        mapping_type="drum_kit")
+        project_id=project.id, name="Drum Map Multi Test", mapping_type="drum_kit"
+    )
     db_session.add(sample_mapping)
     db_session.commit()
     db_session.refresh(project)  # Refresh all to get IDs
@@ -355,14 +340,10 @@ def test_sample_mapping_has_multiple_items(db_session: Session):
     db_session.commit()
 
     retrieved_mapping = (
-        db_session.query(SampleMapping)
-        .filter(SampleMapping.id == sample_mapping.id)
-        .first()
+        db_session.query(SampleMapping).filter(SampleMapping.id == sample_mapping.id).first()
     )
     assert len(retrieved_mapping.sample_mapping_items) == 2
     # Order might not be guaranteed, so check names or specific attributes
-    item_names = sorted(
-        [item.sample.name for item in retrieved_mapping.sample_mapping_items]
-    )
+    item_names = sorted([item.sample.name for item in retrieved_mapping.sample_mapping_items])
     assert "HiHat" in item_names
     assert "Snare" in item_names
