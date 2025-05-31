@@ -26,12 +26,19 @@ def get_engine(database_url: str = None):
     global _engine
     from flask import current_app
 
+    # If a specific test engine instance is configured on the app, use it.
+    # This ensures that during testing, the app uses the exact same engine
+    # instance as the test setup code (e.g., for creating tables, clearing data).
+    if current_app and current_app.config.get("TEST_ENGINE_INSTANCE"):
+        return current_app.config["TEST_ENGINE_INSTANCE"]
+
     if database_url:
         # If a specific URL is provided, use it directly.
         return create_engine(database_url)
 
     if current_app and "DATABASE_URL" in current_app.config:
         # If running within a Flask app context and DATABASE_URL is configured
+        # (and TEST_ENGINE_INSTANCE was not set), use DATABASE_URL from app config.
         return create_engine(current_app.config["DATABASE_URL"])
 
     if _engine is None:

@@ -30,6 +30,8 @@ def app():
     # Create an engine instance specifically for tests, using the test DB URL
     engine = get_engine(flask_app.config["DATABASE_URL"])
     flask_app.test_engine = engine  # Attach to app for access in other fixtures
+    # Provide this engine instance to the app config so get_engine() in utils can pick it up
+    flask_app.config["TEST_ENGINE_INSTANCE"] = engine
 
     with flask_app.app_context():
         # Initialize the database schema using the test-specific engine
