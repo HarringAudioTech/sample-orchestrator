@@ -236,7 +236,7 @@ class SlicingStage(AudioProcessingStage):
                         "midi_pitch": new_sample_db.midi_pitch,
                         "start_time_seconds": new_sample_db.start_time_seconds,
                         "end_time_seconds": new_sample_db.end_time_seconds,
-                        "metadata": new_sample_db.metadata_json,
+                        "metadata_json": new_sample_db.metadata_json,
                     }
                 )
 

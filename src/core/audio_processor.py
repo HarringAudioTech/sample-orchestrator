@@ -21,7 +21,7 @@ future use if general, non-stage-specific audio processing utilities are needed.
 """
 
 # No functions are currently defined in this module after refactoring.
-# Imports that were specific to the removed functions (like aubio, wave, os, Session, models)
+# Imports that were specific to the removed functions (like wave, os, Session, models)
 # are no longer needed here unless new utility functions requiring them
 # are added.
 
