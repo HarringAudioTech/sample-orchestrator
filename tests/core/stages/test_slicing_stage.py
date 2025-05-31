@@ -18,7 +18,7 @@ from src.core.processing_stages import (
     DATA_TYPE_FILE_PATH,
     DATA_TYPE_LIST_OF_SAMPLE_DATA,
 )
-from src.core.stages.slicing_stage import SlicingStage, _get_audio_details_for_slicing
+from src.core.stages.slicing_stage import SlicingStage
 from src.database.models import (
     Base,
     Recording as RecordingModel,
