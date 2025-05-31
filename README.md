@@ -67,15 +67,15 @@ This project uses [Poetry](https://python-poetry.org/) for dependency management
     ```bash
     poetry install
     ```
-    This will create a virtual environment and install all necessary packages, including `aubio`, `Flask`, `SQLAlchemy`, `numpy`, etc.
+    This will create a virtual environment and install all necessary packages, including `Flask`, `SQLAlchemy`, `numpy`, etc.
 
-3.  **System Dependencies for Aubio (if any):**
-    `aubio` might have system-level dependencies (like `libsndfile`) depending on your OS and how it was compiled/installed. If `poetry install` fails related to `aubio`, you might need to install these manually. For example, on Debian/Ubuntu:
+3.  **System Dependencies (Example for some libraries):**
+    Some Python libraries might have system-level dependencies (e.g., `libsndfile` for certain audio operations if you were using a library that required it directly, or `ffmpeg` for broader audio/video processing). If `poetry install` succeeds but you encounter runtime errors related to missing shared libraries, you might need to install them manually. For example, on Debian/Ubuntu for common audio libraries:
     ```bash
     sudo apt-get update
     sudo apt-get install libsndfile1 ffmpeg
     ```
-    Refer to the [aubio documentation](https://aubio.org/manual/latest/installing.html) for more details.
+    Always refer to the documentation of the specific Python library causing issues for accurate system dependency information.
 
 4.  **Database Initialization:**
     The SQLite database (`database.db` in the project root) and its tables are automatically initialized when the Flask application first runs (specifically, when `create_app()` in `src/app.py` is called). No separate command is strictly needed for setup.

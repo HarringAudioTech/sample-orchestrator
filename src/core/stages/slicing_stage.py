@@ -146,21 +146,9 @@ class SlicingStage(AudioProcessingStage):
             user_onset_params = params.get("librosa_onset_params", {})
             final_onset_params = {**default_onset_params, **user_onset_params}
 
-            # Ensure units is 'samples' for direct use, or convert if 'frames'
-            if final_onset_params.get("units") == "frames":
-                # If users provide 'frames', they must also provide 'hop_length' or accept default
-                hop_length = final_onset_params.get(
-                    "hop_length", 512
-                )  # librosa default hop_length for onset_detect
-                onset_event_indices = librosa.onset.onset_detect(
-                    y=y, sr=sr, **final_onset_params
-                )
-                onset_samples = librosa.frames_to_samples(
-                    onset_event_indices, hop_length=hop_length
-                )
-            else:  # Assume units are 'samples' or librosa handles it if not 'frames'
-                final_onset_params["units"] = "samples"  # Ensure it is samples
-                onset_samples = librosa.onset.onset_detect(y=y, sr=sr, **final_onset_params)
+            # Ensure units is 'samples' for direct use
+            final_onset_params["units"] = "samples"
+            onset_samples = librosa.onset.onset_detect(y=y, sr=sr, **final_onset_params)
 
             logger.info(
                 f"[{self.name}] Detected {len(onset_samples)} onsets in recording {recording_id}."
@@ -248,7 +236,7 @@ class SlicingStage(AudioProcessingStage):
                         "midi_pitch": new_sample_db.midi_pitch,
                         "start_time_seconds": new_sample_db.start_time_seconds,
                         "end_time_seconds": new_sample_db.end_time_seconds,
-                        "metadata": new_sample_db.metadata_json,
+                        "metadata_json": new_sample_db.metadata_json,
                     }
                 )
 

@@ -21,10 +21,6 @@ from src.core.midi_capture import (
     list_available_midi_devices,
 )
 
-# from aubio import ( # Removed
-#     source,
-# )
-
 # Configure basic logging
 # In a larger application, this would likely be configured in a central place.
 logging.basicConfig(
@@ -124,7 +120,7 @@ class Project:
             FileNotFoundError: If the audio file at `file_path` does not exist.
             SQLAlchemyError: If any database operations fail.
             Exception: Can re-raise exceptions from audio metadata extraction
-                       (e.g., `aubio.source`, `wave.open`) if issues occur.
+                       (e.g., `wave.open`) if issues occur.
         """
         logger.info(
             f"Adding recording '{name}' from path '{file_path}' to project ID {self.project_id}."
