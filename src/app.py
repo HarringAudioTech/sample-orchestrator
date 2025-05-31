@@ -66,11 +66,14 @@ def create_app() -> Flask:
         # The database URL is taken from src.database.utils.DATABASE_URL.
         # get_session_local().bind.engine.url provides the actual URL being
         # used.
-        init_db()
-        app.logger.info(
-            f"Database initialized. DB located at: {
-                get_engine().url}"
-        )
+        # init_db() # Commented out to prevent automatic DB initialization
+        # app.logger.info(
+        #     f"Database initialized. DB located at: {
+        #         get_engine().url}"
+        # ) # Commented out log message
+        # Database initialization is now handled manually,
+        # e.g., by running `python -m src.database.utils`
+        # or using a dedicated CLI command/migration tool.
 
     # --- Request-scoped Database Session (Alternative) ---
     # The current approach in routes.py is to create/close sessions per route.

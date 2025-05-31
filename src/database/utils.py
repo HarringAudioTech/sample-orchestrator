@@ -148,8 +148,14 @@ def get_db(engine_instance=None) -> Session:
 SessionLocal = get_session_local()
 
 if __name__ == "__main__":
-    # This allows running this script directly to initialize the main application database.
-    # Useful for initial setup or manual database recreation.
+    # --------------------------------------------------------------------------
+    # Script for Manual Database Initialization
+    # --------------------------------------------------------------------------
+    # This allows running this script directly (e.g., `python -m src.database.utils`)
+    # to initialize the main application database.
+    # Useful for initial setup, manual database recreation, or in environments
+    # where the application itself doesn't handle DB creation.
+    # --------------------------------------------------------------------------
     print("Initializing main database...")
     init_db()  # Uses default engine from get_engine()
     print("To verify, you can use a SQLite browser to open 'database.db' in the project root.")
