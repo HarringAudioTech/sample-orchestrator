@@ -24,23 +24,24 @@ def app():
     flask_app.config.update(
         {
             "TESTING": True,
-            "DATABASE_URL": test_db_url,
+            "DATABASE_URL": "sqlite:///:memory:",  # Use in-memory SQLite for tests
+            # Add other necessary test configs like SAMPLES_BASE_DIR if routes need it
+            # "SAMPLES_BASE_DIR": "/tmp/pytest_samples_base_samples_api",
         }
     )
 
-    import src.database.utils as db_utils
-
-    engine = get_engine(test_db_url)
-    db_utils._engine = engine
-    db_utils._SessionLocal = get_session_local(engine_instance=engine)
-
     with flask_app.app_context():
-        initialize_db_utils(engine_instance=engine)
+        # Initialize the database schema using the app's configured DATABASE_URL
+        initialize_db_utils()
+        # Note: The tables are created once per module.
+        # manage_database_session will handle per-test data cleaning.
+
+    # Example: if SAMPLES_BASE_DIR is used by sample routes, ensure it exists
+    # if "SAMPLES_BASE_DIR" in flask_app.config:
+    #     os.makedirs(flask_app.config["SAMPLES_BASE_DIR"], exist_ok=True)
 
     yield flask_app
-
-    db_utils._engine = None
-    db_utils._SessionLocal = None
+    # No explicit teardown needed for _engine or _SessionLocal patching
 
 
 @pytest.fixture
@@ -50,37 +51,44 @@ def client(app: Flask):
 
 @pytest.fixture(autouse=True)
 def manage_database_session(app: Flask):
-    # This fixture ensures that each test function in this file runs with a
-    # clean database.
-    # Use the app's configured test DB URL
-    engine = get_engine("sqlite:///:memory:")
-
-    import src.database.utils as db_utils
-
-    original_engine = db_utils._engine
-    original_session_local = db_utils._SessionLocal
-
-    db_utils._engine = engine
-    db_utils._SessionLocal = get_session_local(engine_instance=engine)
-
+@pytest.fixture(autouse=True) # Ensures this runs for every test function
+def manage_database_session(app: Flask):
+    """
+    Ensure each test has a clean database state (empty tables).
+    Relies on the app fixture to have configured the DATABASE_URL for an
+    in-memory DB and initialized the schema once.
+    This fixture ensures data isolation between tests by clearing data.
+    """
     with app.app_context():
-        Base.metadata.drop_all(bind=engine)
-        Base.metadata.create_all(bind=engine)
+        # Get the engine that the app is configured to use (should be in-memory)
+        engine = get_engine() # Relies on get_engine() using current_app.config
+
+        # Clear all data from tables before each test
+        for table in reversed(Base.metadata.sorted_tables):
+            Session = get_session_local(engine_instance=engine) # Use test engine
+            db = Session()
+            try:
+                db.execute(table.delete())
+                db.commit()
+            except Exception as e:
+                db.rollback()
+                app.logger.error(f"Error clearing table {table.name}: {e}")
+                raise
+            finally:
+                db.close()
     yield
-    with app.app_context():
-        Base.metadata.drop_all(bind=engine)
-
-    db_utils._engine = original_engine
-    db_utils._SessionLocal = original_session_local
+    # No explicit teardown for table data needed here for in-memory DB.
 
 
 @pytest.fixture
 def sample_data(client):
-    """Creates a sample project, recording, and sample, returning their IDs."""
+    """
+    Creates a sample project, recording, and samples, returning their IDs.
+    Uses the app context to ensure DB operations use the test database.
+    """
     with client.application.app_context():
-        db_session = get_session_local(
-            get_engine(client.application.config["DATABASE_URL"])
-        )()
+        # get_session_local() will use the engine configured for the app context (in-memory)
+        db_session = get_session_local()()
         try:
             project = ProjectModel(name="Sample Project for Samples")
             db_session.add(project)

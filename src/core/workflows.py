@@ -32,8 +32,19 @@ Keys are the unique names of the workflows, and values are the workflow classes 
 
 def _camel_to_snake(name: str) -> str:
     """Converts a CamelCase string to snake_case."""
-    name = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", name)
-    return re.sub("([a-z0-9])([A-Z])", r"\1_\2", name).lower()
+    # Handle cases like "WordWord" -> "Word_Word" (e.g. SimpleWorkflow -> Simple_Workflow)
+    # and also internal capitals like "wordWord" -> "word_Word".
+    # The (.), if it matches an underscore, could lead to double underscores if not careful.
+    name = re.sub(r"([A-Za-z0-9])([A-Z][a-z]+)", r"\1_\2", name) # Changed (.) to ([A-Za-z0-9]) to avoid matching underscore with first group
+
+    # Handle cases like "wordWORD" -> "word_WORD" (e.g. SimpleHTTP -> Simple_HTTP)
+    # or "WordWORD" if the first rule didn't catch a transition from lowercase.
+    name = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", name)
+
+    # Collapse multiple underscores that might have been introduced.
+    name = re.sub(r"_+", "_", name)
+
+    return name.lower()
 
 
 def register_workflow(workflow_class: Type["BaseWorkflow"]):

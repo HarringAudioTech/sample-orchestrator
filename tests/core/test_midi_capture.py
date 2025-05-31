@@ -84,29 +84,21 @@ def test_project_model(db_session: Session):
 def test_project_instance(test_project_model: ProjectModel):
     """Creates a Project core class instance using a ProjectModel."""
     # The Project class __init__ uses get_db, which points to main DB.
-    # For testing, we want it to use the test DB.
-    # This is tricky if Project class directly calls get_db().
-    # For now, assume Project class might need adjustment or test-specific utility
-    # to use test_db_session for its internal __init__ loading.
-    # Temporarily patching Project's internal session fetching for its __init__
-    # This is a common challenge when classes manage their own sessions.
-    with patch(
-        "src.core.project.get_db", return_value=iter([db_session])
-    ) as mock_get_db_project:
-        # Need to yield the session from the generator context manager
-        def mock_db_generator():
-            db = get_test_session_local()()
-            try:
-                yield db
-            finally:
-                db.close()
-
-        mock_get_db_project.return_value = mock_db_generator()
-
-        project_core_instance = Project(project_id=test_project_model.id)
-        # Ensure the instance's db_session is the test one if it stores it
-        # project_core_instance.db = db_session # If project stored a session
+    # Project.__init__ now accepts db_session.
+    # We get a session from the same test session factory used by the db_session fixture.
+    db_session_for_project = get_test_session_local()()
+    try:
+        project_core_instance = Project(
+            project_id=test_project_model.id, db_session=db_session_for_project
+        )
+        # The project_core_instance will use db_session_for_project.
+        # Operations within test methods might use the db_session fixture directly.
+        # Ensure they operate on the same database if direct assertions are made.
         return project_core_instance
+    finally:
+        # Ensure the session created for the project instance is closed if the fixture scope
+        # intended it to be short-lived (which it does, as it's created here).
+        db_session_for_project.close()
 
 
 # --- Mocks for mido ---
@@ -328,7 +320,7 @@ class TestMidiRecorder:
         db_session: Session,
         test_project_model: ProjectModel,
         initial_devices,
-        capsys,
+        caplog,
     ):
         # "Device 3" does not exist, "Device 1" does.
         recorder = MidiRecorder(
@@ -339,8 +331,7 @@ class TestMidiRecorder:
         )
         assert len(recorder.target_devices) == 1
         assert recorder.target_devices[0].name == "Device 1"
-        captured = capsys.readouterr()
-        assert "Warning: MIDI device 'Device 3' not found in database" in captured.out
+        assert "Warning: MIDI device 'Device 3' not found in database" in caplog.text
 
         # Test if all devices are non-existent
         with pytest.raises(
@@ -434,7 +425,7 @@ class TestMidiRecorder:
             recorder.start_recording(db_session)
 
         assert recorder.active is True
-        assert self.mock_mido_open_input.called_with("Device 1", callback=ANY)
+        self.mock_mido_open_input.assert_called_with("Device 1", callback=ANY)
         assert len(recorder.midi_inputs) == 1
         assert recorder.midi_inputs["Device 1"] == self.mock_port
 
@@ -447,7 +438,7 @@ class TestMidiRecorder:
         db_session: Session,
         test_project_model: ProjectModel,
         initial_devices,
-        capsys,
+        caplog,
     ):
         recorder = MidiRecorder(
             project_id=test_project_model.id,
@@ -457,8 +448,7 @@ class TestMidiRecorder:
         )
         recorder.active = True  # Manually set to active
         recorder.start_recording(db_session)
-        captured = capsys.readouterr()
-        assert "Recording is already active." in captured.out
+        assert "Recording is already active." in caplog.text
         assert not self.mock_mido_open_input.called
 
     def test_recorder_start_recording_port_open_failure(
@@ -466,7 +456,7 @@ class TestMidiRecorder:
         db_session: Session,
         test_project_model: ProjectModel,
         initial_devices,
-        capsys,
+        caplog,
     ):
         self.mock_mido_open_input.side_effect = Exception(
             "Failed to open port")
@@ -481,12 +471,11 @@ class TestMidiRecorder:
 
         assert recorder.active is False
         assert len(recorder.midi_inputs) == 0
-        captured = capsys.readouterr()
-        assert "Error opening MIDI device Device 1: Failed to open port" in captured.out
-        assert "Error opening MIDI device Device 2: Failed to open port" in captured.out
+        assert "Error opening MIDI device Device 1: Failed to open port" in caplog.text
+        assert "Error opening MIDI device Device 2: Failed to open port" in caplog.text
         assert (
             "No MIDI input ports could be opened. Recording cannot start."
-            in captured.out
+            in caplog.text
         )
 
         db_session.refresh(recorder.capture_session)
@@ -522,8 +511,8 @@ class TestMidiRecorder:
         mfile_ch1 = recorder.midi_files[file_key_ch1]
         assert isinstance(mfile_ch1, mido.MidiFile)
         assert len(mfile_ch1.tracks) == 1
-        assert len(mfile_ch1.tracks[0]) == 1
-        assert mfile_ch1.tracks[0][0] == msg_ch1
+        assert len(mfile_ch1.tracks[0]) == 2  # Track name meta message + msg_ch1
+        assert mfile_ch1.tracks[0][1] == msg_ch1 # msg_ch1 is the second message
 
         # Simulate a system common message (no channel)
         msg_sys = mido.Message(
@@ -532,12 +521,13 @@ class TestMidiRecorder:
         recorder._midi_callback(msg_sys, device_name="Device 1")
 
         # Default channel for no-channel messages
-        file_key_sys = ("Device 1", -1)
+        file_key_sys = ("Device 1", -1) # Default channel for no-channel messages
         assert file_key_sys in recorder.midi_files
         mfile_sys = recorder.midi_files[file_key_sys]
+        assert isinstance(mfile_sys, mido.MidiFile)
         assert len(mfile_sys.tracks) == 1
-        assert len(mfile_sys.tracks[0]) == 1
-        assert mfile_sys.tracks[0][0] == msg_sys
+        assert len(mfile_sys.tracks[0]) == 2  # Track name meta message + msg_sys
+        assert mfile_sys.tracks[0][1] == msg_sys # msg_sys is the second message
 
         # Add another message to channel 0
         msg_ch1_off = mido.Message(
@@ -547,8 +537,8 @@ class TestMidiRecorder:
             channel=0,
             time=0.3)
         recorder._midi_callback(msg_ch1_off, device_name="Device 1")
-        assert len(mfile_ch1.tracks[0]) == 2
-        assert mfile_ch1.tracks[0][1] == msg_ch1_off
+        assert len(mfile_ch1.tracks[0]) == 3 # Meta, msg_ch1, msg_ch1_off
+        assert mfile_ch1.tracks[0][2] == msg_ch1_off
 
     # Mock makedirs for _get_output_directory, though not strictly for MIDI
     # files.
@@ -630,7 +620,7 @@ class TestMidiRecorder:
         db_session: Session,
         test_project_model: ProjectModel,
         initial_devices,
-        capsys,
+        caplog,
     ):
         recorder = MidiRecorder(
             project_id=test_project_model.id,
@@ -640,8 +630,7 @@ class TestMidiRecorder:
         )
         recorder.active = False  # Not active
         recorder.stop_recording(db_session)
-        captured = capsys.readouterr()
-        assert "Recording is not currently active." in captured.out
+        assert "Recording is not currently active." in caplog.text
         # assert not self.mock_mido_file_save.called # mock_mido_file_save
         # fixture is removed/changed
 
@@ -652,7 +641,7 @@ class TestMidiRecorder:
         db_session: Session,
         test_project_model: ProjectModel,
         initial_devices,
-        capsys,
+        caplog,
     ):
         recorder = MidiRecorder(
             project_id=test_project_model.id,
@@ -676,8 +665,7 @@ class TestMidiRecorder:
         assert (
             recorder.capture_session.status == "completed_empty"
         )  # or "completed" based on implementation for empty
-        captured = capsys.readouterr()
-        assert "No MIDI messages were captured." in captured.out  # Or similar log
+        assert "No MIDI messages were captured." in caplog.text  # Or similar log
 
 
 # --- Tests for Project class MIDI methods ---

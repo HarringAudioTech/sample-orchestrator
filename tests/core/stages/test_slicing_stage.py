@@ -5,9 +5,11 @@ Unit tests for the SlicingStage.
 import pytest
 import os
 import shutil
-import wave
+# import wave # No longer directly used for reading/writing by stage
 import logging
 from unittest.mock import patch, MagicMock, ANY
+import numpy as np # For librosa mocks
+import soundfile as sf # For sf.info in fixture and mock target
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 
@@ -26,11 +28,10 @@ from src.database.utils import init_db as initialize_db_utils, get_db as get_db_
 
 # Configure basic logging for tests
 logger = logging.getLogger(__name__)
-# logging.basicConfig(level=logging.DEBUG) # Uncomment for detailed test
-# logging
+# logging.basicConfig(level=logging.DEBUG) # Uncomment for detailed test logging
 
 # --- Test Fixtures ---
-DUMMY_AUDIO_DIR = "tests/fixtures"
+DUMMY_AUDIO_DIR = "tests/fixtures" # Make sure this directory exists with dummy_audio.wav
 DUMMY_AUDIO_FILENAME = "dummy_audio.wav"  # Created in a previous step
 DUMMY_AUDIO_PATH = os.path.join(DUMMY_AUDIO_DIR, DUMMY_AUDIO_FILENAME)
 
@@ -96,11 +97,13 @@ def setup_test_recording(db_session: Session) -> RecordingModel:
         pytest.fail(f"Required dummy audio file not found: {DUMMY_AUDIO_PATH}")
 
     try:
-        sr, frames, channels = _get_audio_details_for_slicing(DUMMY_AUDIO_PATH)
-        duration = frames / float(sr) if sr > 0 else 0
-    except ValueError as e:  # If _get_audio_details_for_slicing fails
+        # Use soundfile to get info without loading full audio into memory for fixture setup
+        info = sf.info(DUMMY_AUDIO_PATH)
+        sr, frames, channels = info.samplerate, info.frames, info.channels
+        duration = info.duration
+    except Exception as e: # Catch sf.LibsndfileError or other issues
         pytest.fail(
-            f"Could not get audio details for dummy file {DUMMY_AUDIO_PATH}: {e}")
+            f"Could not get audio details for dummy file {DUMMY_AUDIO_PATH} using soundfile: {e}")
 
     recording = RecordingModel(
         project_id=project.id,
@@ -129,14 +132,17 @@ def test_slicing_stage_properties():
     assert stage.name == "slicing"
     assert stage.input_type == DATA_TYPE_FILE_PATH
     assert stage.output_type == DATA_TYPE_LIST_OF_SAMPLE_DATA
-    assert "hop_size" in stage.default_params
+    assert "librosa_onset_params" in stage.default_params
+    assert "min_sample_length_ms" in stage.default_params
 
 
-@patch("src.core.stages.slicing_stage.aubio_notes")
-@patch("src.core.stages.slicing_stage.aubio_source")
+@patch("src.core.stages.slicing_stage.sf.write")
+@patch("src.core.stages.slicing_stage.librosa.onset.onset_detect")
+@patch("src.core.stages.slicing_stage.librosa.load")
 def test_slicing_stage_process_success(
-    mock_aubio_src,
-    mock_aubio_notes_obj_class,
+    mock_librosa_load,
+    mock_onset_detect,
+    mock_sf_write,
     db_session,
     setup_test_recording,
     temp_output_dir_for_samples,
@@ -144,50 +150,124 @@ def test_slicing_stage_process_success(
     recording = setup_test_recording
     stage = SlicingStage()
 
-    # --- Mock Aubio ---
-    mock_src_instance = MagicMock()
-    mock_src_instance.samplerate = recording.samplerate
-    mock_src_instance.channels = recording.channels
-    mock_src_instance.duration = int(
-        recording.duration_seconds *
-        recording.samplerate)
-    # Simulate reading audio data in chunks
-    # For a 1s file at 44100Hz, hop_size 256 -> 44100/256 = ~172 reads
-    # Let's simulate fewer reads for simplicity, assuming some notes are found.
-    num_reads_simulated = 10
-    frames_per_read_simulated = stage.default_params["hop_size"]
-    simulated_reads = [
-        (MagicMock(), frames_per_read_simulated)
-    ] * num_reads_simulated + [
-        (MagicMock(), 0)
-    ]  # Last read is 0
-    mock_src_instance.side_effect = simulated_reads
-    mock_aubio_src.return_value = mock_src_instance
+    # --- Mock librosa.load ---
+    mock_samplerate = recording.samplerate if recording.samplerate else 22050
+    # Simulate 2 seconds of mono audio data
+    mock_audio_data_mono = np.random.rand(mock_samplerate * 2).astype(np.float32)
+    mock_librosa_load.return_value = (mock_audio_data_mono, mock_samplerate)
 
-    mock_notes_instance = MagicMock()
-    # Simulate detecting two notes
-    # Note format: (midi_pitch, velocity, onset_sample_within_chunk_passed_to_notes_o)
-    # SlicingStage calculates absolute start_frame based on
-    # notes_o.get_last_pos()
-    mock_notes_instance.get_last_pos.side_effect = [
-        50,
-        150,
-    ]  # Frame index within the current chunk
+    # --- Mock librosa.onset.onset_detect ---
+    # Simulate detecting two onsets in terms of samples
+    # E.g., at 0.5s and 1.2s
+    # These should be sample indices as SlicingStage default_params for librosa_onset_params sets units='samples'
+    onset_time_1_s = 0.5
+    onset_time_2_s = 1.2
+    mock_onset_samples = np.array([
+        int(onset_time_1_s * mock_samplerate),
+        int(onset_time_2_s * mock_samplerate)
+    ])
+    mock_onset_detect.return_value = mock_onset_samples
 
-    # notes_o(samples) returns a list of new notes.
-    # Simulate one note found in the 2nd read, another in the 5th read.
-    notes_output_simulation = [[]] * \
-        (num_reads_simulated + 1)  # Default to no notes
-    notes_output_simulation[1] = [
-        (60, 100, 50)
-    ]  # Note 1: MIDI 60, vel 100, detected at frame 50 of this chunk
-    notes_output_simulation[4] = [
-        (62, 110, 150)
-    ]  # Note 2: MIDI 62, vel 110, detected at frame 150 of this chunk
-    mock_notes_instance.side_effect = notes_output_simulation
-    mock_aubio_notes_obj_class.return_value = mock_notes_instance
+    # --- Default parameters for the stage (can be overridden in params if needed) ---
+    # SlicingStage will use its default_params if not overridden in the call
+    # Ensure these defaults are sensible for the mocked data
+    stage_params = stage.default_params.copy()
+    # Example: Modify hop_length if your onset_samples were derived assuming a specific hop_length
+    # and your stage uses units="frames" for onset_detect.
+    # However, SlicingStage's default_params now specifies units="samples" for librosa_onset_params.
+    # So, direct sample indices from mock_onset_detect are fine.
 
     # --- Prepare Context ---
+    context = {
+        "db_session": db_session,
+        "recording_id": recording.id,
+        "project_id": recording.project_id,
+        "output_sample_dir": temp_output_dir_for_samples,
+    }
+
+    # --- Execute Process ---
+    result_samples_info = stage.process(
+        data=recording.file_path, params=stage_params, context=context
+    )
+
+    # --- Assertions ---
+    db_session.refresh(recording) # Ensure we have the latest status
+    assert recording.status == "slicing_completed"
+    assert len(result_samples_info) == 2 # Based on two mocked onsets
+
+    # Assert librosa.load call
+    mock_librosa_load.assert_called_once_with(recording.file_path, sr=None, mono=True)
+
+    # Assert librosa.onset.onset_detect call
+    # Construct expected args for onset_detect. It will be y, sr, and then merged params.
+    expected_onset_call_params = {**stage.default_params['librosa_onset_params'], **stage_params.get('librosa_onset_params', {})}
+    # If units was 'frames' and converted, the call to onset_detect would still have 'frames'.
+    # But since we ensure units='samples' in SlicingStage for librosa_onset_params, that's what we check.
+    expected_onset_call_params['units'] = 'samples'
+    mock_onset_detect.assert_called_once_with(y=mock_audio_data_mono, sr=mock_samplerate, **expected_onset_call_params)
+
+    # Sample 1 assertions
+    sample1_info = next(s for s in result_samples_info if s["metadata_json"] == f'{{"source_onset_samples": {mock_onset_samples[0]}}}')
+    assert sample1_info["name"].startswith(f"rec_{recording.id}_sample_1_onset_S{mock_onset_samples[0]}")
+    assert sample1_info["midi_pitch"] is None # Changed from aubio
+    assert os.path.exists(sample1_info["file_path"])
+    assert sample1_info["file_path"].startswith(temp_output_dir_for_samples)
+    expected_start_time1 = float(mock_onset_samples[0]) / mock_samplerate
+    expected_end_time1 = float(mock_onset_samples[1]) / mock_samplerate # Ends at next onset
+     # Apply max_sample_length_ms if it's shorter than next onset
+    max_len_s1 = int(stage_params.get("max_sample_length_ms", stage.default_params["max_sample_length_ms"]) / 1000 * mock_samplerate)
+    if (mock_onset_samples[0] + max_len_s1) < mock_onset_samples[1]:
+         expected_end_time1 = float(mock_onset_samples[0] + max_len_s1) / mock_samplerate
+
+    assert abs(sample1_info["start_time_seconds"] - expected_start_time1) < 1e-6
+    assert abs(sample1_info["end_time_seconds"] - expected_end_time1) < 1e-6
+
+
+    # Sample 2 assertions
+    sample2_info = next(s for s in result_samples_info if s["metadata_json"] == f'{{"source_onset_samples": {mock_onset_samples[1]}}}')
+    assert sample2_info["name"].startswith(f"rec_{recording.id}_sample_2_onset_S{mock_onset_samples[1]}")
+    assert sample2_info["midi_pitch"] is None
+    assert os.path.exists(sample2_info["file_path"])
+
+    expected_start_time2 = float(mock_onset_samples[1]) / mock_samplerate
+    expected_end_time2 = float(len(mock_audio_data_mono)) / mock_samplerate # Ends at end of audio
+    max_len_s2 = int(stage_params.get("max_sample_length_ms", stage.default_params["max_sample_length_ms"]) / 1000 * mock_samplerate)
+    if (mock_onset_samples[1] + max_len_s2) < len(mock_audio_data_mono):
+        expected_end_time2 = float(mock_onset_samples[1] + max_len_s2) / mock_samplerate
+
+    assert abs(sample2_info["start_time_seconds"] - expected_start_time2) < 1e-6
+    assert abs(sample2_info["end_time_seconds"] - expected_end_time2) < 1e-6
+
+
+    # Check sf.write calls
+    # sf.write(sample_file_path, audio_slice, sr)
+    assert mock_sf_write.call_count == 2
+    # Check first call (args are call_args[0], kwargs are call_args[1])
+    call1_args = mock_sf_write.call_args_list[0][0]
+    assert call1_args[0] == sample1_info["file_path"] # path
+    # assert np.array_equal(call1_args[1], mock_audio_data_mono[mock_onset_samples[0]:int(expected_end_time1*mock_samplerate)]) # data
+    assert call1_args[2] == mock_samplerate # sr
+
+    # Check DB
+    db_samples = db_session.query(SampleModel).filter(SampleModel.recording_id == recording.id).order_by(SampleModel.start_time_seconds).all()
+    assert len(db_samples) == 2
+    assert db_samples[0].name == sample1_info["name"]
+    assert db_samples[0].midi_pitch is None
+    assert abs(db_samples[0].start_time_seconds - expected_start_time1) < 1e-6
+    assert abs(db_samples[0].end_time_seconds - expected_end_time1) < 1e-6
+
+    assert db_samples[1].name == sample2_info["name"]
+    assert db_samples[1].midi_pitch is None
+    assert abs(db_samples[1].start_time_seconds - expected_start_time2) < 1e-6
+    assert abs(db_samples[1].end_time_seconds - expected_end_time2) < 1e-6
+
+    # Verify recording's samplerate and duration were updated if changed by librosa.load
+    # This depends on the initial values in setup_test_recording and what librosa.load returns.
+    # For this test, mock_samplerate is derived from recording.samplerate or default,
+    # so it might not change unless DUMMY_AUDIO_PATH has a different native SR.
+    db_session.refresh(recording) # get latest state
+    assert recording.samplerate == mock_samplerate
+    assert abs(recording.duration_seconds - (len(mock_audio_data_mono) / mock_samplerate)) < 1e-6
     context = {
         "db_session": db_session,
         "recording_id": recording.id,
