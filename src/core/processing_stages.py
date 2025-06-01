@@ -8,6 +8,7 @@ This module includes:
 """
 
 from abc import ABC, abstractmethod
+from typing import Optional
 
 # --- Data Type Constants ---
 # These constants define the expected types of data that can be passed
@@ -118,7 +119,7 @@ class AudioProcessingStage(ABC):
         pass
 
     @abstractmethod
-    def process(self, data, params: dict, context: dict = None):
+    def process(self, data, params: dict, context: Optional[dict] = None):
         """
         Processes the input data according to the stage's logic and parameters.
 
@@ -176,7 +177,7 @@ if __name__ == "__main__":
         def default_params(self) -> dict:
             return {"prefix": "processed_"}
 
-        def process(self, data: str, params: dict, context: dict = None):
+        def process(self, data: str, params: dict, context: Optional[dict] = None):
             # In a real scenario, 'data' would be a file path (string).
             # This example just demonstrates parameter usage.
             print(f"Processing file: {data} with params: {params} and context: {context}")
@@ -185,7 +186,8 @@ if __name__ == "__main__":
             # Simulate creating a new file path or list of paths
             processed_path = f"/tmp/{output_filename}"
             print(f"Simulated output path: {processed_path}")
-            return [processed_path]
+            # return [processed_path]
+            return None
 
     # Instantiate and use the example processor
     # This part would typically be handled by a pipeline runner.

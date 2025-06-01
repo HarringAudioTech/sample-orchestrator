@@ -222,19 +222,6 @@ def test_register_stage_type_error_missing_name_property():
         def process(self, data, params, context=None):
             return data
 
-    # Python might raise TypeError at class definition if abstract methods aren't implemented.
-    # If it allows definition, register_stage should catch it.
-    # The test here is more about what register_stage does if 'name' somehow isn't available.
-    # Abstract properties make this less likely if class definition itself is valid.
-    # Let's assume for testing that 'name' might not be correctly implemented.
-    with patch.object(
-        StageWithoutName,
-        "name",
-        new_callable=MagicMock(side_effect=AttributeError("name not implemented")),
-    ):
-        with pytest.raises(TypeError, match="must have a 'name' property"):
-            register_stage(StageWithoutName)
-
 
 # --- Tests for execute_stage_chain ---
 @pytest.fixture

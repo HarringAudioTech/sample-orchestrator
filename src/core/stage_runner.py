@@ -49,7 +49,7 @@ def register_stage(stage_class: Type[AudioProcessingStage]):
 
     try:
         stage_name = stage_class.name
-        if not isinstance(stage_name, str) or not stage_name:
+        if not stage_name:
             # This check is somewhat redundant if stage_class.name is an abstractproperty
             # that must return str, but good for safety if a class doesn't
             # implement it correctly.

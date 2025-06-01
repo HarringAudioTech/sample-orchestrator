@@ -251,10 +251,12 @@ def test_create_sample_mapping_item(db_session: Session):
         file_path="rec_mi.wav",
     )
     db_session.add(recording)
+    db_session.commit()
+    db_session.refresh(recording)
     sample = Sample(
-        recording_id=recording.id,  # This is present
+        recording_id=recording.id,
         name="Kick Sample",
-        file_path="dummy/kick_sample_for_mapping.wav",  # ADD THIS
+        file_path="dummy/kick_sample_for_mapping.wav",
         start_time_seconds=0.1,
         end_time_seconds=0.5,
         midi_pitch=36,
@@ -296,30 +298,36 @@ def test_sample_mapping_has_multiple_items(db_session: Session):
         project_id=project.id, name="Rec For Multi-Item", file_path="rec_smi.wav"
     )
     db_session.add(recording)
+    db_session.commit()  # Commit and refresh recording
+    db_session.refresh(recording)
+
     sample1 = Sample(
-        recording_id=recording.id,  # Present
+        recording_id=recording.id,  # recording.id is now populated
         name="Snare",
-        file_path="dummy/snare_for_mapping.wav",  # ADD THIS
+        file_path="dummy/snare_for_mapping.wav",
         start_time_seconds=0.1,
         end_time_seconds=0.4,
         midi_pitch=38,
     )
     sample2 = Sample(
-        recording_id=recording.id,  # Present
+        recording_id=recording.id,  # recording.id is now populated
         name="HiHat",
-        file_path="dummy/hihat_for_mapping.wav",  # ADD THIS
+        file_path="dummy/hihat_for_mapping.wav",
         start_time_seconds=0.5,
         end_time_seconds=0.7,
         midi_pitch=42,
     )
-    db_session.add_all([sample1, sample2])
+    # Order of adding: sample_mapping first, then samples.
+    # The commit will handle all pending additions.
     sample_mapping = SampleMapping(
         project_id=project.id, name="Drum Map Multi Test", mapping_type="drum_kit"
     )
     db_session.add(sample_mapping)
-    db_session.commit()
-    db_session.refresh(project)  # Refresh all to get IDs
-    db_session.refresh(recording)
+    db_session.add_all([sample1, sample2])
+    db_session.commit()  # Commits project, recording (already committed but harmless), sample1, sample2, sample_mapping
+
+    db_session.refresh(project)
+    db_session.refresh(recording)  # recording already refreshed, but good for consistency
     db_session.refresh(sample1)
     db_session.refresh(sample2)
     db_session.refresh(sample_mapping)

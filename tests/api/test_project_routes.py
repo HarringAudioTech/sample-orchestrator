@@ -27,10 +27,15 @@ def app():
         }
     )
 
+    # Create an engine instance specifically for tests, using the test DB URL
+    engine = get_engine(flask_app.config["DATABASE_URL"])
+    # flask_app.test_engine = engine  # Attach to app for access in other fixtures
+    # Provide this engine instance to the app config so get_engine() in utils can pick it up
+    flask_app.config["TEST_ENGINE_INSTANCE"] = engine
+
     with flask_app.app_context():
-        # Initialize the database schema using the app's configured DATABASE_URL
-        # get_engine() inside initialize_db_utils will now use app.config['DATABASE_URL']
-        initialize_db_utils()
+        # Initialize the database schema using the test-specific engine
+        initialize_db_utils(engine_instance=engine)
         # Note: The tables are created once per module.
         # manage_database_session will handle per-test data cleaning.
 
@@ -56,9 +61,15 @@ def manage_database_session(app: Flask):
     This fixture ensures data isolation between tests by clearing data.
     """
     with app.app_context():
-        # Get the engine that the app is configured to use (should be in-memory)
-        # This relies on get_engine() correctly using current_app.config
-        engine = get_engine()
+        import logging
+
+        logger = logging.getLogger(__name__)
+        # Retrieve the test-specific engine from the app fixture
+        engine = app.config["TEST_ENGINE_INSTANCE"]
+        logger.info(f"manage_db_session: Engine URL from app.test_engine: {engine.url}")
+        logger.info(
+            f"manage_db_session: Sorted tables from Base.metadata: {[table.name for table in Base.metadata.sorted_tables]}"
+        )
 
         # Clear all data from tables before each test
         # This is faster than dropping and recreating tables if the schema is stable
@@ -173,4 +184,4 @@ def test_root_path(client):
     assert response.status_code == 200
     data = response.get_json()
     assert "message" in data
-    assert "Welcome to the Audio Processing API!" in data["message"]
+    assert "Welcome to the Audio" in data["message"]

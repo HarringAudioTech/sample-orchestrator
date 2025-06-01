@@ -61,16 +61,13 @@ def create_app() -> Flask:
     # init_db() itself is idempotent (CREATE TABLE IF NOT EXISTS).
     # For development, this is convenient. For production, consider CLI
     # commands.
-    with app.app_context():
-        # Initialize the database and create tables.
-        # The database URL is taken from src.database.utils.DATABASE_URL.
-        # get_session_local().bind.engine.url provides the actual URL being
-        # used.
-        init_db()
-        app.logger.info(
-            f"Database initialized. DB located at: {
-                get_engine().url}"
-        )
+    #
+    # Previously, database initialization (init_db()) was called here
+    # within an app_context. This has been removed to prevent automatic
+    # database creation on app startup.
+    # Database initialization should now be handled manually,
+    # e.g., by running `python -m src.database.utils`
+    # or using a dedicated CLI command/migration tool (like Alembic).
 
     # --- Request-scoped Database Session (Alternative) ---
     # The current approach in routes.py is to create/close sessions per route.

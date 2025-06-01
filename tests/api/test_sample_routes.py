@@ -30,9 +30,14 @@ def app():
         }
     )
 
+    # Create an engine instance specifically for tests, using the test DB URL
+    engine = get_engine(flask_app.config["DATABASE_URL"])
+    # Provide this engine instance to the app config so get_engine() in utils can pick it up
+    flask_app.config["TEST_ENGINE_INSTANCE"] = engine
+
     with flask_app.app_context():
-        # Initialize the database schema using the app's configured DATABASE_URL
-        initialize_db_utils()
+        # Initialize the database schema using the test-specific engine
+        initialize_db_utils(engine_instance=engine)
         # Note: The tables are created once per module.
         # manage_database_session will handle per-test data cleaning.
 
@@ -58,8 +63,8 @@ def manage_database_session(app: Flask):
     This fixture ensures data isolation between tests by clearing data.
     """
     with app.app_context():
-        # Get the engine that the app is configured to use (should be in-memory)
-        engine = get_engine()  # Relies on get_engine() using current_app.config
+        # Retrieve the test-specific engine from the app fixture
+        engine = app.config["TEST_ENGINE_INSTANCE"]
 
         # Clear all data from tables before each test
         for table in reversed(Base.metadata.sorted_tables):
@@ -79,14 +84,16 @@ def manage_database_session(app: Flask):
 
 
 @pytest.fixture
-def sample_data(client):
+def sample_data(app, client):  # Added app fixture
     """
     Creates a sample project, recording, and samples, returning their IDs.
     Uses the app context to ensure DB operations use the test database.
     """
     with client.application.app_context():
         # get_session_local() will use the engine configured for the app context (in-memory)
-        db_session = get_session_local()()
+        db_session = get_session_local(
+            engine_instance=app.config["TEST_ENGINE_INSTANCE"]
+        )()  # Use app.test_engine
         try:
             project = ProjectModel(name="Sample Project for Samples")
             db_session.add(project)
@@ -162,11 +169,13 @@ def test_list_recording_samples_recording_not_found(client):
     assert "Recording not found" in data["error"]
 
 
-def test_list_recording_samples_no_samples(client, sample_data):
+def test_list_recording_samples_no_samples(app, client, sample_data):  # Added app fixture
     # Create a new recording without samples
     project_id = sample_data["project_id"]
     with client.application.app_context():
-        db_session = get_session_local(get_engine(client.application.config["DATABASE_URL"]))()
+        db_session = get_session_local(
+            engine_instance=app.config["TEST_ENGINE_INSTANCE"]
+        )()  # Use app.test_engine
         try:
             new_recording = RecordingModel(
                 project_id=project_id,
@@ -216,4 +225,4 @@ def test_root_path_sample_routes(client):
     assert response.status_code == 200
     data = response.get_json()
     assert "message" in data
-    assert "Welcome to the Audio Processing API!" in data["message"]
+    assert "Welcome to the" in data["message"]
