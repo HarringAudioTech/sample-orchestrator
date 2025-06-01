@@ -15,7 +15,7 @@ from src.database.models import (
     MidiCaptureSession as MidiCaptureSessionModel,
     MidiFile as MidiFileModel,
 )
-from src.database.utils import get_db, SessionLocal
+from src.database.utils import get_db # Removed SessionLocal import
 from src.core.midi_capture import (
     MidiRecorder,
     list_available_midi_devices,
