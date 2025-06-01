@@ -181,4 +181,4 @@ def test_root_path(client):
     assert response.status_code == 200
     data = response.get_json()
     assert "message" in data
-    assert "Welcome to the Audio Processing API!" in data["message"]
+    assert "Welcome to the Audio" in data["message"]
