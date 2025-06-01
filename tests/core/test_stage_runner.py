@@ -232,7 +232,7 @@ def test_register_stage_type_error_missing_name_property():
         "name",
         new_callable=MagicMock(side_effect=AttributeError("name not implemented")),
     ):
-        with pytest.raises(TypeError, match="must have a 'name' property"):
+        with pytest.raises(AttributeError, match="must have a 'name' property"):
             register_stage(StageWithoutName)
 
 

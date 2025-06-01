@@ -174,7 +174,7 @@ def test_list_recording_samples_no_samples(app, client, sample_data):  # Added a
     project_id = sample_data["project_id"]
     with client.application.app_context():
         db_session = get_session_local(
-            engine_instance=app.test_engine
+            engine_instance=app.config["TEST_ENGINE_INSTANCE"]
         )()  # Use app.test_engine
         try:
             new_recording = RecordingModel(
