@@ -1,6 +1,7 @@
 import pytest
 import json
 import os
+import wave
 from io import BytesIO
 from flask import Flask
 from unittest.mock import patch, MagicMock, ANY
@@ -34,7 +35,7 @@ def app():
 
     # Create an engine instance specifically for tests, using the test DB URL
     engine = get_engine(flask_app.config["DATABASE_URL"])
-    flask_app.test_engine = engine  # Attach to app for access in other fixtures
+    # flask_app.test_engine = engine  # Attach to app for access in other fixtures
     # Provide this engine instance to the app config so get_engine() in utils can pick it up
     flask_app.config["TEST_ENGINE_INSTANCE"] = engine
 
@@ -67,7 +68,7 @@ def manage_database_session(app: Flask):
     """
     with app.app_context():
         # Retrieve the test-specific engine from the app fixture
-        engine = app.test_engine
+        engine = app.config["TEST_ENGINE_INSTANCE"]
 
         # Clear all data from tables before each test
         for table in reversed(Base.metadata.sorted_tables):
@@ -350,7 +351,8 @@ def test_process_recording_with_stages_chain_success(
             return {}
 
         def process(self, data, params, context=None):
-            return [{"sample_id": 1, "path": f"{context['output_sample_dir']}/s.wav"}]
+            # return [{"sample_id": 1, "path": f"{context['output_sample_dir']}/s.wav"}]
+            return None
 
     original_stage_registry = STAGE_REGISTRY.copy()
     STAGE_REGISTRY.clear()

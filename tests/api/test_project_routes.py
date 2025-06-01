@@ -29,7 +29,7 @@ def app():
 
     # Create an engine instance specifically for tests, using the test DB URL
     engine = get_engine(flask_app.config["DATABASE_URL"])
-    flask_app.test_engine = engine  # Attach to app for access in other fixtures
+    # flask_app.test_engine = engine  # Attach to app for access in other fixtures
     # Provide this engine instance to the app config so get_engine() in utils can pick it up
     flask_app.config["TEST_ENGINE_INSTANCE"] = engine
 
@@ -65,7 +65,7 @@ def manage_database_session(app: Flask):
 
         logger = logging.getLogger(__name__)
         # Retrieve the test-specific engine from the app fixture
-        engine = app.test_engine
+        engine = app.config["TEST_ENGINE_INSTANCE"]
         logger.info(f"manage_db_session: Engine URL from app.test_engine: {engine.url}")
         logger.info(
             f"manage_db_session: Sorted tables from Base.metadata: {[table.name for table in Base.metadata.sorted_tables]}"

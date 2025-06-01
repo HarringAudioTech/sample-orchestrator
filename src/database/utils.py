@@ -2,6 +2,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session  # Ensure these are imported
 from flask import current_app  # Ensure this is imported for get_engine
 from .models import Base
+from typing import Optional
 
 # Default DATABASE_URL for the main application
 DATABASE_URL = "sqlite:///./database.db"
@@ -9,7 +10,7 @@ _engine = None
 # _SessionLocal = None # Removed global session factory cache
 
 
-def get_engine(database_url: str = None):
+def get_engine(database_url: Optional[str] = None):
     """
     Retrieves or creates a SQLAlchemy engine.
     Prioritizes TEST_ENGINE_INSTANCE from app config if in TESTING mode.
