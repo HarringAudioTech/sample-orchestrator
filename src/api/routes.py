@@ -10,7 +10,7 @@ from werkzeug.utils import secure_filename
 from sqlalchemy.orm import Session
 
 # init_db is not directly used in routes
-from src.database.utils import get_db # Replaced SessionLocal with get_db
+from src.database.utils import get_db  # Replaced SessionLocal with get_db
 from src.database.models import (
     Project as ProjectModel,
     Recording as RecordingModel,
@@ -164,7 +164,7 @@ def add_project_recording(project_id: int):
     # CoreProject manages its own session for loading the project model and adding recording.
     # No direct db session needed here for *that* part.
     try:
-        core_proj = CoreProject(project_id=project_id) # This might use get_db internally
+        core_proj = CoreProject(project_id=project_id)  # This might use get_db internally
     except ValueError as e:
         return jsonify({"error": str(e)}), 404
 
@@ -250,7 +250,7 @@ def list_project_recordings(project_id: int):
     """
     # CoreProject handles its own session for loading and listing.
     try:
-        core_proj = CoreProject(project_id=project_id) # This might use get_db internally
+        core_proj = CoreProject(project_id=project_id)  # This might use get_db internally
     except ValueError as e:
         return jsonify({"error": str(e)}), 404
 
@@ -259,6 +259,7 @@ def list_project_recordings(project_id: int):
 
 
 # --- Standalone Recording and Sample Endpoints ---
+
 
 @recordings_bp.route("/<int:recording_id>", methods=["GET"])
 def get_recording_details(recording_id: int):
@@ -312,20 +313,41 @@ def process_recording_endpoint(recording_id: int):
         if not recording:
             return jsonify({"error": "Recording not found"}), 404
         if not recording.project_id:
-            current_app.logger.error(f"Recording {recording_id} is not associated with a project.")
-            return jsonify({"error": "Recording is not associated with a project, cannot process."}), 500
+            current_app.logger.error(
+                f"Recording {recording_id} is not associated with a project."
+            )
+            return (
+                jsonify(
+                    {"error": "Recording is not associated with a project, cannot process."}
+                ),
+                500,
+            )
 
-        project = db.query(ProjectModel).filter(ProjectModel.id == recording.project_id).first()
+        project = (
+            db.query(ProjectModel).filter(ProjectModel.id == recording.project_id).first()
+        )
         if not project:
-            current_app.logger.error(f"Project {recording.project_id} associated with recording {recording_id} not found.")
-            return jsonify({"error": f"Associated project {recording.project_id} not found."}), 500
+            current_app.logger.error(
+                f"Project {recording.project_id} associated with recording {recording_id} not found."
+            )
+            return (
+                jsonify({"error": f"Associated project {recording.project_id} not found."}),
+                500,
+            )
 
         initial_data = recording.file_path
         initial_data_type = DATA_TYPE_FILE_PATH
 
         if not initial_data or not os.path.exists(initial_data):
-            current_app.logger.error(f"Recording file path '{initial_data}' for recording {recording_id} not found or is invalid.")
-            return jsonify({"error": f"Recording file path not found or invalid: {initial_data}"}), 400
+            current_app.logger.error(
+                f"Recording file path '{initial_data}' for recording {recording_id} not found or is invalid."
+            )
+            return (
+                jsonify(
+                    {"error": f"Recording file path not found or invalid: {initial_data}"}
+                ),
+                400,
+            )
 
         samples_base_dir = current_app.config.get("SAMPLES_BASE_DIR", DEFAULT_SAMPLES_BASE_DIR)
         project_samples_dir = os.path.join(samples_base_dir, f"project_{recording.project_id}")
@@ -334,9 +356,14 @@ def process_recording_endpoint(recording_id: int):
 
         try:
             os.makedirs(output_sample_dir_for_run, exist_ok=True)
-            current_app.logger.info(f"Ensured output directory exists: {output_sample_dir_for_run}")
+            current_app.logger.info(
+                f"Ensured output directory exists: {output_sample_dir_for_run}"
+            )
         except OSError as e:
-            current_app.logger.error(f"Error creating output directory {output_sample_dir_for_run}: {e}", exc_info=True)
+            current_app.logger.error(
+                f"Error creating output directory {output_sample_dir_for_run}: {e}",
+                exc_info=True,
+            )
             return jsonify({"error": f"Could not create output directory: {e.strerror}"}), 500
 
         context = {
@@ -354,43 +381,110 @@ def process_recording_endpoint(recording_id: int):
             WorkflowClass = WORKFLOW_REGISTRY.get(workflow_name)
             if not WorkflowClass:
                 available_workflows = list(WORKFLOW_REGISTRY.keys())
-                return jsonify({"error": f"Workflow '{workflow_name}' not found. Available workflows: {available_workflows}"}), 400
+                return (
+                    jsonify(
+                        {
+                            "error": f"Workflow '{workflow_name}' not found. Available workflows: {available_workflows}"
+                        }
+                    ),
+                    400,
+                )
             try:
                 workflow_instance = WorkflowClass()
-                current_app.logger.info(f"Executing {processing_type} for recording {recording_id}.")
-                processing_result = workflow_instance.run(initial_data=initial_data, initial_data_type=initial_data_type, context=context)
+                current_app.logger.info(
+                    f"Executing {processing_type} for recording {recording_id}."
+                )
+                processing_result = workflow_instance.run(
+                    initial_data=initial_data,
+                    initial_data_type=initial_data_type,
+                    context=context,
+                )
             except Exception as e:
-                current_app.logger.error(f"Error executing {processing_type} for recording {recording_id}: {e}", exc_info=True)
-                return jsonify({"error": f"Failed to execute {processing_type}: {str(e)}"}), 500
+                current_app.logger.error(
+                    f"Error executing {processing_type} for recording {recording_id}: {e}",
+                    exc_info=True,
+                )
+                return (
+                    jsonify({"error": f"Failed to execute {processing_type}: {str(e)}"}),
+                    500,
+                )
         elif stages_chain:
             if not isinstance(stages_chain, list):
-                return jsonify({"error": "'stages_chain' must be a list of stage definitions."}), 400
+                return (
+                    jsonify({"error": "'stages_chain' must be a list of stage definitions."}),
+                    400,
+                )
             processing_type = "ad-hoc stage chain"
             try:
-                current_app.logger.info(f"Executing {processing_type} for recording {recording_id}. Chain: {stages_chain}")
-                processing_result = execute_stage_chain(initial_data=initial_data, initial_data_type=initial_data_type, chain_definition=stages_chain, context=context)
+                current_app.logger.info(
+                    f"Executing {processing_type} for recording {recording_id}. Chain: {stages_chain}"
+                )
+                processing_result = execute_stage_chain(
+                    initial_data=initial_data,
+                    initial_data_type=initial_data_type,
+                    chain_definition=stages_chain,
+                    context=context,
+                )
             except ValueError as e:
-                current_app.logger.error(f"Configuration error in {processing_type} for recording {recording_id}: {e}", exc_info=True)
-                return jsonify({"error": f"Configuration error in stage chain: {str(e)}. Available stages: {list(STAGE_REGISTRY.keys())}"}), 400
+                current_app.logger.error(
+                    f"Configuration error in {processing_type} for recording {recording_id}: {e}",
+                    exc_info=True,
+                )
+                return (
+                    jsonify(
+                        {
+                            "error": f"Configuration error in stage chain: {str(e)}. Available stages: {list(STAGE_REGISTRY.keys())}"
+                        }
+                    ),
+                    400,
+                )
             except TypeError as e:
-                current_app.logger.error(f"Type mismatch error in {processing_type} for recording {recording_id}: {e}", exc_info=True)
+                current_app.logger.error(
+                    f"Type mismatch error in {processing_type} for recording {recording_id}: {e}",
+                    exc_info=True,
+                )
                 return jsonify({"error": f"Type mismatch in stage chain: {str(e)}"}), 400
             except Exception as e:
-                current_app.logger.error(f"Error executing {processing_type} for recording {recording_id}: {e}", exc_info=True)
-                return jsonify({"error": f"Failed to execute {processing_type}: {str(e)}"}), 500
+                current_app.logger.error(
+                    f"Error executing {processing_type} for recording {recording_id}: {e}",
+                    exc_info=True,
+                )
+                return (
+                    jsonify({"error": f"Failed to execute {processing_type}: {str(e)}"}),
+                    500,
+                )
         else:
-            return jsonify({"error": "Either 'workflow_name' or 'stages_chain' must be provided in the request body."}), 400
+            return (
+                jsonify(
+                    {
+                        "error": "Either 'workflow_name' or 'stages_chain' must be provided in the request body."
+                    }
+                ),
+                400,
+            )
 
         db.refresh(recording)
-        return jsonify({
-            "message": f"Processing via {processing_type} completed for recording {recording_id}.",
-            "recording_status": recording.status,
-            "output_location": output_sample_dir_for_run,
-            "result_summary": f"Output type: {type(processing_result).__name__}, items: {len(processing_result) if isinstance(processing_result, list) else 'N/A'}",
-            "result": (processing_result if isinstance(processing_result, (list, dict)) else str(processing_result)),
-        }), 200
+        return (
+            jsonify(
+                {
+                    "message": f"Processing via {processing_type} completed for recording {recording_id}.",
+                    "recording_status": recording.status,
+                    "output_location": output_sample_dir_for_run,
+                    "result_summary": f"Output type: {type(processing_result).__name__}, items: {len(processing_result) if isinstance(processing_result, list) else 'N/A'}",
+                    "result": (
+                        processing_result
+                        if isinstance(processing_result, (list, dict))
+                        else str(processing_result)
+                    ),
+                }
+            ),
+            200,
+        )
     except Exception as e:
-        current_app.logger.error(f"Critical error in process_recording_endpoint for recording {recording_id}: {e}", exc_info=True)
+        current_app.logger.error(
+            f"Critical error in process_recording_endpoint for recording {recording_id}: {e}",
+            exc_info=True,
+        )
         return jsonify({"error": f"An unexpected server error occurred: {str(e)}"}), 500
     finally:
         next(db_gen, None)

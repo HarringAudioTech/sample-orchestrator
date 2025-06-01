@@ -298,11 +298,11 @@ def test_sample_mapping_has_multiple_items(db_session: Session):
         project_id=project.id, name="Rec For Multi-Item", file_path="rec_smi.wav"
     )
     db_session.add(recording)
-    db_session.commit() # Commit and refresh recording
+    db_session.commit()  # Commit and refresh recording
     db_session.refresh(recording)
 
     sample1 = Sample(
-        recording_id=recording.id, # recording.id is now populated
+        recording_id=recording.id,  # recording.id is now populated
         name="Snare",
         file_path="dummy/snare_for_mapping.wav",
         start_time_seconds=0.1,
@@ -310,7 +310,7 @@ def test_sample_mapping_has_multiple_items(db_session: Session):
         midi_pitch=38,
     )
     sample2 = Sample(
-        recording_id=recording.id, # recording.id is now populated
+        recording_id=recording.id,  # recording.id is now populated
         name="HiHat",
         file_path="dummy/hihat_for_mapping.wav",
         start_time_seconds=0.5,
@@ -324,10 +324,10 @@ def test_sample_mapping_has_multiple_items(db_session: Session):
     )
     db_session.add(sample_mapping)
     db_session.add_all([sample1, sample2])
-    db_session.commit() # Commits project, recording (already committed but harmless), sample1, sample2, sample_mapping
+    db_session.commit()  # Commits project, recording (already committed but harmless), sample1, sample2, sample_mapping
 
     db_session.refresh(project)
-    db_session.refresh(recording) # recording already refreshed, but good for consistency
+    db_session.refresh(recording)  # recording already refreshed, but good for consistency
     db_session.refresh(sample1)
     db_session.refresh(sample2)
     db_session.refresh(sample_mapping)

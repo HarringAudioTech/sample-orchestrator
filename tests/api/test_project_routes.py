@@ -62,11 +62,14 @@ def manage_database_session(app: Flask):
     """
     with app.app_context():
         import logging
+
         logger = logging.getLogger(__name__)
         # Retrieve the test-specific engine from the app fixture
         engine = app.test_engine
         logger.info(f"manage_db_session: Engine URL from app.test_engine: {engine.url}")
-        logger.info(f"manage_db_session: Sorted tables from Base.metadata: {[table.name for table in Base.metadata.sorted_tables]}")
+        logger.info(
+            f"manage_db_session: Sorted tables from Base.metadata: {[table.name for table in Base.metadata.sorted_tables]}"
+        )
 
         # Clear all data from tables before each test
         # This is faster than dropping and recreating tables if the schema is stable

@@ -13,7 +13,9 @@ from src.database.models import (
     MidiCaptureSession,
     MidiFile,
 )
-from src.database.utils import get_db # Removed SessionLocal, get_db is not used directly here but aligns imports
+from src.database.utils import (
+    get_db,
+)  # Removed SessionLocal, get_db is not used directly here but aligns imports
 
 # Configure basic logging
 # In a larger application, this would likely be configured in a central place.

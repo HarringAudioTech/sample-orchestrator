@@ -172,10 +172,12 @@ def test_list_project_recordings_success(mock_list_recordings, client, sample_pr
 # ... (other existing tests for list_project_recordings variations) ...
 
 
-def test_get_recording_details_success(app, client, sample_project): # Added app fixture
+def test_get_recording_details_success(app, client, sample_project):  # Added app fixture
     project_id = sample_project
     with client.application.app_context():
-        db_session = get_session_local(engine_instance=app.test_engine)() # Use app.test_engine
+        db_session = get_session_local(
+            engine_instance=app.test_engine
+        )()  # Use app.test_engine
         rec = RecordingModel(
             project_id=project_id,
             name="Detail Test Rec",
@@ -230,7 +232,9 @@ def test_recording_for_processing(app, client, sample_project):
     ), f"Dummy audio file missing at {abs_dummy_audio_path}"
 
     with app.app_context():
-        db_session = get_session_local(engine_instance=app.test_engine)() # Use app.test_engine
+        db_session = get_session_local(
+            engine_instance=app.test_engine
+        )()  # Use app.test_engine
         try:
             rec = RecordingModel(
                 project_id=project_id,
@@ -435,7 +439,7 @@ def test_process_recording_output_dir_creation_fails_api(
 
 def test_process_recording_invalid_recording_file_path(app, client, sample_project):
     with app.app_context():
-        db = get_session_local(engine_instance=app.test_engine)() # Use app.test_engine
+        db = get_session_local(engine_instance=app.test_engine)()  # Use app.test_engine
         rec = RecordingModel(
             project_id=sample_project,
             name="Rec Invalid Path",

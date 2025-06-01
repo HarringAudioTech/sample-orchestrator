@@ -85,14 +85,16 @@ def manage_database_session(app: Flask):
 
 
 @pytest.fixture
-def sample_data(app, client): # Added app fixture
+def sample_data(app, client):  # Added app fixture
     """
     Creates a sample project, recording, and samples, returning their IDs.
     Uses the app context to ensure DB operations use the test database.
     """
     with client.application.app_context():
         # get_session_local() will use the engine configured for the app context (in-memory)
-        db_session = get_session_local(engine_instance=app.test_engine)() # Use app.test_engine
+        db_session = get_session_local(
+            engine_instance=app.test_engine
+        )()  # Use app.test_engine
         try:
             project = ProjectModel(name="Sample Project for Samples")
             db_session.add(project)
@@ -168,11 +170,13 @@ def test_list_recording_samples_recording_not_found(client):
     assert "Recording not found" in data["error"]
 
 
-def test_list_recording_samples_no_samples(app, client, sample_data): # Added app fixture
+def test_list_recording_samples_no_samples(app, client, sample_data):  # Added app fixture
     # Create a new recording without samples
     project_id = sample_data["project_id"]
     with client.application.app_context():
-        db_session = get_session_local(engine_instance=app.test_engine)() # Use app.test_engine
+        db_session = get_session_local(
+            engine_instance=app.test_engine
+        )()  # Use app.test_engine
         try:
             new_recording = RecordingModel(
                 project_id=project_id,

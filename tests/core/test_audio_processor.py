@@ -4,26 +4,28 @@ Since audio_processor.py has no active, testable functions after refactoring,
 this test file primarily ensures the module can be imported and
 contains fixtures that might be used if functionality is added back.
 """
+
 import pytest
+
 # import os # No longer needed
 # import shutil # No longer needed
 # import wave # No longer needed
 # from unittest.mock import patch, MagicMock, ANY # No longer needed for current state
 from sqlalchemy import create_engine
-from sqlalchemy.orm import Session # Session is used by db_session fixture
+from sqlalchemy.orm import Session  # Session is used by db_session fixture
 
 from src.database.models import (
     Base,
-    Project as ProjectModel, # Required for db setup if tests were to add data
-    Recording as RecordingModel, # Required for db setup
-    Sample as SampleModel, # Required for db setup
+    Project as ProjectModel,  # Required for db setup if tests were to add data
+    Recording as RecordingModel,  # Required for db setup
+    Sample as SampleModel,  # Required for db setup
 )
 
 # Import the module itself to ensure it's importable
 try:
     from src.core import audio_processor
 except ImportError:
-    audio_processor = None # Fallback if import fails, though it shouldn't
+    audio_processor = None  # Fallback if import fails, though it shouldn't
 
 from src.database.utils import (
     init_db as initialize_db_utils,
@@ -38,7 +40,7 @@ def test_engine():
     """Creates an in-memory SQLite engine for testing."""
     engine = create_engine("sqlite:///:memory:")
     # Base.metadata.create_all(engine) # Handled by initialize_db_utils
-    initialize_db_utils(engine_instance=engine) # Creates tables
+    initialize_db_utils(engine_instance=engine)  # Creates tables
     return engine
 
 
@@ -53,11 +55,12 @@ def db_session(test_engine):
     try:
         yield session
     finally:
-        session.rollback() # Ensure clean state
+        session.rollback()  # Ensure clean state
         session.close()
 
 
 # --- Basic Test ---
+
 
 def test_audio_processor_module_importable():
     """Checks if the audio_processor module can be imported."""

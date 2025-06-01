@@ -17,14 +17,18 @@ from src.core.processing_stages import (
     DATA_TYPE_FILE_PATH,
     DATA_TYPE_LIST_OF_SAMPLE_DATA,
 )
+
 # _get_audio_details_for_slicing is removed, so SlicingStage is the direct import
-from src.core.stages.slicing_stage import SlicingStage #, _get_audio_details_for_slicing # Remove helper
+from src.core.stages.slicing_stage import (
+    SlicingStage,
+)  # , _get_audio_details_for_slicing # Remove helper
 from src.database.models import (
     Base,
     Recording as RecordingModel,
     Sample as SampleModel,
     Project as ProjectModel,
 )
+
 # from src.database.utils import init_db as initialize_db_utils, get_db as get_db_utils # Not used
 
 # Configure basic logging for tests
@@ -293,8 +297,12 @@ def test_slicing_stage_process_success(
     assert abs(db_samples[1].end_time_seconds - expected_end_time2) < 1e-6
 
     db_session.refresh(recording)
-    assert recording.samplerate == mock_samplerate # Should be updated by librosa.load's return
-    assert abs(recording.duration_seconds - (len(mock_audio_data_mono) / mock_samplerate)) < 1e-6
+    assert (
+        recording.samplerate == mock_samplerate
+    )  # Should be updated by librosa.load's return
+    assert (
+        abs(recording.duration_seconds - (len(mock_audio_data_mono) / mock_samplerate)) < 1e-6
+    )
 
 
 def test_slicing_stage_input_file_not_found(
@@ -310,10 +318,10 @@ def test_slicing_stage_input_file_not_found(
     }
 
     non_existent_file = "/path/to/absolutely/nonexistent/audio.wav"
-    with pytest.raises(FileNotFoundError, match=f"Input audio file not found: {non_existent_file}"):
-        stage.process(
-            data=non_existent_file, params=stage.default_params, context=context
-        )
+    with pytest.raises(
+        FileNotFoundError, match=f"Input audio file not found: {non_existent_file}"
+    ):
+        stage.process(data=non_existent_file, params=stage.default_params, context=context)
 
     db_session.refresh(recording)
     assert recording.status == "slicing_failed"
@@ -328,9 +336,7 @@ def test_slicing_stage_recording_not_found_in_db(db_session, temp_output_dir_for
         "output_sample_dir": temp_output_dir_for_samples,
     }
     with pytest.raises(ValueError, match="Recording with id 99999 not found"):
-        stage.process(
-            data=DUMMY_AUDIO_PATH, params=stage.default_params, context=context
-        )
+        stage.process(data=DUMMY_AUDIO_PATH, params=stage.default_params, context=context)
 
 
 def test_slicing_stage_missing_context_keys(db_session, setup_test_recording):
@@ -349,7 +355,9 @@ def test_slicing_stage_missing_context_keys(db_session, setup_test_recording):
         context_copy = base_context.copy()
         del context_copy[key_to_remove]
 
-        with pytest.raises(ValueError, match=f"Missing required key '{key_to_remove}' in context"):
+        with pytest.raises(
+            ValueError, match=f"Missing required key '{key_to_remove}' in context"
+        ):
             stage.process(DUMMY_AUDIO_PATH, {}, context_copy)
 
     # Test with context = None
@@ -422,7 +430,7 @@ def test_slicing_stage_no_onsets_detected(
         db_session.query(SampleModel).filter(SampleModel.recording_id == recording.id).all()
     )
     assert len(db_samples) == 0
-    assert not os.listdir(temp_output_dir_for_samples) # No sample files created
+    assert not os.listdir(temp_output_dir_for_samples)  # No sample files created
     mock_sf_write.assert_not_called()
 
 
@@ -450,12 +458,14 @@ def test_slicing_stage_min_max_sample_length(
     # 0.52s = 11466 samples (duration 441 samples)
     # 1.0s = 22050 samples
     # 2.0s = 44100 samples
-    mock_onset_samples = np.array([
-        int(0.5 * mock_samplerate),  # Slice 1: 0.5s to 0.52s (potentially too short)
-        int(0.52 * mock_samplerate), # Slice 2: 0.52s to 1.0s
-        int(1.0 * mock_samplerate),  # Slice 3: 1.0s to 2.0s
-        int(2.0 * mock_samplerate)   # Slice 4: 2.0s to end (potentially too long)
-    ])
+    mock_onset_samples = np.array(
+        [
+            int(0.5 * mock_samplerate),  # Slice 1: 0.5s to 0.52s (potentially too short)
+            int(0.52 * mock_samplerate),  # Slice 2: 0.52s to 1.0s
+            int(1.0 * mock_samplerate),  # Slice 3: 1.0s to 2.0s
+            int(2.0 * mock_samplerate),  # Slice 4: 2.0s to end (potentially too long)
+        ]
+    )
     mock_onset_detect.return_value = mock_onset_samples
 
     stage_params = stage.default_params.copy()
@@ -464,7 +474,7 @@ def test_slicing_stage_min_max_sample_length(
     stage_params["min_sample_length_ms"] = 50
     # Max length 1s. 1.0 * 22050 = 22050 samples.
     # Slice 4 duration (2.0s to 5.0s = 3s) is 3 * 22050 = 66150 samples. Should be truncated to 1s.
-    stage_params["max_sample_length_ms"] = 1000 # 1 second
+    stage_params["max_sample_length_ms"] = 1000  # 1 second
 
     context = {
         "db_session": db_session,
@@ -487,9 +497,13 @@ def test_slicing_stage_min_max_sample_length(
 
     # Sample 1 (original onset at 0.52s, was mock_onset_samples[1])
     # Starts at 0.52s, ends at 1.0s. Duration 0.48s. This is > 50ms and < 1000ms.
-    sample1_info = next(s for s in result_samples_info if s["metadata_json"] == f'{{"source_onset_samples": {mock_onset_samples[1]}}}')
+    sample1_info = next(
+        s
+        for s in result_samples_info
+        if s["metadata_json"] == f'{{"source_onset_samples": {mock_onset_samples[1]}}}'
+    )
     expected_start_time1 = float(mock_onset_samples[1]) / mock_samplerate
-    expected_end_time1 = float(mock_onset_samples[2]) / mock_samplerate # Ends at next onset
+    expected_end_time1 = float(mock_onset_samples[2]) / mock_samplerate  # Ends at next onset
     assert abs(sample1_info["start_time_seconds"] - expected_start_time1) < 1e-6
     assert abs(sample1_info["end_time_seconds"] - expected_end_time1) < 1e-6
     # Check sf.write call for this sample (data integrity)
@@ -498,18 +512,25 @@ def test_slicing_stage_min_max_sample_length(
     # expected_data_slice1 = mock_audio_data_mono[mock_onset_samples[1]:mock_onset_samples[2]]
     # assert np.array_equal(args_call1[1], expected_data_slice1)
 
-
     # Sample 2 (original onset at 1.0s, was mock_onset_samples[2])
     # Starts at 1.0s, ends at 2.0s. Duration 1.0s. This is > 50ms and <= 1000ms.
-    sample2_info = next(s for s in result_samples_info if s["metadata_json"] == f'{{"source_onset_samples": {mock_onset_samples[2]}}}')
+    sample2_info = next(
+        s
+        for s in result_samples_info
+        if s["metadata_json"] == f'{{"source_onset_samples": {mock_onset_samples[2]}}}'
+    )
     expected_start_time2 = float(mock_onset_samples[2]) / mock_samplerate
-    expected_end_time2 = float(mock_onset_samples[3]) / mock_samplerate # Ends at next onset
+    expected_end_time2 = float(mock_onset_samples[3]) / mock_samplerate  # Ends at next onset
     assert abs(sample2_info["start_time_seconds"] - expected_start_time2) < 1e-6
     assert abs(sample2_info["end_time_seconds"] - expected_end_time2) < 1e-6
 
     # Sample 3 (original onset at 2.0s, was mock_onset_samples[3])
     # Starts at 2.0s, should end at 3.0s (due to max_sample_length_ms = 1000). Original end was 5.0s.
-    sample3_info = next(s for s in result_samples_info if s["metadata_json"] == f'{{"source_onset_samples": {mock_onset_samples[3]}}}')
+    sample3_info = next(
+        s
+        for s in result_samples_info
+        if s["metadata_json"] == f'{{"source_onset_samples": {mock_onset_samples[3]}}}'
+    )
     expected_start_time3 = float(mock_onset_samples[3]) / mock_samplerate
     max_len_samples = int((stage_params["max_sample_length_ms"] / 1000.0) * mock_samplerate)
     # expected_end_sample_idx3 = min(len(mock_audio_data_mono), mock_onset_samples[3] + max_len_samples) # This is correct
@@ -530,15 +551,21 @@ def test_slicing_stage_min_max_sample_length(
     assert found_call_args is not None, "sf.write call for sample 3 not found"
 
     written_data_slice3 = found_call_args[1]
-    expected_data_slice3 = mock_audio_data_mono[mock_onset_samples[3]:expected_end_sample_idx3]
+    expected_data_slice3 = mock_audio_data_mono[
+        mock_onset_samples[3] : expected_end_sample_idx3
+    ]
     assert written_data_slice3.shape == expected_data_slice3.shape
     assert np.array_equal(written_data_slice3, expected_data_slice3)
 
-
-    db_samples = db_session.query(SampleModel).filter(SampleModel.recording_id == recording.id).all()
-    assert len(db_samples) == 3 # Slice 1 was skipped
+    db_samples = (
+        db_session.query(SampleModel).filter(SampleModel.recording_id == recording.id).all()
+    )
+    assert len(db_samples) == 3  # Slice 1 was skipped
 
     # Verify that the skipped sample (onset at mock_onset_samples[0]) is not in the results
     source_onset_skipped = mock_onset_samples[0]
-    assert not any(s["metadata_json"] == f'{{"source_onset_samples": {source_onset_skipped}}}' for s in result_samples_info)
-    assert mock_sf_write.call_count == 3 # Corrected call count
+    assert not any(
+        s["metadata_json"] == f'{{"source_onset_samples": {source_onset_skipped}}}'
+        for s in result_samples_info
+    )
+    assert mock_sf_write.call_count == 3  # Corrected call count

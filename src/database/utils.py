@@ -1,12 +1,13 @@
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session # Ensure these are imported
-from flask import current_app # Ensure this is imported for get_engine
+from sqlalchemy.orm import sessionmaker, Session  # Ensure these are imported
+from flask import current_app  # Ensure this is imported for get_engine
 from .models import Base
 
 # Default DATABASE_URL for the main application
 DATABASE_URL = "sqlite:///./database.db"
 _engine = None
 # _SessionLocal = None # Removed global session factory cache
+
 
 def get_engine(database_url: str = None):
     """
@@ -19,7 +20,11 @@ def get_engine(database_url: str = None):
     global _engine
 
     # Priority 1: Test engine instance if app is in TESTING mode
-    if current_app and current_app.config.get("TESTING") and current_app.config.get("TEST_ENGINE_INSTANCE"):
+    if (
+        current_app
+        and current_app.config.get("TESTING")
+        and current_app.config.get("TEST_ENGINE_INSTANCE")
+    ):
         return current_app.config["TEST_ENGINE_INSTANCE"]
 
     # Priority 2: Explicit database_url argument
@@ -65,9 +70,12 @@ def init_db(engine_instance=None):
     """
     current_engine = engine_instance or get_engine()
     import logging
+
     logger = logging.getLogger(__name__)
     logger.info(f"init_db: Engine URL: {current_engine.url}")
-    logger.info(f"init_db: Tables known to Base.metadata before create_all: {list(Base.metadata.tables.keys())}")
+    logger.info(
+        f"init_db: Tables known to Base.metadata before create_all: {list(Base.metadata.tables.keys())}"
+    )
     Base.metadata.create_all(bind=current_engine)
     logger.info(
         f"Database initialized with engine: {
@@ -97,6 +105,7 @@ def get_db(engine_instance=None) -> Session:
         yield db
     finally:
         db.close()
+
 
 # SessionLocal = get_session_local() # Removed global SessionLocal instance
 
