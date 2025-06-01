@@ -5,7 +5,7 @@ This stage serves as a placeholder for a noise reduction algorithm.
 
 import logging
 import numpy as np  # For potential audio buffer manipulation
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from src.core.processing_stages import AudioProcessingStage, DATA_TYPE_AUDIO_BUFFER_MONO
 from src.core.stage_runner import register_stage
@@ -40,24 +40,23 @@ class NoiseReductionStage(AudioProcessingStage):
         return DATA_TYPE_AUDIO_BUFFER_MONO
 
     @property
-    def default_params(self) -> dict:
+    def default_params(self) -> Dict[str, Any]:
         return {
             "amount": 0.5,  # 0.0 to 1.0, how much reduction to apply
             "aggressiveness": 3,  # 1 to 5, how aggressively to target noise
         }
 
-    def process(self, data: np.ndarray, params: dict, context: dict = None) -> np.ndarray:
-        """
-        Applies a placeholder noise reduction effect to the audio data.
+    def process(self, data: np.ndarray, params: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> np.ndarray:
+        """Applies a placeholder noise reduction effect to the audio data.
 
         Args:
-            data (np.ndarray): The input mono audio buffer (NumPy array).
-            params (dict): Parameters for noise reduction, merged with defaults.
+            data: The input mono audio buffer (NumPy array).
+            params: Parameters for noise reduction, merged with defaults.
                            Expected keys: "amount", "aggressiveness".
-            context (dict, optional): Shared context dictionary (not used by this placeholder).
+            context: Shared context dictionary (not used by this placeholder).
 
         Returns:
-            np.ndarray: The processed mono audio buffer (NumPy array), slightly attenuated.
+            The processed mono audio buffer (NumPy array), slightly attenuated.
 
         Raises:
             TypeError: If the input data is not a NumPy array.

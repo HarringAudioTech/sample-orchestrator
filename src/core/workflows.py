@@ -10,10 +10,12 @@ This module includes:
 
 import logging
 import re  # For potential name conversion (CamelCase to snake_case)
+import os # For __main__ example
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Type
+from typing import Any, Dict, List, Type, Optional
 
-from src.core.stage_runner import execute_stage_chain
+from src.core.stage_runner import execute_stage_chain, STAGE_REGISTRY as ACTUAL_STAGE_REGISTRY
+from src.core.processing_stages import AudioProcessingStage # For dummy stages in __main__
 
 # AudioProcessingStage and data type constants are not directly needed by BaseWorkflow itself,
 # but might be useful for type hinting in concrete workflow implementations if they
@@ -24,46 +26,51 @@ logger = logging.getLogger(__name__)
 
 # --- Workflow Registry ---
 WORKFLOW_REGISTRY: Dict[str, Type["BaseWorkflow"]] = {}
-"""
-Global dictionary to store registered workflow classes.
-Keys are the unique names of the workflows, and values are the workflow classes themselves.
+"""Global dictionary to store registered workflow classes.
+
+Keys are the unique names of the workflows (typically snake_case derived from class name),
+and values are the workflow classes themselves.
 """
 
 
 def _camel_to_snake(name: str) -> str:
-    """Converts a CamelCase string to snake_case."""
+    """Converts a CamelCase string to snake_case.
+
+    Args:
+        name: The CamelCase string.
+
+    Returns:
+        The snake_case version of the string.
+    """
     # Handle cases like "WordWord" -> "Word_Word" (e.g. SimpleWorkflow -> Simple_Workflow)
     # and also internal capitals like "wordWord" -> "word_Word".
-    # The (.), if it matches an underscore, could lead to double underscores if not careful.
-    name = re.sub(
-        r"([A-Za-z0-9])([A-Z][a-z]+)", r"\1_\2", name
-    )  # Changed (.) to ([A-Za-z0-9]) to avoid matching underscore with first group
+    s1: str = re.sub(r"([A-Za-z0-9])([A-Z][a-z]+)", r"\1_\2", name)
 
     # Handle cases like "wordWORD" -> "word_WORD" (e.g. SimpleHTTP -> Simple_HTTP)
     # or "WordWORD" if the first rule didn't catch a transition from lowercase.
-    name = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", name)
+    s2: str = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", s1)
 
     # Collapse multiple underscores that might have been introduced.
-    name = re.sub(r"_+", "_", name)
+    s3: str = re.sub(r"_+", "_", s2)
 
-    return name.lower()
+    return s3.lower()
 
 
-def register_workflow(workflow_class: Type["BaseWorkflow"]):
-    """
-    Registers a workflow class in the global WORKFLOW_REGISTRY.
+def register_workflow(workflow_class: Type["BaseWorkflow"]) -> None:
+    """Registers a workflow class in the global WORKFLOW_REGISTRY.
 
     The workflow class must inherit from `BaseWorkflow`.
-    The `workflow_name` is derived from the class's `name` property.
-    If a workflow with the same name is already registered, a warning will be logged,
+    The registry key is derived by converting the workflow class's __name__
+    to snake_case.
+    If a workflow with the same key is already registered, a warning will be logged,
     and the existing workflow will be overwritten.
 
     Args:
-        workflow_class (Type[BaseWorkflow]): The workflow class to register.
+        workflow_class: The workflow class to register.
 
     Raises:
-        TypeError: If the provided class is not a subclass of BaseWorkflow
-                   or does not have a 'name' property.
+        TypeError: If the provided class is not a subclass of BaseWorkflow.
+        ValueError: If a registry key cannot be derived from the class name.
     """
     if not issubclass(workflow_class, BaseWorkflow):
         raise TypeError(
@@ -71,43 +78,11 @@ def register_workflow(workflow_class: Type["BaseWorkflow"]):
                 workflow_class.__name__}' must inherit from BaseWorkflow."
         )
 
-    try:
-        # Instantiate temporarily to get the name property value if it's dynamic
-        # or rely on it being a class attribute that can be accessed.
-        # For an abstract property, this won't work directly on the class.
-        # We will assume 'name' is defined such that we can get it,
-        # or default to snake_case of class name if 'name' property access fails.
-        # For now, let's assume 'name' property is accessible via an instance or directly if concrete.
-        # Since 'name' is an abstract property, we can't instantiate BaseWorkflow directly.
-        # Concrete subclasses will have it.
-        # A common pattern is to have a concrete 'get_name()' classmethod or a defined class attribute.
-        # For this task, we'll rely on the subclass implementing 'name' as an abstract property.
-        # The registration will happen for concrete subclasses.
-
-        # To get the name for registration without full instantiation if 'name' is an abstract property
-        # that is implemented in the concrete class:
-        # We can either enforce 'name' as a class variable in concrete classes for registration,
-        # or use the class name itself for the registry key.
-        # Let's use the class's `name` property. This means we need an instance.
-        # This is problematic for abstract classes.
-        # A better approach for registry: workflow_name = workflow_class().name if 'name' is property
-        # OR workflow_name = workflow_class.workflow_name if 'workflow_name' is a class attribute.
-        # Given the spec makes 'name' an abstract property, we'll use the class name converted to snake_case
-        # as the primary key for the registry for simplicity and to avoid instantiation during registration.
-        # The 'name' property of the class will be its "official" reported
-        # name.
-
-        # Let's use the class name converted to snake_case for the registry key
-        # The 'name' property of the class will still be the official reported
-        # name.
-        registry_key_name = _camel_to_snake(workflow_class.__name__)
-        if not registry_key_name:
-            raise ValueError("Could not derive a valid registry key name from class name.")
-
-    except AttributeError:  # Should not happen if BaseWorkflow is properly ABC
-        raise TypeError(
-            f"Workflow class '{
-                workflow_class.__name__}' seems to be missing expected structure."
+    registry_key_name: str = _camel_to_snake(workflow_class.__name__)
+    if not registry_key_name:
+        raise ValueError(
+            f"Could not derive a valid registry key name from class name '{
+                workflow_class.__name__}'."
         )
 
     if registry_key_name in WORKFLOW_REGISTRY:
@@ -120,8 +95,8 @@ def register_workflow(workflow_class: Type["BaseWorkflow"]):
         )
     WORKFLOW_REGISTRY[registry_key_name] = workflow_class
     logger.info(
-        f"Successfully registered workflow: '{registry_key_name}' from class '{
-            workflow_class.__name__}'."
+        f"Successfully registered workflow: '{registry_key_name}' (class: '{
+            workflow_class.__name__}')"
     )
 
 
@@ -191,10 +166,9 @@ class BaseWorkflow(ABC):
         pass
 
     def run(
-        self, initial_data: Any, initial_data_type: str, context: Dict[str, Any] = None
+        self, initial_data: Any, initial_data_type: str, context: Optional[Dict[str, Any]] = None
     ) -> Any:
-        """
-        Executes the workflow's defined chain of processing stages.
+        """Executes the workflow's defined chain of processing stages.
 
         This method retrieves the stages definition from the `stages_definition`
         property and uses `execute_stage_chain` from `src.core.stage_runner`
@@ -295,105 +269,70 @@ if __name__ == "__main__":
     # For a real application, stage registration would happen at import time
     # or app startup.
 
-    # Let's simulate that the necessary stages ('noise_reduction', 'slicing') are registered.
-    # If not, execute_stage_chain will fail.
-    # We'll need to import and register them if we want this __main__ to be
-    # fully runnable standalone.
-
-    # To make this __main__ runnable, we'd need to ensure stages are loaded:
+        # Attempt to import real stages to trigger their registration
     try:
-        from src.core.stages.slicing_stage import SlicingStage  # noqa
-        from src.core.stages.noise_reduction_stage import NoiseReductionStage  # noqa
-
-        # These imports trigger their `register_stage` calls if not already
-        # done.
+            from src.core.stages.slicing_stage import SlicingStage # noqa F401
+            from src.core.stages.noise_reduction_stage import NoiseReductionStage # noqa F401
+            logger.info("Actual SlicingStage and NoiseReductionStage imported for __main__ test.")
     except ImportError:
-        logger.error(
-            "Could not import example stages for __main__ test. Ensure they are registered."
+            logger.warning(
+                "Could not import actual SlicingStage or NoiseReductionStage for __main__ test. "
+                "Falling back to dummy stages if not already registered."
         )
-        # Fallback: Define dummy stages for this __main__ block if imports fail
-        # This is only for making the __main__ block in *this file* runnable in
-        # isolation.
-        if (
-            "noise_reduction"
-            not in WORKFLOW_REGISTRY.get(
-                "example_slicing_workflow", ExampleSlicingWorkflow
-            )().stages_definition[0]["stage_name"]
-        ):  # Check if already registered
+            # Define and register dummy stages only if real ones aren't found or couldn't be imported
+            # and they are not already in the registry (e.g. from a previous partial run)
 
+            example_workflow_instance_for_check = ExampleSlicingWorkflow()
+            required_stages_for_example = [
+                sdef["stage_name"] for sdef in example_workflow_instance_for_check.stages_definition
+            ]
+
+            if "noise_reduction" in required_stages_for_example and "noise_reduction" not in ACTUAL_STAGE_REGISTRY:
             class DummyNoiseReduction(AudioProcessingStage):
                 @property
-                def name(self) -> str:
-                    return "noise_reduction"
-
+                    def name(self) -> str: return "noise_reduction"
                 @property
-                def description(self) -> str:
-                    return "Dummy Noise Reduction"
-
+                    def description(self) -> str: return "Dummy Noise Reduction"
                 @property
-                def input_type(self) -> str:
-                    return "audio_buffer_mono"  # Example
-
+                    def input_type(self) -> str: return "audio_buffer_mono" # Example
                 @property
-                def output_type(self) -> str:
-                    return "audio_buffer_mono"
-
+                    def output_type(self) -> str: return "audio_buffer_mono"
                 @property
-                def default_params(self) -> dict:
-                    return {}
-
-                def process(self, data, params, context=None):
-                    logger.info(f"Dummy Noise Reduction processing {data}")
+                    def default_params(self) -> Dict[str, Any]: return {}
+                    def process(self, data: Any, params: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> Any:
+                        logger.info(f"[{self.name}] Dummy processing data: {type(data)}")
                     return data
+                from src.core.stage_runner import register_stage
+                register_stage(DummyNoiseReduction)
+                logger.info("Registered DummyNoiseReduction for __main__ test.")
 
-            from src.core.stage_runner import register_stage as rs_temp
-
-            rs_temp(DummyNoiseReduction)
-
-        if (
-            "slicing"
-            not in WORKFLOW_REGISTRY.get(
-                "example_slicing_workflow", ExampleSlicingWorkflow
-            )().stages_definition[1]["stage_name"]
-        ):
-
+            if "slicing" in required_stages_for_example and "slicing" not in ACTUAL_STAGE_REGISTRY:
             class DummySlicing(AudioProcessingStage):
                 @property
-                def name(self) -> str:
-                    return "slicing"
-
+                    def name(self) -> str: return "slicing"
                 @property
-                def description(self) -> str:
-                    return "Dummy Slicing"
-
+                    def description(self) -> str: return "Dummy Slicing"
                 @property
-                def input_type(self) -> str:
-                    return (
-                        "audio_buffer_mono"  # Example, SlicingStage actually takes file_path
-                    )
-
+                    # SlicingStage actually takes file_path
+                    def input_type(self) -> str: return "audio_buffer_mono"
                 @property
-                def output_type(self) -> str:
-                    return "list_of_sample_data"
-
+                    def output_type(self) -> str: return "list_of_sample_data"
                 @property
-                def default_params(self) -> dict:
-                    return {}
+                    def default_params(self) -> Dict[str, Any]: return {}
+                    def process(self, data: Any, params: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+                        logger.info(f"[{self.name}] Dummy processing data: {type(data)}")
+                        return [{"sample_id": 1, "status": "dummy"}]
+                from src.core.stage_runner import register_stage
+                register_stage(DummySlicing)
+                logger.info("Registered DummySlicing for __main__ test.")
 
-                def process(self, data, params, context=None):
-                    logger.info(f"Dummy Slicing processing {data}")
-                    return [{"sample_id": 1}]
-
-            from src.core.stage_runner import register_stage as rs_temp
-
-            rs_temp(DummySlicing)
 
     logger.info("\n--- Available Workflows ---")
-    for wf_key, wf_class in WORKFLOW_REGISTRY.items():
+    for wf_key, wf_class_val in WORKFLOW_REGISTRY.items():
         try:
             # To get name and description, we need an instance.
             # This assumes concrete classes can be instantiated without args.
-            instance = wf_class()
+            instance = wf_class_val()
             logger.info(
                 f"Key: '{wf_key}', Name: '{
                     instance.name}', Desc: '{
@@ -402,137 +341,128 @@ if __name__ == "__main__":
         except Exception as e:
             logger.error(
                 f"Could not inspect workflow class {
-                    wf_class.__name__}: {e}"
+                    wf_class_val.__name__}: {e}"
             )
 
     # --- Example Workflow Execution ---
     logger.info("\n--- Testing ExampleSlicingWorkflow ---")
-    workflow_to_run_key = (
+    workflow_to_run_key: str = (
         "example_slicing_workflow"  # Derived from ExampleSlicingWorkflow class name
     )
 
     WorkflowCls = WORKFLOW_REGISTRY.get(workflow_to_run_key)
     if WorkflowCls:
         workflow_instance = WorkflowCls()
-
-        # This example workflow expects initial data to be compatible with 'noise_reduction'
-        # which is DATA_TYPE_AUDIO_BUFFER_MONO.
-        # However, the SlicingStage (if it's the real one) expects DATA_TYPE_FILE_PATH.
-        # This highlights a potential type mismatch if ExampleSlicingWorkflow is not careful.
-        # The current ExampleSlicingWorkflow definition:
-        #   noise_reduction (takes audio_buffer_mono) -> outputs audio_buffer_mono
-        #   slicing (takes file_path) -> outputs list_of_sample_data
-        # This chain is inherently broken due to type mismatch.
-
-        # For this __main__ to work, we need to adjust the example or the initial data.
-        # Let's assume for this test that initial data is a file_path, and
-        # we have a hypothetical "file_to_buffer_loader" stage first,
-        # or that `noise_reduction` can also accept `file_path` and output
-        # `file_path`.
-
-        # Given the current definition of NoiseReductionStage (takes audio_buffer_mono)
-        # and SlicingStage (takes file_path), the ExampleSlicingWorkflow is flawed.
-        # A workflow must ensure output of stage N matches input of stage N+1.
+        from src.core.processing_stages import DATA_TYPE_FILE_PATH, DATA_TYPE_AUDIO_BUFFER_MONO
 
         logger.warning(
-            "The current ExampleSlicingWorkflow definition has a type mismatch: "
-            "NoiseReductionStage (placeholder) outputs audio_buffer_mono, "
-            "but SlicingStage (real one) expects file_path as input. "
-            "This __main__ test will likely fail unless stages are dummied or workflow is adjusted."
+            "The ExampleSlicingWorkflow might have type mismatches depending on actual "
+            "registered stages. NoiseReductionStage (if real) outputs audio_buffer_mono, "
+            "while SlicingStage (if real) expects file_path. This test might fail if "
+            "using real stages without an adapter stage in between, or if dummy stages "
+            "don't align types."
         )
 
-        # To proceed with a runnable test, let's assume we are testing with dummy stages
-        # where types are compatible, or we adjust the test data/workflow.
-        # For now, we'll just log the attempt.
+        # For a more robust __main__ test, we should ideally use the types defined by the
+        # *actual* first stage of the *actual* ExampleSlicingWorkflow.
+        # Let's assume the first stage is 'noise_reduction' and it (or its dummy)
+        # can take a file_path and output a file_path for simplicity here,
+        # or that the example workflow is internally consistent (e.g., uses dummy stages
+        # that are type-compatible).
 
-        # If using the *actual* SlicingStage and NoiseReductionStage:
-        # SlicingStage input: DATA_TYPE_FILE_PATH
-        # NoiseReductionStage input: DATA_TYPE_AUDIO_BUFFER_MONO
-        # The example workflow `ExampleSlicingWorkflow` as defined is:
-        #   1. noise_reduction (input: audio_buffer_mono, output: audio_buffer_mono)
-        #   2. slicing (input: file_path, output: list_of_sample_data)
-        # This chain will fail at the slicing stage due to type mismatch.
-        #
-        # A corrected example workflow might look like:
-        #   1. (some stage that loads file to buffer, e.g. "audio_loader")
-        #   2. noise_reduction
-        #   3. (some stage that saves buffer to temp file, e.g. "buffer_writer")
-        #   4. slicing
-        # OR, if SlicingStage could take a buffer, or NoiseReduction a file
-        # path.
+        # If ExampleSlicingWorkflow starts with a stage like actual NoiseReductionStage,
+        # it would expect DATA_TYPE_AUDIO_BUFFER_MONO.
+        # If it starts with actual SlicingStage, it would expect DATA_TYPE_FILE_PATH.
+        # The example workflow is: noise_reduction -> slicing.
+        # Actual NoiseReductionStage: input AUDIO_BUFFER_MONO
+        # Actual SlicingStage: input FILE_PATH
+        # So, ExampleSlicingWorkflow is flawed if using these actual stages directly.
 
-        # For the purpose of this __main__ test, let's assume we are testing the structure.
-        # The actual execution success depends on the real stages registered.
+        # Let's assume for this test, the first stage of ExampleSlicingWorkflow
+        # (noise_reduction or its dummy) is made to accept DATA_TYPE_FILE_PATH
+        # and also outputs DATA_TYPE_FILE_PATH, and SlicingStage (or its dummy)
+        # also takes DATA_TYPE_FILE_PATH. This is a simplification for __main__.
+        initial_mock_data: str = "/path/to/some/audio_file.wav"  # Dummy path
+        initial_mock_data_type: str = DATA_TYPE_FILE_PATH
 
-        initial_mock_data = "/path/to/some/audio_file.wav"  # SlicingStage needs a file path
-        initial_mock_data_type = "file_path"  # from processing_stages DATA_TYPE_FILE_PATH
-
-        # If the first stage is `noise_reduction` which expects `audio_buffer_mono`,
-        # this initial_data_type is wrong for it.
-        # The example workflow needs to be consistent.
-
-        # Let's redefine ExampleSlicingWorkflow for this test to be runnable
-        # assuming SlicingStage is the main focus and it needs a file path.
-        # This means noise_reduction would need to be adapted or removed for a
-        # simple test.
-
-        # Option: Test with a workflow that ONLY has slicing for this __main__
-        class OnlySlicingWorkflow(BaseWorkflow):
-            @property
-            def name(self) -> str:
-                return "test_only_slicing"
-
-            @property
-            def description(self) -> str:
-                return "Test workflow with only the slicing stage."
-
-            @property
-            def stages_definition(self) -> List[Dict[str, Any]]:
-                return [
-                    {"stage_name": "slicing", "params": {}}
-                ]  # Requires SlicingStage to be registered
+        mock_context_main: Dict[str, Any] = {
+            "db_session": "dummy_db_session_for_main_test (mocked)",
+            "recording_id": 99, # Different from OnlySlicingWorkflow test
+            "project_id": 99,
+            "output_sample_dir": "/tmp/test_example_workflow_output",
+        }
+        if not os.path.exists(mock_context_main["output_sample_dir"]):
+            os.makedirs(mock_context_main["output_sample_dir"], exist_ok=True)
 
         try:
-            register_workflow(OnlySlicingWorkflow)
-            test_slicing_workflow = OnlySlicingWorkflow()
-            logger.info(f"\n--- Testing {test_slicing_workflow.name} ---")
+            logger.info(f"Attempting to run workflow: {workflow_instance.name}")
+            # final_output = workflow_instance.run(initial_mock_data, initial_mock_data_type, mock_context_main)
+            # logger.info(f"Output of {workflow_instance.name}: {final_output}")
+            logger.info(
+                f"Skipping actual run of {
+                    workflow_instance.name} in __main__ due to potential complex dependencies (real files, DB)."
+            )
+        except Exception as e:
+            logger.error(
+                f"Error running {workflow_instance.name}: {e}", exc_info=True
+            )
 
-            # SlicingStage requires db_session, recording_id, project_id,
-            # output_sample_dir in context
-            mock_context = {
-                # In real use, an actual Session
-                "db_session": "dummy_db_session_object (mocked)",
+
+        # Option: Test with a workflow that ONLY has slicing for this __main__
+        # This was already defined, let's try to run it if SlicingStage (dummy or real) is available
+        only_slicing_workflow_key = "only_slicing_workflow" # from OnlySlicingWorkflow class name
+        OnlySlicingWorkflowCls = WORKFLOW_REGISTRY.get(only_slicing_workflow_key)
+
+        if not OnlySlicingWorkflowCls: # If not registered in previous block due to some logic path
+            class OnlySlicingWorkflow(BaseWorkflow): # Re-define if necessary
+                @property
+                def name(self) -> str: return "test_only_slicing"
+                @property
+                def description(self) -> str: return "Test workflow with only the slicing stage."
+                @property
+                def stages_definition(self) -> List[Dict[str, Any]]:
+                    return [{"stage_name": "slicing", "params": {}}]
+            register_workflow(OnlySlicingWorkflow)
+            OnlySlicingWorkflowCls = OnlySlicingWorkflow
+
+
+        if OnlySlicingWorkflowCls:
+            test_slicing_workflow_instance = OnlySlicingWorkflowCls()
+            logger.info(f"\n--- Testing {test_slicing_workflow_instance.name} ---")
+
+            mock_context_slicing: Dict[str, Any] = {
+                "db_session": "dummy_db_session_for_slicing_test (mocked)",
                 "recording_id": 1,
                 "project_id": 1,
-                "output_sample_dir": "/tmp/test_slicing_output_workflow",
+                "output_sample_dir": "/tmp/test_slicing_output_workflow_2",
             }
-            if not os.path.exists(mock_context["output_sample_dir"]):
-                os.makedirs(mock_context["output_sample_dir"], exist_ok=True)
+            if not os.path.exists(mock_context_slicing["output_sample_dir"]):
+                os.makedirs(mock_context_slicing["output_sample_dir"], exist_ok=True)
 
-            # SlicingStage also needs a real file for 'initial_mock_data'
-            # For this test, we'll skip the actual execution if the file doesn't exist
-            # or if STAGE_REGISTRY doesn't have the real "slicing" stage.
+            initial_slicing_data: str = "/path/to/another/audio.wav" # Dummy path
+            initial_slicing_data_type: str = DATA_TYPE_FILE_PATH
 
-            if (
-                "slicing" in from_src_core_stage_runner_import_STAGE_REGISTRY_else_empty_dict()
-            ):  # Check if real slicing stage is there
+            if "slicing" in ACTUAL_STAGE_REGISTRY :
                 logger.info(
-                    f"Attempting to run '{
-                        test_slicing_workflow.name}' (requires a real audio file and DB setup for SlicingStage). This might fail if dependencies aren't met."
+                    f"Attempting to run '{test_slicing_workflow_instance.name}'. This might fail if SlicingStage has unmet dependencies (real file, DB)."
                 )
-                # Actual run might be:
-                # final_result = test_slicing_workflow.run(initial_mock_data, initial_mock_data_type, mock_context)
-                # logger.info(f"Result of '{test_slicing_workflow.name}': {final_result}")
+                # try:
+                #     final_result_slicing = test_slicing_workflow_instance.run(
+                #         initial_slicing_data, initial_slicing_data_type, mock_context_slicing
+                #     )
+                #     logger.info(f"Result of '{test_slicing_workflow_instance.name}': {final_result_slicing}")
+                # except Exception as e_slice:
+                #     logger.error(f"Error during run of '{test_slicing_workflow_instance.name}': {e_slice}", exc_info=True)
+                logger.info(f"Skipping actual run of {test_slicing_workflow_instance.name} in __main__ due to dependencies.")
+
             else:
                 logger.warning(
                     f"Skipping run of '{
-                        test_slicing_workflow.name}' as real 'slicing' stage not found in STAGE_REGISTRY (expected for __main__ test)."
+                        test_slicing_workflow_instance.name}' as 'slicing' stage not found in STAGE_REGISTRY."
                 )
+        else:
+            logger.error(f"Workflow '{only_slicing_workflow_key}' not found in registry for testing.")
 
-        except Exception as e:
-            logger.error(
-                f"Error during __main__ test of OnlySlicingWorkflow: {e}", exc_info=True
-            )
     else:
         logger.error(f"Workflow '{workflow_to_run_key}' not found in registry.")
 
@@ -540,11 +470,8 @@ if __name__ == "__main__":
 
 
 # Helper for __main__ to avoid NameError if STAGE_REGISTRY is not
-# populated from stage_runner
-def from_src_core_stage_runner_import_STAGE_REGISTRY_else_empty_dict():
-    try:
-        from src.core.stage_runner import STAGE_REGISTRY
-
-        return STAGE_REGISTRY
-    except ImportError:
-        return {}
+# populated from stage_runner (though direct import is preferred now)
+def from_src_core_stage_runner_import_STAGE_REGISTRY_else_empty_dict() -> Dict[str, Type[AudioProcessingStage]]:
+    # This helper is less critical if ACTUAL_STAGE_REGISTRY is imported directly at the top.
+    # Kept for structural reference or if direct import causes issues in some contexts.
+    return ACTUAL_STAGE_REGISTRY # Prefer direct import

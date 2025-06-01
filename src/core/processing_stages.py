@@ -8,7 +8,7 @@ This module includes:
 """
 
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Optional, Any, Dict, List
 
 # --- Data Type Constants ---
 # These constants define the expected types of data that can be passed
@@ -103,9 +103,8 @@ class AudioProcessingStage(ABC):
 
     @property
     @abstractmethod
-    def default_params(self) -> dict:
-        """
-        A dictionary defining the default parameters for this stage.
+    def default_params(self) -> Dict[str, Any]:
+        """A dictionary defining the default parameters for this stage.
 
         These parameters can be overridden when a stage instance is configured
         within a pipeline. If a stage requires no parameters, it should
@@ -119,9 +118,8 @@ class AudioProcessingStage(ABC):
         pass
 
     @abstractmethod
-    def process(self, data, params: dict, context: Optional[dict] = None):
-        """
-        Processes the input data according to the stage's logic and parameters.
+    def process(self, data: Any, params: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> Any:
+        """Processes the input data according to the stage's logic and parameters.
 
         This is the core method of the processing stage where the actual audio
         manipulation or analysis occurs.
@@ -174,20 +172,20 @@ if __name__ == "__main__":
             return DATA_TYPE_LIST_OF_FILE_PATHS
 
         @property
-        def default_params(self) -> dict:
+        def default_params(self) -> Dict[str, Any]:
             return {"prefix": "processed_"}
 
-        def process(self, data: str, params: dict, context: Optional[dict] = None):
+        def process(self, data: str, params: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> List[str]:
             # In a real scenario, 'data' would be a file path (string).
             # This example just demonstrates parameter usage.
             print(f"Processing file: {data} with params: {params} and context: {context}")
-            output_filename = params.get("prefix", "") + data.split("/")[-1]
+            output_filename: str = params.get("prefix", "") + data.split("/")[-1]
 
             # Simulate creating a new file path or list of paths
-            processed_path = f"/tmp/{output_filename}"
+            processed_path: str = f"/tmp/{output_filename}"
             print(f"Simulated output path: {processed_path}")
-            # return [processed_path]
-            return None
+            return [processed_path]
+            # return None # Original example returned None, changing to List[str] to match output_type
 
     # Instantiate and use the example processor
     # This part would typically be handled by a pipeline runner.
@@ -204,12 +202,12 @@ if __name__ == "__main__":
         # Simulate processing
         input_data = "/path/to/my/audiofile.wav"
         # Parameters for this specific run (could merge with defaults)
-        run_params = stage.default_params.copy()
+        run_params: Dict[str, Any] = stage.default_params.copy()
         run_params["prefix"] = "enhanced_"
 
-        run_context = {"project_id": 123, "user_id": "test_user"}
+        run_context: Dict[str, Any] = {"project_id": 123, "user_id": "test_user"}
 
-        output_data = stage.process(input_data, params=run_params, context=run_context)
+        output_data: List[str] = stage.process(input_data, params=run_params, context=run_context)
         print(f"Processed output: {output_data}")
 
     print("AudioProcessingStage and data type constants defined.")

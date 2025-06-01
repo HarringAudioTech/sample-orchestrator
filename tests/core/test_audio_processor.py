@@ -12,7 +12,10 @@ import pytest
 # import wave # No longer needed
 # from unittest.mock import patch, MagicMock, ANY # No longer needed for current state
 from sqlalchemy import create_engine
-from sqlalchemy.orm import Session  # Session is used by db_session fixture
+from sqlalchemy.orm import Session as SQLAlchemySession # For typing sessions
+from sqlalchemy.engine import Engine as SQLAlchemyEngine # For typing engine
+from typing import Generator, Optional # For typing fixtures and Optional module import
+import types # For typing the module itself
 
 from src.database.models import (
     Base,
@@ -22,6 +25,7 @@ from src.database.models import (
 )
 
 # Import the module itself to ensure it's importable
+audio_processor: Optional[types.ModuleType]
 try:
     from src.core import audio_processor
 except ImportError:
@@ -36,22 +40,31 @@ from src.database.utils import (
 
 # --- Test Database Fixtures (kept for potential future use) ---
 @pytest.fixture(scope="function")
-def test_engine():
-    """Creates an in-memory SQLite engine for testing."""
-    engine = create_engine("sqlite:///:memory:")
-    # Base.metadata.create_all(engine) # Handled by initialize_db_utils
+def test_engine() -> SQLAlchemyEngine:
+    """Creates an in-memory SQLite engine for testing.
+
+    Returns:
+        A SQLAlchemy Engine instance.
+    """
+    engine: SQLAlchemyEngine = create_engine("sqlite:///:memory:")
     initialize_db_utils(engine_instance=engine)  # Creates tables
     return engine
 
 
 @pytest.fixture(scope="function")
-def db_session(test_engine):
-    """
-    Creates a new database session for a test, ensuring a clean state.
+def db_session(test_engine: SQLAlchemyEngine) -> Generator[SQLAlchemySession, None, None]:
+    """Creates a new database session for a test, ensuring a clean state.
+
     Uses the get_db utility from src.database.utils.
+
+    Args:
+        test_engine: The SQLAlchemy engine fixture.
+
+    Yields:
+        A SQLAlchemy Session instance.
     """
-    session_generator = get_db_utils(engine_instance=test_engine)
-    session = next(session_generator)
+    session_generator: Generator[SQLAlchemySession, None, None] = get_db_utils(engine_instance=test_engine)
+    session: SQLAlchemySession = next(session_generator)
     try:
         yield session
     finally:
@@ -62,10 +75,10 @@ def db_session(test_engine):
 # --- Basic Test ---
 
 
-def test_audio_processor_module_importable():
+def test_audio_processor_module_importable() -> None:
     """Checks if the audio_processor module can be imported."""
     assert audio_processor is not None, "src.core.audio_processor module failed to import."
-    # Can also check for specific attributes if any are expected, e.g.,
+    # Can also check for specific attributes if any are expected, e.g.:
     # assert hasattr(audio_processor, 'some_expected_future_function')
 
 

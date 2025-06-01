@@ -9,7 +9,7 @@ This module provides:
 """
 
 import logging
-from typing import Any, Dict, List, Type
+from typing import Any, Dict, List, Type, Optional
 from src.core.processing_stages import (
     AudioProcessingStage,
 )  # DATA_TYPE_* constants are not directly needed here but by stages
@@ -19,8 +19,7 @@ logger = logging.getLogger(__name__)
 
 # --- Stage Registry ---
 STAGE_REGISTRY: Dict[str, Type[AudioProcessingStage]] = {}
-"""
-Global dictionary to store registered audio processing stage classes.
+"""Global dictionary to store registered audio processing stage classes.
 Keys are the unique names of the stages (from `stage_class.name`),
 and values are the stage classes themselves.
 """
@@ -82,10 +81,9 @@ def execute_stage_chain(
     initial_data: Any,
     initial_data_type: str,
     chain_definition: List[Dict[str, Any]],
-    context: Dict[str, Any] = None,
+    context: Optional[Dict[str, Any]] = None,
 ) -> Any:
-    """
-    Executes a chain of audio processing stages sequentially.
+    """Executes a chain of audio processing stages sequentially.
 
     The output of each stage becomes the input for the next stage in the chain.
     Data types are validated between stages to ensure compatibility.
@@ -253,10 +251,10 @@ if __name__ == "__main__":
             return DATA_TYPE_AUDIO_BUFFER_MONO  # Simulates outputting audio data
 
         @property
-        def default_params(self) -> dict:
+        def default_params(self) -> Dict[str, Any]:
             return {"target_samplerate": 44100}
 
-        def process(self, data: str, params: dict, context: dict = None):
+        def process(self, data: str, params: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> List[float]:
             logger.info(
                 f"[{self.name}] Processing file: {data} with params: {params}, context: {context}"
             )
@@ -266,7 +264,7 @@ if __name__ == "__main__":
                 raise FileNotFoundError(f"Input file not found: {data}")
             # Simulate loading and returning a mono audio buffer (e.g., a NumPy
             # array)
-            simulated_audio_data = [0.1, 0.2, 0.3, 0.2, 0.1]  # Placeholder
+            simulated_audio_data: List[float] = [0.1, 0.2, 0.3, 0.2, 0.1]  # Placeholder
             logger.info(
                 f"[{self.name}] Simulated loading audio data. Target SR: {params.get('target_samplerate')}"
             )
@@ -291,17 +289,17 @@ if __name__ == "__main__":
             return DATA_TYPE_AUDIO_BUFFER_MONO  # Output is still mono audio
 
         @property
-        def default_params(self) -> dict:
+        def default_params(self) -> Dict[str, Any]:
             return {"mix": 0.5, "decay_time": 1.5}
 
         def process(
-            self, data: list, params: dict, context: dict = None
-        ):  # data is list for this example
+            self, data: List[float], params: Dict[str, Any], context: Optional[Dict[str, Any]] = None
+        ) -> List[float]:  # data is list for this example
             logger.info(
                 f"[{self.name}] Applying reverb. Mix: {params['mix']}, Decay: {params['decay_time']}. Input data length: {len(data)}"
             )
             # Simulate applying reverb (e.g., add some values)
-            reverbed_data = [val + 0.05 * params["mix"] for val in data]
+            reverbed_data: List[float] = [val + 0.05 * params["mix"] for val in data]
             return reverbed_data
 
     # --- Register the example stages ---

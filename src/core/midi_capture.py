@@ -52,11 +52,11 @@ def list_available_midi_devices(db: Session) -> list[MidiDevice]:
     timestamp is modified.
 
     Args:
-        db (Session): The SQLAlchemy database session.
+        db: The SQLAlchemy database session.
 
     Returns:
-        list[MidiDevice]: A list of `MidiDevice` SQLAlchemy model instances,
-                          reflecting all currently available MIDI input devices.
+        A list of `MidiDevice` SQLAlchemy model instances,
+        reflecting all currently available MIDI input devices.
 
     Raises:
         SQLAlchemyError: If there's an issue committing changes to the database.
@@ -64,7 +64,7 @@ def list_available_midi_devices(db: Session) -> list[MidiDevice]:
     """
     logger.info("Listing available MIDI devices.")
     try:
-        device_names = mido.get_input_names()
+        device_names: list[str] = mido.get_input_names()
     except Exception as e:
         logger.error(f"Error getting MIDI input names from mido: {e}")
         raise
@@ -73,7 +73,7 @@ def list_available_midi_devices(db: Session) -> list[MidiDevice]:
 
     try:
         for name in device_names:
-            device = db.query(MidiDevice).filter(MidiDevice.name == name).first()
+            device: MidiDevice | None = db.query(MidiDevice).filter(MidiDevice.name == name).first()
             if device:
                 logger.debug(f"MIDI device '{name}' found in database. Updating timestamp.")
                 device.updated_at = datetime.datetime.utcnow()
@@ -108,19 +108,20 @@ def get_midi_device_by_name(db: Session, name: str) -> MidiDevice | None:
     Retrieves a `MidiDevice` from the database by its name.
 
     Args:
-        db (Session): The SQLAlchemy database session.
-        name (str): The name of the MIDI device to retrieve.
+        db: The SQLAlchemy database session.
+        name: The name of the MIDI device to retrieve.
 
     Returns:
-        MidiDevice | None: The `MidiDevice` SQLAlchemy model instance if found,
-                           otherwise `None`.
+        The `MidiDevice` SQLAlchemy model instance if found,
+        otherwise `None`.
 
     Raises:
         SQLAlchemyError: If a database query error occurs.
     """
     logger.debug(f"Querying for MIDI device by name: '{name}'")
     try:
-        return db.query(MidiDevice).filter(MidiDevice.name == name).first()
+        device: MidiDevice | None = db.query(MidiDevice).filter(MidiDevice.name == name).first()
+        return device
     except SQLAlchemyError as e:
         logger.error(f"Database error querying for MIDI device '{name}': {e}")
         raise
@@ -155,18 +156,17 @@ class MidiRecorder:
         selected_device_names: list[str],
         session_name: str,
         db: Session,
-    ):
-        """
-        Initializes the MidiRecorder.
+    ) -> None:
+        """Initializes the MidiRecorder.
 
         Sets up a new MIDI capture session in the database and resolves the
         selected MIDI devices.
 
         Args:
-            project_id (int): The ID of the project for this capture session.
-            selected_device_names (list[str]): A list of MIDI device names to record from.
-            session_name (str): A descriptive name for this capture session.
-            db (Session): The SQLAlchemy database session to use for initialization.
+            project_id: The ID of the project for this capture session.
+            selected_device_names: A list of MIDI device names to record from.
+            session_name: A descriptive name for this capture session.
+            db: The SQLAlchemy database session to use for initialization.
 
         Raises:
             ValueError: If the specified `project_id` is not found, or if no valid
@@ -174,21 +174,21 @@ class MidiRecorder:
                         `selected_device_names` is empty.
             SQLAlchemyError: If there's an error during database operations.
         """
-        self.project_id = project_id
-        self.selected_device_names = selected_device_names
-        self.session_name = session_name
+        self.project_id: int = project_id
+        self.selected_device_names: list[str] = selected_device_names
+        self.session_name: str = session_name
         self.capture_session: MidiCaptureSession | None = None
         self.target_devices: list[MidiDevice] = []
         self.midi_inputs: dict[str, mido.ports.BaseInput] = {}
         self.midi_files: dict[tuple[str, int], mido.MidiFile] = {}
-        self.active = False
+        self.active: bool = False
 
         logger.info(
             f"Initializing MidiRecorder for project ID {project_id}, session '{session_name}'."
         )
 
         try:
-            project = db.query(ProjectModel).filter(ProjectModel.id == self.project_id).first()
+            project: ProjectModel | None = db.query(ProjectModel).filter(ProjectModel.id == self.project_id).first()
             if not project:
                 logger.error(f"Project with ID {self.project_id} not found.")
                 raise ValueError(
@@ -210,9 +210,9 @@ class MidiRecorder:
                     self.capture_session.id}."
             )
 
-            resolved_devices = []
+            resolved_devices: list[MidiDevice] = []
             for device_name in self.selected_device_names:
-                device = get_midi_device_by_name(db, device_name)
+                device: MidiDevice | None = get_midi_device_by_name(db, device_name)
                 if device:
                     resolved_devices.append(device)
                 else:
@@ -264,7 +264,7 @@ class MidiRecorder:
         as blobs in the database), but can be used for other session-related files or metadata if needed.
 
         Returns:
-            str: The absolute path to the base output directory for the session.
+            The absolute path to the base output directory for the session.
 
         Raises:
             ValueError: If the capture session is not initialized or has no ID.
@@ -278,11 +278,11 @@ class MidiRecorder:
                 "Capture session is not properly initialized or does not have an ID."
             )
 
-        session_part = sanitize_filename(self.capture_session.name)
+        session_part: str = sanitize_filename(self.capture_session.name)
         if not session_part:  # Fallback to ID if name sanitization results in empty string
             session_part = str(self.capture_session.id)
 
-        path = os.path.join(
+        path: str = os.path.join(
             "data",
             "projects",
             str(self.capture_session.project_id),
@@ -306,19 +306,19 @@ class MidiRecorder:
         A subdirectory for the device is created if it doesn't exist.
 
         Args:
-            device_name (str): The name of the MIDI device.
-            channel (int): The MIDI channel number.
+            device_name: The name of the MIDI device.
+            channel: The MIDI channel number.
 
         Returns:
-            str: The absolute path for the MIDI file.
+            The absolute path for the MIDI file.
 
         Raises:
             OSError: If subdirectory creation fails.
         """
-        output_dir = self._get_output_directory()  # Ensures base session directory exists
-        sanitized_device_name = sanitize_filename(device_name)
+        output_dir: str = self._get_output_directory()  # Ensures base session directory exists
+        sanitized_device_name: str = sanitize_filename(device_name)
 
-        device_specific_dir = os.path.join(output_dir, sanitized_device_name)
+        device_specific_dir: str = os.path.join(output_dir, sanitized_device_name)
         try:
             os.makedirs(device_specific_dir, exist_ok=True)
             logger.debug(f"Ensured device-specific directory exists: {device_specific_dir}")
@@ -329,7 +329,7 @@ class MidiRecorder:
             raise
 
         # Handle system messages channel (-1)
-        filename = f"channel_{channel if channel >= 0 else 'sys'}.mid"
+        filename: str = f"channel_{channel if channel >= 0 else 'sys'}.mid"
         return os.path.join(device_specific_dir, filename)
 
     # The _get_output_directory method is kept for potential future use (e.g., storing
@@ -337,15 +337,14 @@ class MidiRecorder:
     # even though MIDI files themselves are now stored as blobs in the
     # database.
 
-    def start_recording(self, db: Session):
-        """
-        Starts the MIDI recording process.
+    def start_recording(self, db: Session) -> None:
+        """Starts the MIDI recording process.
 
         Opens MIDI input ports for the selected devices and sets their callbacks
         to `_midi_callback`. Updates the capture session status to 'recording'.
 
         Args:
-            db (Session): The SQLAlchemy database session.
+            db: The SQLAlchemy database session.
 
         Raises:
             ValueError: If the recorder is not properly initialized.
@@ -368,11 +367,11 @@ class MidiRecorder:
             f"Starting MIDI recording for session ID: {
                 self.capture_session.id}"
         )
-        opened_ports_count = 0
+        opened_ports_count: int = 0
         try:
             for device_model in self.target_devices:
                 try:
-                    port = mido.open_input(
+                    port: mido.ports.BaseInput = mido.open_input(
                         device_model.name,
                         callback=lambda msg, dn=device_model.name: self._midi_callback(
                             msg, dn
@@ -391,15 +390,15 @@ class MidiRecorder:
                     )
 
             if opened_ports_count == 0:
-                self.capture_session.status = "failed"
-                self.capture_session.updated_at = datetime.datetime.utcnow()
+                self.capture_session.status = "failed" # type: ignore
+                self.capture_session.updated_at = datetime.datetime.utcnow() # type: ignore
                 db.add(self.capture_session)
                 db.commit()
                 logger.error("No MIDI input ports could be opened. Recording cannot start.")
                 return
 
-            self.capture_session.start_time = datetime.datetime.utcnow()
-            self.capture_session.status = "recording"
+            self.capture_session.start_time = datetime.datetime.utcnow() # type: ignore
+            self.capture_session.status = "recording" # type: ignore
             self.active = True
             db.add(self.capture_session)
             db.commit()
@@ -420,8 +419,8 @@ class MidiRecorder:
         except Exception as e:
             logger.error(f"Generic error in start_recording: {e}", exc_info=True)
             if self.capture_session and self.capture_session.status != "failed":
-                self.capture_session.status = "failed"
-                self.capture_session.updated_at = datetime.datetime.utcnow()
+                self.capture_session.status = "failed" # type: ignore
+                self.capture_session.updated_at = datetime.datetime.utcnow() # type: ignore
                 try:
                     db.add(self.capture_session)
                     db.commit()
@@ -433,17 +432,16 @@ class MidiRecorder:
             self.active = False
             raise
 
-    def _midi_callback(self, msg: mido.Message, device_name: str):
-        """
-        Callback function to handle incoming MIDI messages.
+    def _midi_callback(self, msg: mido.Message, device_name: str) -> None:
+        """Callback function to handle incoming MIDI messages.
 
         This method is called by `mido` for each MIDI message received from
         an open input port. It appends the message to the appropriate
         `mido.MidiFile` object in `self.midi_files`.
 
         Args:
-            msg (mido.Message): The MIDI message received.
-            device_name (str): The name of the MIDI device that sent the message.
+            msg: The MIDI message received.
+            device_name: The name of the MIDI device that sent the message.
         """
         if not self.active:
             # logger.debug("MIDI callback called while not active. Ignoring
@@ -453,16 +451,17 @@ class MidiRecorder:
         # logger.debug(f"MIDI from {device_name}: {msg}") # Can be very verbose
 
         try:
+            channel: int
             if hasattr(msg, "channel"):
                 channel = msg.channel
             else:
                 channel = -1  # For system messages or messages without a channel
 
-            file_key = (device_name, channel)
+            file_key: tuple[str, int] = (device_name, channel)
 
             if file_key not in self.midi_files:
-                mido_file = mido.MidiFile(type=1)
-                track_name = f"{
+                mido_file: mido.MidiFile = mido.MidiFile(type=1)
+                track_name: str = f"{
                     sanitize_filename(device_name)}_ch{
                     channel if channel >= 0 else 'sys'}"
                 mido_file.add_track(name=track_name)
@@ -479,9 +478,8 @@ class MidiRecorder:
                 exc_info=True,
             )
 
-    def stop_recording(self, db: Session):
-        """
-        Stops the MIDI recording process.
+    def stop_recording(self, db: Session) -> None:
+        """Stops the MIDI recording process.
 
         Closes all open MIDI input ports, serializes the captured MIDI data for each
         device and channel, and stores this data as blobs in `MidiFile` records
@@ -489,7 +487,7 @@ class MidiRecorder:
         'completed_empty'.
 
         Args:
-            db (Session): The SQLAlchemy database session.
+            db: The SQLAlchemy database session.
 
         Raises:
             ValueError: If the recorder is not properly initialized.
@@ -518,12 +516,12 @@ class MidiRecorder:
                     logger.error(f"Error closing MIDI device {device_name}: {e}")
             self.midi_inputs.clear()
 
-            saved_file_count = 0
+            saved_file_count: int = 0
             if not self.midi_files:
                 logger.info("No MIDI messages were captured during this session.")
 
             for (device_name, channel), mido_file_obj in self.midi_files.items():
-                device_model = next(
+                device_model: MidiDevice | None = next(
                     (dev for dev in self.target_devices if dev.name == device_name),
                     None,
                 )
@@ -543,9 +541,9 @@ class MidiRecorder:
                         continue
 
                     # Serialize MIDI data to bytes
-                    midi_buffer = io.BytesIO()
+                    midi_buffer: io.BytesIO = io.BytesIO()
                     mido_file_obj.save(file=midi_buffer)
-                    binary_midi_data = midi_buffer.getvalue()
+                    binary_midi_data: bytes = midi_buffer.getvalue()
                     midi_buffer.close()
 
                     logger.info(
@@ -553,8 +551,8 @@ class MidiRecorder:
                             len(binary_midi_data)} bytes)."
                     )
 
-                    new_midi_file_record = MidiFile(
-                        midi_capture_session_id=self.capture_session.id,
+                    new_midi_file_record: MidiFile = MidiFile(
+                        midi_capture_session_id=self.capture_session.id, # type: ignore
                         midi_device_id=device_model.id,
                         channel_number=channel,
                         midi_data=binary_midi_data,  # Store binary data
@@ -567,9 +565,9 @@ class MidiRecorder:
                         exc_info=True,
                     )
 
-            self.capture_session.end_time = datetime.datetime.utcnow()
+            self.capture_session.end_time = datetime.datetime.utcnow() # type: ignore
             if saved_file_count == 0:
-                self.capture_session.status = "completed_empty"
+                self.capture_session.status = "completed_empty" # type: ignore
                 if not self.midi_files:  # No messages received at all
                     logger.info(
                         "Session completed empty: No MIDI messages were received to initiate any tracks."
@@ -579,7 +577,7 @@ class MidiRecorder:
                         "Session completed empty: No actual MIDI data was saved, though messages might have been processed."
                     )
             else:
-                self.capture_session.status = "completed"
+                self.capture_session.status = "completed" # type: ignore
             self.active = False
 
             db.add(self.capture_session)
@@ -596,8 +594,8 @@ class MidiRecorder:
         except Exception as e:
             logger.error(f"Generic error in stop_recording: {e}", exc_info=True)
             if self.capture_session:
-                self.capture_session.status = "failed"
-                self.capture_session.updated_at = datetime.datetime.utcnow()
+                self.capture_session.status = "failed" # type: ignore
+                self.capture_session.updated_at = datetime.datetime.utcnow() # type: ignore
                 try:
                     db.add(self.capture_session)
                     db.commit()
