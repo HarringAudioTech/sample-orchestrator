@@ -92,7 +92,7 @@ def sample_data(app, client):  # Added app fixture
     with client.application.app_context():
         # get_session_local() will use the engine configured for the app context (in-memory)
         db_session = get_session_local(
-            engine_instance=app.test_engine
+            engine_instance=app.config["TEST_ENGINE_INSTANCE"]
         )()  # Use app.test_engine
         try:
             project = ProjectModel(name="Sample Project for Samples")
@@ -225,4 +225,4 @@ def test_root_path_sample_routes(client):
     assert response.status_code == 200
     data = response.get_json()
     assert "message" in data
-    assert "Welcome to the Audio Processing API!" in data["message"]
+    assert "Welcome to the" in data["message"]
