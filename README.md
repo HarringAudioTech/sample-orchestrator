@@ -323,3 +323,28 @@ The project uses `pytest` for unit and integration testing.
 ## License
 This project is licensed under the MIT License - see the LICENSE file for details.
 ```
+
+## Pre-commit Hooks
+
+This project uses pre-commit hooks to ensure code quality and consistency. The hooks automatically format the code using Black and lint it using Flake8 before each commit.
+
+### Installation
+
+1. Install the pre-commit framework:
+   ```bash
+   pip install pre-commit
+   ```
+   Or, if you are using Poetry:
+   ```bash
+   poetry add -D pre-commit
+   ```
+   (If you followed the project setup instructions, `pre-commit` should already be installed as a dev dependency.)
+
+2. Install the pre-commit hooks:
+   ```bash
+   pre-commit install
+   ```
+
+### Usage
+
+Once installed, the pre-commit hooks will run automatically before each commit. If Black reformats any files, you will need to stage the changes again. If Flake8 finds any errors that it cannot fix, the commit will be blocked. You will need to fix the errors manually before you can commit.
