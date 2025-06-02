@@ -1,0 +1,483 @@
+************* Module midi_capture
+src/core/midi_capture.py:194:21: E0001: Parsing failed: 'unterminated string literal (detected at line 194) (midi_capture, line 194)' (syntax-error)
+************* Module project
+src/core/project.py:258:21: E0001: Parsing failed: 'unterminated string literal (detected at line 258) (project, line 258)' (syntax-error)
+************* Module stage_runner
+src/core/stage_runner.py:59:13: E0001: Parsing failed: 'unterminated string literal (detected at line 59) (stage_runner, line 59)' (syntax-error)
+************* Module workflows
+src/core/workflows.py:66:13: E0001: Parsing failed: 'unterminated string literal (detected at line 66) (workflows, line 66)' (syntax-error)
+************* Module routes
+src/api/routes.py:219:0: C0301: Line too long (115/100) (line-too-long)
+src/api/routes.py:282:0: C0301: Line too long (120/100) (line-too-long)
+src/api/routes.py:323:0: C0301: Line too long (120/100) (line-too-long)
+src/api/routes.py:342:0: C0301: Line too long (101/100) (line-too-long)
+src/api/routes.py:354:0: C0301: Line too long (109/100) (line-too-long)
+src/api/routes.py:398:0: C0301: Line too long (120/100) (line-too-long)
+src/api/routes.py:431:0: C0301: Line too long (102/100) (line-too-long)
+src/api/routes.py:447:0: C0301: Line too long (133/100) (line-too-long)
+src/api/routes.py:471:0: C0301: Line too long (113/100) (line-too-long)
+src/api/routes.py:481:0: C0301: Line too long (107/100) (line-too-long)
+src/api/routes.py:484:0: C0301: Line too long (172/100) (line-too-long)
+src/api/routes.py:518:0: C0301: Line too long (120/100) (line-too-long)
+src/api/routes.py:521:0: C0301: Line too long (113/100) (line-too-long)
+src/api/routes.py:541:0: C0301: Line too long (105/100) (line-too-long)
+src/api/routes.py:8:0: E0401: Unable to import 'flask' (import-error)
+src/api/routes.py:9:0: E0401: Unable to import 'werkzeug.utils' (import-error)
+src/api/routes.py:10:0: E0401: Unable to import 'sqlalchemy.orm' (import-error)
+src/api/routes.py:13:0: E0401: Unable to import 'src.database.utils' (import-error)
+src/api/routes.py:14:0: E0401: Unable to import 'src.database.models' (import-error)
+src/api/routes.py:19:0: E0401: Unable to import 'src.core.project' (import-error)
+src/api/routes.py:47:0: C0413: Import "from typing import Any, Dict, List, Optional, Union" should be placed at the top of the module (wrong-import-position)
+src/api/routes.py:48:0: E0401: Unable to import 'flask' (import-error)
+src/api/routes.py:48:0: C0413: Import "from flask import Response" should be placed at the top of the module (wrong-import-position)
+src/api/routes.py:104:11: W0718: Catching too general exception Exception (broad-exception-caught)
+src/api/routes.py:209:11: W0718: Catching too general exception Exception (broad-exception-caught)
+src/api/routes.py:227:11: W0718: Catching too general exception Exception (broad-exception-caught)
+src/api/routes.py:155:0: R0911: Too many return statements (9/6) (too-many-return-statements)
+src/api/routes.py:291:0: R0914: Too many local variables (28/15) (too-many-locals)
+src/api/routes.py:494:11: W0718: Catching too general exception Exception (broad-exception-caught)
+src/api/routes.py:306:8: E0401: Unable to import 'src.core.stage_runner' (import-error)
+src/api/routes.py:306:8: C0415: Import outside toplevel (src.core.stage_runner.execute_stage_chain, src.core.stage_runner.STAGE_REGISTRY) (import-outside-toplevel)
+src/api/routes.py:310:8: E0401: Unable to import 'src.core.workflows' (import-error)
+src/api/routes.py:310:8: C0415: Import outside toplevel (src.core.workflows.WORKFLOW_REGISTRY, src.core.workflows.BaseWorkflow) (import-outside-toplevel)
+src/api/routes.py:311:8: E0401: Unable to import 'src.core.processing_stages' (import-error)
+src/api/routes.py:311:8: C0415: Import outside toplevel (src.core.processing_stages.DATA_TYPE_FILE_PATH) (import-outside-toplevel)
+src/api/routes.py:312:8: C0415: Import outside toplevel (src.core.stages.slicing_stage) (import-outside-toplevel)
+src/api/routes.py:312:8: E0401: Unable to import 'src.core.stages.slicing_stage' (import-error)
+src/api/routes.py:313:8: C0415: Import outside toplevel (src.core.stages.noise_reduction_stage) (import-outside-toplevel)
+src/api/routes.py:313:8: E0401: Unable to import 'src.core.stages.noise_reduction_stage' (import-error)
+src/api/routes.py:392:12: C0103: Variable name "WorkflowClass" doesn't conform to snake_case naming style (invalid-name)
+src/api/routes.py:413:19: W0718: Catching too general exception Exception (broad-exception-caught)
+src/api/routes.py:458:19: W0718: Catching too general exception Exception (broad-exception-caught)
+src/api/routes.py:291:0: R0911: Too many return statements (15/6) (too-many-return-statements)
+src/api/routes.py:291:0: R0912: Too many branches (17/12) (too-many-branches)
+src/api/routes.py:291:0: R0915: Too many statements (68/50) (too-many-statements)
+src/api/routes.py:312:8: W0611: Unused import src.core.stages.slicing_stage (unused-import)
+src/api/routes.py:47:0: C0411: standard import "typing.Any" should be placed before third party imports "flask.Blueprint", "werkzeug.utils.secure_filename", "sqlalchemy.orm.Session" and first party imports "src.database.utils.get_db", "src.database.models.Project", "src.core.project.Project"  (wrong-import-order)
+src/api/routes.py:48:0: C0411: third party import "flask.Response" should be placed before first party imports "src.database.utils.get_db", "src.database.models.Project", "src.core.project.Project"  (wrong-import-order)
+src/api/routes.py:48:0: C0412: Imports from package flask are not grouped (ungrouped-imports)
+src/api/routes.py:47:0: W0611: Unused Union imported from typing (unused-import)
+************* Module dspreset_generator
+src/core/dspreset_generator.py:150:0: C0301: Line too long (144/100) (line-too-long)
+src/core/dspreset_generator.py:155:0: C0301: Line too long (106/100) (line-too-long)
+src/core/dspreset_generator.py:1:0: C0114: Missing module docstring (missing-module-docstring)
+src/core/dspreset_generator.py:4:0: E0401: Unable to import 'src.core.project' (import-error)
+src/core/dspreset_generator.py:5:0: E0401: Unable to import 'src.core.instrument_data' (import-error)
+src/core/dspreset_generator.py:6:0: E0401: Unable to import 'src.database.models' (import-error)
+src/core/dspreset_generator.py:60:4: R0914: Too many local variables (16/15) (too-many-locals)
+src/core/dspreset_generator.py:150:53: E0602: Undefined variable 'Optional' (undefined-variable)
+src/core/dspreset_generator.py:150:33: W0613: Unused argument 'artwork_output_dir' (unused-argument)
+src/core/dspreset_generator.py:180:4: R0914: Too many local variables (19/15) (too-many-locals)
+src/core/dspreset_generator.py:15:0: R0903: Too few public methods (1/2) (too-few-public-methods)
+src/core/dspreset_generator.py:12:0: C0411: standard import "typing.List" should be placed before first party imports "src.core.project.Project", "src.core.instrument_data.InstrumentData", "src.database.models.Recording"  (wrong-import-order)
+src/core/dspreset_generator.py:6:0: W0611: Unused Recording imported from src.database.models as RecordingModel (unused-import)
+src/core/dspreset_generator.py:6:0: W0611: Unused Sample imported from src.database.models as SampleModel (unused-import)
+src/core/dspreset_generator.py:12:0: W0611: Unused List imported from typing (unused-import)
+************* Module instrument_data
+src/core/instrument_data.py:1:0: C0114: Missing module docstring (missing-module-docstring)
+************* Module processing_stages
+src/core/processing_stages.py:121:0: C0301: Line too long (106/100) (line-too-long)
+src/core/processing_stages.py:178:0: C0301: Line too long (116/100) (line-too-long)
+src/core/processing_stages.py:188:0: C0301: Line too long (102/100) (line-too-long)
+src/core/processing_stages.py:213:0: C0301: Line too long (183/100) (line-too-long)
+src/core/processing_stages.py:60:8: W0107: Unnecessary pass statement (unnecessary-pass)
+src/core/processing_stages.py:74:8: W0107: Unnecessary pass statement (unnecessary-pass)
+src/core/processing_stages.py:88:8: W0107: Unnecessary pass statement (unnecessary-pass)
+src/core/processing_stages.py:102:8: W0107: Unnecessary pass statement (unnecessary-pass)
+src/core/processing_stages.py:118:8: W0107: Unnecessary pass statement (unnecessary-pass)
+src/core/processing_stages.py:150:8: W0107: Unnecessary pass statement (unnecessary-pass)
+src/core/processing_stages.py:157:4: C0115: Missing class docstring (missing-class-docstring)
+src/core/processing_stages.py:192:7: W0125: Using a conditional statement with a constant value (using-constant-test)
+src/core/processing_stages.py:201:8: C0103: Constant name "input_data" doesn't conform to UPPER_CASE naming style (invalid-name)
+************* Module models
+src/database/models.py:30:0: C0301: Line too long (109/100) (line-too-long)
+src/database/models.py:63:0: C0301: Line too long (109/100) (line-too-long)
+src/database/models.py:69:0: C0301: Line too long (118/100) (line-too-long)
+src/database/models.py:82:0: C0301: Line too long (111/100) (line-too-long)
+src/database/models.py:88:0: C0301: Line too long (127/100) (line-too-long)
+src/database/models.py:89:0: C0301: Line too long (111/100) (line-too-long)
+src/database/models.py:93:0: C0301: Line too long (109/100) (line-too-long)
+src/database/models.py:114:0: C0301: Line too long (110/100) (line-too-long)
+src/database/models.py:118:0: C0301: Line too long (109/100) (line-too-long)
+src/database/models.py:139:0: C0301: Line too long (109/100) (line-too-long)
+src/database/models.py:141:0: C0301: Line too long (102/100) (line-too-long)
+src/database/models.py:143:0: C0301: Line too long (112/100) (line-too-long)
+src/database/models.py:144:0: C0301: Line too long (110/100) (line-too-long)
+src/database/models.py:145:0: C0301: Line too long (109/100) (line-too-long)
+src/database/models.py:149:0: C0301: Line too long (114/100) (line-too-long)
+src/database/models.py:170:0: C0301: Line too long (109/100) (line-too-long)
+src/database/models.py:186:0: C0301: Line too long (107/100) (line-too-long)
+src/database/models.py:187:0: C0301: Line too long (105/100) (line-too-long)
+src/database/models.py:191:0: C0301: Line too long (109/100) (line-too-long)
+src/database/models.py:214:0: C0301: Line too long (103/100) (line-too-long)
+src/database/models.py:216:0: C0301: Line too long (109/100) (line-too-long)
+src/database/models.py:217:0: C0301: Line too long (109/100) (line-too-long)
+src/database/models.py:222:0: C0301: Line too long (115/100) (line-too-long)
+src/database/models.py:1:0: C0114: Missing module docstring (missing-module-docstring)
+src/database/models.py:3:0: E0401: Unable to import 'sqlalchemy' (import-error)
+src/database/models.py:14:0: E0401: Unable to import 'sqlalchemy.orm' (import-error)
+src/database/models.py:15:0: E0401: Unable to import 'sqlalchemy.sql' (import-error)
+src/database/models.py:22:0: R0903: Too few public methods (0/2) (too-few-public-methods)
+src/database/models.py:45:0: R0903: Too few public methods (0/2) (too-few-public-methods)
+src/database/models.py:72:0: R0903: Too few public methods (0/2) (too-few-public-methods)
+src/database/models.py:104:0: R0903: Too few public methods (0/2) (too-few-public-methods)
+src/database/models.py:131:0: R0903: Too few public methods (0/2) (too-few-public-methods)
+src/database/models.py:162:0: R0903: Too few public methods (0/2) (too-few-public-methods)
+src/database/models.py:178:0: R0903: Too few public methods (0/2) (too-few-public-methods)
+src/database/models.py:202:0: R0903: Too few public methods (0/2) (too-few-public-methods)
+src/database/models.py:16:0: C0411: standard import "datetime" should be placed before third party imports "sqlalchemy.create_engine", "sqlalchemy.orm.relationship", "sqlalchemy.sql.func" (wrong-import-order)
+src/database/models.py:17:0: C0411: standard import "typing.List" should be placed before third party imports "sqlalchemy.create_engine", "sqlalchemy.orm.relationship", "sqlalchemy.sql.func" (wrong-import-order)
+src/database/models.py:3:0: W0611: Unused create_engine imported from sqlalchemy (unused-import)
+src/database/models.py:3:0: W0611: Unused Column imported from sqlalchemy (unused-import)
+************* Module utils
+src/database/utils.py:83:0: C0301: Line too long (101/100) (line-too-long)
+src/database/utils.py:85:0: C0301: Line too long (104/100) (line-too-long)
+src/database/utils.py:89:0: C0301: Line too long (113/100) (line-too-long)
+src/database/utils.py:108:0: C0301: Line too long (103/100) (line-too-long)
+src/database/utils.py:1:0: C0114: Missing module docstring (missing-module-docstring)
+src/database/utils.py:1:0: E0401: Unable to import 'sqlalchemy' (import-error)
+src/database/utils.py:2:0: E0401: Unable to import 'sqlalchemy.orm' (import-error)
+src/database/utils.py:3:0: E0401: Unable to import 'sqlalchemy.engine' (import-error)
+src/database/utils.py:4:0: E0401: Unable to import 'flask' (import-error)
+src/database/utils.py:5:0: E0402: Attempted relative import beyond top-level package (relative-beyond-top-level)
+src/database/utils.py:28:4: W0603: Using the global statement (global-statement)
+src/database/utils.py:80:4: C0415: Import outside toplevel (logging) (import-outside-toplevel)
+src/database/utils.py:83:4: W1203: Use lazy % formatting in logging functions (logging-fstring-interpolation)
+src/database/utils.py:84:4: W1203: Use lazy % formatting in logging functions (logging-fstring-interpolation)
+src/database/utils.py:88:4: W1203: Use lazy % formatting in logging functions (logging-fstring-interpolation)
+src/database/utils.py:6:0: C0411: standard import "typing.Optional" should be placed before third party imports "sqlalchemy.create_engine", "sqlalchemy.orm.sessionmaker", "sqlalchemy.engine.Engine", "flask.current_app" and local import "models.Base" (wrong-import-order)
+src/ui/routes.py:1:0: C0114: Missing module docstring (missing-module-docstring)
+src/ui/routes.py:1:0: E0401: Unable to import 'flask' (import-error)
+************* Module test_project_routes
+tests/api/test_project_routes.py:95:0: C0301: Line too long (123/100) (line-too-long)
+tests/api/test_project_routes.py:114:0: C0301: Line too long (110/100) (line-too-long)
+tests/api/test_project_routes.py:1:0: C0114: Missing module docstring (missing-module-docstring)
+tests/api/test_project_routes.py:3:0: W0404: Reimport 'pytest' (imported line 1) (reimported)
+tests/api/test_project_routes.py:4:0: W0404: Reimport 'json' (imported line 2) (reimported)
+tests/api/test_project_routes.py:5:0: E0401: Unable to import 'flask' (import-error)
+tests/api/test_project_routes.py:6:0: E0401: Unable to import 'flask.testing' (import-error)
+tests/api/test_project_routes.py:8:0: E0401: Unable to import 'sqlalchemy.orm' (import-error)
+tests/api/test_project_routes.py:9:0: E0401: Unable to import 'sqlalchemy.engine' (import-error)
+tests/api/test_project_routes.py:11:0: E0401: Unable to import 'src.app' (import-error)
+tests/api/test_project_routes.py:12:0: E0401: Unable to import 'src.database.utils' (import-error)
+tests/api/test_project_routes.py:17:0: E0401: Unable to import 'src.database.models' (import-error)
+tests/api/test_project_routes.py:60:11: W0621: Redefining name 'app' from outer scope (line 24) (redefined-outer-name)
+tests/api/test_project_routes.py:74:28: W0621: Redefining name 'app' from outer scope (line 24) (redefined-outer-name)
+tests/api/test_project_routes.py:88:8: C0415: Import outside toplevel (logging) (import-outside-toplevel)
+tests/api/test_project_routes.py:93:8: W1203: Use lazy % formatting in logging functions (logging-fstring-interpolation)
+tests/api/test_project_routes.py:94:8: W1203: Use lazy % formatting in logging functions (logging-fstring-interpolation)
+tests/api/test_project_routes.py:102:12: C0103: Variable name "SessionLocal" doesn't conform to snake_case naming style (invalid-name)
+tests/api/test_project_routes.py:129:32: W0621: Redefining name 'client' from outer scope (line 60) (redefined-outer-name)
+tests/api/test_project_routes.py:155:37: W0621: Redefining name 'client' from outer scope (line 60) (redefined-outer-name)
+tests/api/test_project_routes.py:164:29: W0621: Redefining name 'client' from outer scope (line 60) (redefined-outer-name)
+tests/api/test_project_routes.py:178:31: W0621: Redefining name 'client' from outer scope (line 60) (redefined-outer-name)
+tests/api/test_project_routes.py:187:29: W0621: Redefining name 'client' from outer scope (line 60) (redefined-outer-name)
+tests/api/test_project_routes.py:196:33: W0621: Redefining name 'client' from outer scope (line 60) (redefined-outer-name)
+tests/api/test_project_routes.py:210:19: W0621: Redefining name 'client' from outer scope (line 60) (redefined-outer-name)
+tests/api/test_project_routes.py:2:0: C0411: standard import "json" should be placed before third party import "pytest" (wrong-import-order)
+tests/api/test_project_routes.py:4:0: C0411: standard import "json" should be placed before third party imports "pytest", "pytest" (wrong-import-order)
+tests/api/test_project_routes.py:7:0: C0411: standard import "unittest.mock.patch" should be placed before third party imports "pytest", "pytest", "flask.Flask", "flask.testing.FlaskClient" (wrong-import-order)
+tests/api/test_project_routes.py:20:0: C0411: standard import "typing.Generator" should be placed before third party imports "pytest", "pytest", "flask.Flask", "flask.testing.FlaskClient", "sqlalchemy.orm.Session", "sqlalchemy.engine.Engine" and first party imports "src.app.create_app", "src.database.utils.init_db", "src.database.models.Base"  (wrong-import-order)
+tests/api/test_project_routes.py:2:0: W0611: Unused import json (unused-import)
+tests/api/test_project_routes.py:7:0: W0611: Unused patch imported from unittest.mock (unused-import)
+tests/api/test_project_routes.py:7:0: W0611: Unused MagicMock imported from unittest.mock (unused-import)
+tests/api/test_project_routes.py:17:0: W0611: Unused Project imported from src.database.models as ProjectModel (unused-import)
+************* Module test_sample_routes
+tests/api/test_sample_routes.py:192:0: C0301: Line too long (113/100) (line-too-long)
+tests/api/test_sample_routes.py:245:0: C0301: Line too long (105/100) (line-too-long)
+tests/api/test_sample_routes.py:1:0: C0114: Missing module docstring (missing-module-docstring)
+tests/api/test_sample_routes.py:3:0: E0401: Unable to import 'flask' (import-error)
+tests/api/test_sample_routes.py:4:0: E0401: Unable to import 'flask.testing' (import-error)
+tests/api/test_sample_routes.py:6:0: E0401: Unable to import 'sqlalchemy.orm' (import-error)
+tests/api/test_sample_routes.py:7:0: E0401: Unable to import 'sqlalchemy.engine' (import-error)
+tests/api/test_sample_routes.py:10:0: E0401: Unable to import 'src.app' (import-error)
+tests/api/test_sample_routes.py:11:0: E0401: Unable to import 'src.database.utils' (import-error)
+tests/api/test_sample_routes.py:16:0: E0401: Unable to import 'src.database.models' (import-error)
+tests/api/test_sample_routes.py:61:11: W0621: Redefining name 'app' from outer scope (line 26) (redefined-outer-name)
+tests/api/test_sample_routes.py:74:28: W0621: Redefining name 'app' from outer scope (line 26) (redefined-outer-name)
+tests/api/test_sample_routes.py:86:12: C0103: Variable name "SessionLocal" doesn't conform to snake_case naming style (invalid-name)
+tests/api/test_sample_routes.py:101:16: W0621: Redefining name 'app' from outer scope (line 26) (redefined-outer-name)
+tests/api/test_sample_routes.py:101:28: W0621: Redefining name 'client' from outer scope (line 61) (redefined-outer-name)
+tests/api/test_sample_routes.py:114:8: C0103: Variable name "SessionLocal" doesn't conform to snake_case naming style (invalid-name)
+tests/api/test_sample_routes.py:170:40: W0621: Redefining name 'client' from outer scope (line 61) (redefined-outer-name)
+tests/api/test_sample_routes.py:170:61: W0621: Redefining name 'sample_data' from outer scope (line 101) (redefined-outer-name)
+tests/api/test_sample_routes.py:183:52: W0621: Redefining name 'client' from outer scope (line 61) (redefined-outer-name)
+tests/api/test_sample_routes.py:192:43: W0621: Redefining name 'app' from outer scope (line 26) (redefined-outer-name)
+tests/api/test_sample_routes.py:192:55: W0621: Redefining name 'client' from outer scope (line 61) (redefined-outer-name)
+tests/api/test_sample_routes.py:192:76: W0621: Redefining name 'sample_data' from outer scope (line 101) (redefined-outer-name)
+tests/api/test_sample_routes.py:197:8: C0103: Variable name "SessionLocal" doesn't conform to snake_case naming style (invalid-name)
+tests/api/test_sample_routes.py:224:36: W0621: Redefining name 'client' from outer scope (line 61) (redefined-outer-name)
+tests/api/test_sample_routes.py:224:57: W0621: Redefining name 'sample_data' from outer scope (line 101) (redefined-outer-name)
+tests/api/test_sample_routes.py:236:38: W0621: Redefining name 'client' from outer scope (line 61) (redefined-outer-name)
+tests/api/test_sample_routes.py:246:33: W0621: Redefining name 'client' from outer scope (line 61) (redefined-outer-name)
+tests/api/test_sample_routes.py:2:0: C0411: standard import "json" should be placed before third party import "pytest" (wrong-import-order)
+tests/api/test_sample_routes.py:5:0: C0411: standard import "unittest.mock.patch" should be placed before third party imports "pytest", "flask.Flask", "flask.testing.FlaskClient" (wrong-import-order)
+tests/api/test_sample_routes.py:8:0: C0411: standard import "typing.Generator" should be placed before third party imports "pytest", "flask.Flask", "flask.testing.FlaskClient", "sqlalchemy.orm.Session", "sqlalchemy.engine.Engine" (wrong-import-order)
+tests/api/test_sample_routes.py:2:0: W0611: Unused import json (unused-import)
+tests/api/test_sample_routes.py:5:0: W0611: Unused patch imported from unittest.mock (unused-import)
+tests/api/test_sample_routes.py:5:0: W0611: Unused MagicMock imported from unittest.mock (unused-import)
+************* Module test_audio_processor
+tests/core/test_audio_processor.py:66:0: C0301: Line too long (107/100) (line-too-long)
+tests/core/test_audio_processor.py:14:0: E0401: Unable to import 'sqlalchemy' (import-error)
+tests/core/test_audio_processor.py:15:0: E0401: Unable to import 'sqlalchemy.orm' (import-error)
+tests/core/test_audio_processor.py:16:0: E0401: Unable to import 'sqlalchemy.engine' (import-error)
+tests/core/test_audio_processor.py:20:0: E0401: Unable to import 'src.database.models' (import-error)
+tests/core/test_audio_processor.py:34:0: E0401: Unable to import 'src.database.utils' (import-error)
+tests/core/test_audio_processor.py:55:15: W0621: Redefining name 'test_engine' from outer scope (line 43) (redefined-outer-name)
+tests/core/test_audio_processor.py:67:33: R1708: Do not raise StopIteration in generator, use return statement instead (stop-iteration-return)
+tests/core/test_audio_processor.py:17:0: C0411: standard import "typing.Generator" should be placed before third party imports "pytest", "sqlalchemy.create_engine", "sqlalchemy.orm.Session", "sqlalchemy.engine.Engine" (wrong-import-order)
+tests/core/test_audio_processor.py:18:0: C0411: standard import "types" should be placed before third party imports "pytest", "sqlalchemy.create_engine", "sqlalchemy.orm.Session", "sqlalchemy.engine.Engine" (wrong-import-order)
+tests/core/test_audio_processor.py:20:0: W0611: Unused Base imported from src.database.models (unused-import)
+tests/core/test_audio_processor.py:20:0: W0611: Unused Project imported from src.database.models as ProjectModel (unused-import)
+tests/core/test_audio_processor.py:20:0: W0611: Unused Recording imported from src.database.models as RecordingModel (unused-import)
+tests/core/test_audio_processor.py:20:0: W0611: Unused Sample imported from src.database.models as SampleModel (unused-import)
+************* Module test_dspreset_generator
+tests/core/test_dspreset_generator.py:1:0: C0114: Missing module docstring (missing-module-docstring)
+tests/core/test_dspreset_generator.py:8:0: E0401: Unable to import 'src.core.dspreset_generator' (import-error)
+tests/core/test_dspreset_generator.py:9:0: E0401: Unable to import 'src.core.instrument_data' (import-error)
+tests/core/test_dspreset_generator.py:10:0: E0401: Unable to import 'src.database.models' (import-error)
+tests/core/test_dspreset_generator.py:18:0: C0115: Missing class docstring (missing-class-docstring)
+tests/core/test_dspreset_generator.py:18:0: R0902: Too many instance attributes (10/7) (too-many-instance-attributes)
+tests/core/test_dspreset_generator.py:60:13: W1514: Using open without explicitly specifying an encoding (unspecified-encoding)
+tests/core/test_dspreset_generator.py:66:13: W1514: Using open without explicitly specifying an encoding (unspecified-encoding)
+tests/core/test_dspreset_generator.py:68:13: W1514: Using open without explicitly specifying an encoding (unspecified-encoding)
+tests/core/test_dspreset_generator.py:129:31: C0321: More than one statement on a single line (multiple-statements)
+tests/core/test_dspreset_generator.py:133:39: C0321: More than one statement on a single line (multiple-statements)
+tests/core/test_dspreset_generator.py:180:35: C0321: More than one statement on a single line (multiple-statements)
+tests/core/test_dspreset_generator.py:237:35: C0321: More than one statement on a single line (multiple-statements)
+tests/core/test_dspreset_generator.py:299:35: C0321: More than one statement on a single line (multiple-statements)
+tests/core/test_dspreset_generator.py:308:31: C0321: More than one statement on a single line (multiple-statements)
+tests/core/test_dspreset_generator.py:5:0: W0611: Unused patch imported from unittest.mock (unused-import)
+tests/core/test_dspreset_generator.py:6:0: W0611: Unused List imported from typing (unused-import)
+************* Module test_stage_runner
+tests/core/test_stage_runner.py:100:0: C0301: Line too long (122/100) (line-too-long)
+tests/core/test_stage_runner.py:141:0: C0301: Line too long (114/100) (line-too-long)
+tests/core/test_stage_runner.py:199:0: C0301: Line too long (102/100) (line-too-long)
+tests/core/test_stage_runner.py:227:0: C0301: Line too long (101/100) (line-too-long)
+tests/core/test_stage_runner.py:236:0: W0311: Bad indentation. Found 13 spaces, expected 12 (bad-indentation)
+tests/core/test_stage_runner.py:246:0: C0301: Line too long (122/100) (line-too-long)
+tests/core/test_stage_runner.py:257:0: C0301: Line too long (125/100) (line-too-long)
+tests/core/test_stage_runner.py:11:0: E0401: Unable to import 'src.core.processing_stages' (import-error)
+tests/core/test_stage_runner.py:17:0: E0401: Unable to import 'src.core.stage_runner' (import-error)
+tests/core/test_stage_runner.py:26:0: C0103: Class name "MockStageA_FilePathToBuffer" doesn't conform to PascalCase naming style (invalid-name)
+tests/core/test_stage_runner.py:38:4: C0116: Missing function or method docstring (missing-function-docstring)
+tests/core/test_stage_runner.py:38:4: E0102: method already defined line 29 (function-redefined)
+tests/core/test_stage_runner.py:42:4: C0116: Missing function or method docstring (missing-function-docstring)
+tests/core/test_stage_runner.py:46:4: C0116: Missing function or method docstring (missing-function-docstring)
+tests/core/test_stage_runner.py:50:4: C0116: Missing function or method docstring (missing-function-docstring)
+tests/core/test_stage_runner.py:54:4: C0116: Missing function or method docstring (missing-function-docstring)
+tests/core/test_stage_runner.py:61:8: W1203: Use lazy % formatting in logging functions (logging-fstring-interpolation)
+tests/core/test_stage_runner.py:70:0: C0103: Class name "MockStageB_BufferToBuffer" doesn't conform to PascalCase naming style (invalid-name)
+tests/core/test_stage_runner.py:81:4: C0116: Missing function or method docstring (missing-function-docstring)
+tests/core/test_stage_runner.py:85:4: C0116: Missing function or method docstring (missing-function-docstring)
+tests/core/test_stage_runner.py:89:4: C0116: Missing function or method docstring (missing-function-docstring)
+tests/core/test_stage_runner.py:93:4: C0116: Missing function or method docstring (missing-function-docstring)
+tests/core/test_stage_runner.py:97:4: C0116: Missing function or method docstring (missing-function-docstring)
+tests/core/test_stage_runner.py:102:8: W1203: Use lazy % formatting in logging functions (logging-fstring-interpolation)
+tests/core/test_stage_runner.py:111:0: C0103: Class name "MockStageC_BufferToFilePath" doesn't conform to PascalCase naming style (invalid-name)
+tests/core/test_stage_runner.py:122:4: C0116: Missing function or method docstring (missing-function-docstring)
+tests/core/test_stage_runner.py:126:4: C0116: Missing function or method docstring (missing-function-docstring)
+tests/core/test_stage_runner.py:130:4: C0116: Missing function or method docstring (missing-function-docstring)
+tests/core/test_stage_runner.py:134:4: C0116: Missing function or method docstring (missing-function-docstring)
+tests/core/test_stage_runner.py:138:4: C0116: Missing function or method docstring (missing-function-docstring)
+tests/core/test_stage_runner.py:143:8: W1203: Use lazy % formatting in logging functions (logging-fstring-interpolation)
+tests/core/test_stage_runner.py:189:4: C0115: Missing class docstring (missing-class-docstring)
+tests/core/test_stage_runner.py:189:4: C0103: Class name "MockStageA_Variant" doesn't conform to PascalCase naming style (invalid-name)
+tests/core/test_stage_runner.py:207:4: C0115: Missing class docstring (missing-class-docstring)
+tests/core/test_stage_runner.py:207:4: R0903: Too few public methods (0/2) (too-few-public-methods)
+tests/core/test_stage_runner.py:225:4: C0115: Missing class docstring (missing-class-docstring)
+tests/core/test_stage_runner.py:235:8: C0116: Missing function or method docstring (missing-function-docstring)
+tests/core/test_stage_runner.py:239:8: C0116: Missing function or method docstring (missing-function-docstring)
+tests/core/test_stage_runner.py:239:38: C0321: More than one statement on a single line (multiple-statements)
+tests/core/test_stage_runner.py:241:8: C0116: Missing function or method docstring (missing-function-docstring)
+tests/core/test_stage_runner.py:241:37: C0321: More than one statement on a single line (multiple-statements)
+tests/core/test_stage_runner.py:243:8: C0116: Missing function or method docstring (missing-function-docstring)
+tests/core/test_stage_runner.py:243:38: C0321: More than one statement on a single line (multiple-statements)
+tests/core/test_stage_runner.py:245:8: C0116: Missing function or method docstring (missing-function-docstring)
+tests/core/test_stage_runner.py:245:52: C0321: More than one statement on a single line (multiple-statements)
+tests/core/test_stage_runner.py:246:8: C0116: Missing function or method docstring (missing-function-docstring)
+tests/core/test_stage_runner.py:246:111: C0321: More than one statement on a single line (multiple-statements)
+tests/core/test_stage_runner.py:246:37: W0613: Unused argument 'params' (unused-argument)
+tests/core/test_stage_runner.py:246:61: W0613: Unused argument 'context' (unused-argument)
+tests/core/test_stage_runner.py:270:37: W0621: Redefining name 'registered_mock_stages' from outer scope (line 263) (redefined-outer-name)
+tests/core/test_stage_runner.py:270:37: W0613: Unused argument 'registered_mock_stages' (unused-argument)
+tests/core/test_stage_runner.py:309:43: W0621: Redefining name 'registered_mock_stages' from outer scope (line 263) (redefined-outer-name)
+tests/core/test_stage_runner.py:315:26: W0212: Access to a protected member _input_type of a client class (protected-access)
+tests/core/test_stage_runner.py:316:4: W0212: Access to a protected member _input_type of a client class (protected-access)
+tests/core/test_stage_runner.py:324:4: W0212: Access to a protected member _input_type of a client class (protected-access)
+tests/core/test_stage_runner.py:309:43: W0613: Unused argument 'registered_mock_stages' (unused-argument)
+tests/core/test_stage_runner.py:327:51: W0621: Redefining name 'registered_mock_stages' from outer scope (line 263) (redefined-outer-name)
+tests/core/test_stage_runner.py:327:51: W0613: Unused argument 'registered_mock_stages' (unused-argument)
+tests/core/test_stage_runner.py:353:49: W0621: Redefining name 'registered_mock_stages' from outer scope (line 263) (redefined-outer-name)
+tests/core/test_stage_runner.py:353:49: W0613: Unused argument 'registered_mock_stages' (unused-argument)
+tests/core/test_stage_runner.py:380:49: W0621: Redefining name 'registered_mock_stages' from outer scope (line 263) (redefined-outer-name)
+tests/core/test_stage_runner.py:380:49: W0613: Unused argument 'registered_mock_stages' (unused-argument)
+tests/core/test_stage_runner.py:392:49: W0621: Redefining name 'registered_mock_stages' from outer scope (line 263) (redefined-outer-name)
+tests/core/test_stage_runner.py:392:49: W0613: Unused argument 'registered_mock_stages' (unused-argument)
+tests/core/test_stage_runner.py:6:0: C0411: standard import "logging" should be placed before third party import "pytest" (wrong-import-order)
+tests/core/test_stage_runner.py:7:0: C0411: standard import "typing.Any" should be placed before third party import "pytest" (wrong-import-order)
+tests/core/test_stage_runner.py:8:0: C0411: standard import "unittest.mock.MagicMock" should be placed before third party import "pytest" (wrong-import-order)
+tests/core/test_stage_runner.py:8:0: W0611: Unused patch imported from unittest.mock (unused-import)
+tests/core/test_stage_runner.py:11:0: W0611: Unused DATA_TYPE_LIST_OF_SAMPLE_DATA imported from src.core.processing_stages (unused-import)
+************* Module test_workflows
+tests/core/test_workflows.py:112:0: C0301: Line too long (107/100) (line-too-long)
+tests/core/test_workflows.py:9:0: E0401: Unable to import 'src.core.processing_stages' (import-error)
+tests/core/test_workflows.py:10:0: E0401: Unable to import 'src.core.workflows' (import-error)
+tests/core/test_workflows.py:44:4: C0116: Missing function or method docstring (missing-function-docstring)
+tests/core/test_workflows.py:48:4: C0116: Missing function or method docstring (missing-function-docstring)
+tests/core/test_workflows.py:52:4: C0116: Missing function or method docstring (missing-function-docstring)
+tests/core/test_workflows.py:63:4: C0116: Missing function or method docstring (missing-function-docstring)
+tests/core/test_workflows.py:67:4: C0116: Missing function or method docstring (missing-function-docstring)
+tests/core/test_workflows.py:71:4: C0116: Missing function or method docstring (missing-function-docstring)
+tests/core/test_workflows.py:120:4: C0115: Missing class docstring (missing-class-docstring)
+tests/core/test_workflows.py:120:4: R0903: Too few public methods (0/2) (too-few-public-methods)
+tests/core/test_workflows.py:170:4: C0103: Variable name "WorkflowClass" doesn't conform to snake_case naming style (invalid-name)
+tests/core/test_workflows.py:172:30: C0321: More than one statement on a single line (multiple-statements)
+tests/core/test_workflows.py:4:0: C0411: standard import "logging" should be placed before third party import "pytest" (wrong-import-order)
+tests/core/test_workflows.py:5:0: C0411: standard import "typing.Any" should be placed before third party import "pytest" (wrong-import-order)
+tests/core/test_workflows.py:6:0: C0411: standard import "unittest.mock.patch" should be placed before third party import "pytest" (wrong-import-order)
+tests/core/test_workflows.py:5:0: W0611: Unused Optional imported from typing (unused-import)
+************* Module test_models
+tests/database/test_models.py:41:0: C0301: Line too long (107/100) (line-too-long)
+tests/database/test_models.py:70:0: C0301: Line too long (106/100) (line-too-long)
+tests/database/test_models.py:92:0: C0301: Line too long (104/100) (line-too-long)
+tests/database/test_models.py:114:0: C0301: Line too long (104/100) (line-too-long)
+tests/database/test_models.py:163:0: C0301: Line too long (109/100) (line-too-long)
+tests/database/test_models.py:239:0: C0301: Line too long (106/100) (line-too-long)
+tests/database/test_models.py:440:0: C0301: Line too long (113/100) (line-too-long)
+tests/database/test_models.py:1:0: C0114: Missing module docstring (missing-module-docstring)
+tests/database/test_models.py:2:0: E0401: Unable to import 'sqlalchemy' (import-error)
+tests/database/test_models.py:3:0: E0401: Unable to import 'sqlalchemy.orm' (import-error)
+tests/database/test_models.py:4:0: E0401: Unable to import 'sqlalchemy.engine' (import-error)
+tests/database/test_models.py:7:0: E0401: Unable to import 'src.database.models' (import-error)
+tests/database/test_models.py:15:0: E0401: Unable to import 'src.database.utils' (import-error)
+tests/database/test_models.py:32:15: W0621: Redefining name 'test_engine' from outer scope (line 20) (redefined-outer-name)
+tests/database/test_models.py:42:33: R1708: Do not raise StopIteration in generator, use return statement instead (stop-iteration-return)
+tests/database/test_models.py:53:24: W0621: Redefining name 'db_session' from outer scope (line 32) (redefined-outer-name)
+tests/database/test_models.py:76:24: W0621: Redefining name 'db_session' from outer scope (line 32) (redefined-outer-name)
+tests/database/test_models.py:99:24: W0621: Redefining name 'db_session' from outer scope (line 32) (redefined-outer-name)
+tests/database/test_models.py:119:26: W0621: Redefining name 'db_session' from outer scope (line 32) (redefined-outer-name)
+tests/database/test_models.py:153:33: W0621: Redefining name 'db_session' from outer scope (line 32) (redefined-outer-name)
+tests/database/test_models.py:181:23: W0621: Redefining name 'db_session' from outer scope (line 32) (redefined-outer-name)
+tests/database/test_models.py:223:41: W0621: Redefining name 'db_session' from outer scope (line 32) (redefined-outer-name)
+tests/database/test_models.py:247:40: W0621: Redefining name 'db_session' from outer scope (line 32) (redefined-outer-name)
+tests/database/test_models.py:292:31: W0621: Redefining name 'db_session' from outer scope (line 32) (redefined-outer-name)
+tests/database/test_models.py:318:36: W0621: Redefining name 'db_session' from outer scope (line 32) (redefined-outer-name)
+tests/database/test_models.py:375:43: W0621: Redefining name 'db_session' from outer scope (line 32) (redefined-outer-name)
+tests/database/test_models.py:5:0: C0411: standard import "typing.Generator" should be placed before third party imports "pytest", "sqlalchemy.create_engine", "sqlalchemy.orm.sessionmaker", "sqlalchemy.engine.Engine" (wrong-import-order)
+tests/database/test_models.py:3:0: W0611: Unused sessionmaker imported from sqlalchemy.orm (unused-import)
+tests/database/test_models.py:7:0: W0611: Unused Base imported from src.database.models (unused-import)
+tests/database/test_models.py:1:0: R0801: Similar lines in 2 files
+==test_project_routes:[33:89]
+==test_sample_routes:[32:83]
+    flask_app: Flask = create_app()
+    flask_app.config.update(
+        {
+            "TESTING": True,
+            "DATABASE_URL": "sqlite:///:memory:",  # Use in-memory SQLite for tests
+            # Add other necessary test configs like SAMPLES_BASE_DIR if routes need it
+            # "SAMPLES_BASE_DIR": "/tmp/pytest_samples_base_samples_api",
+        }
+    )
+
+    # Create an engine instance specifically for tests, using the test DB URL
+    engine: Engine = get_engine(flask_app.config["DATABASE_URL"])
+    # Provide this engine instance to the app config so get_engine() in utils can pick it up
+    flask_app.config["TEST_ENGINE_INSTANCE"] = engine
+
+    with flask_app.app_context():
+        # Initialize the database schema using the test-specific engine
+        initialize_db_utils(engine_instance=engine)
+
+    # Example: if SAMPLES_BASE_DIR is used by sample routes, ensure it exists
+    # if "SAMPLES_BASE_DIR" in flask_app.config:
+    #     os.makedirs(flask_app.config["SAMPLES_BASE_DIR"], exist_ok=True)
+
+    yield flask_app
+    # No explicit teardown needed for _engine or _SessionLocal patching
+
+
+@pytest.fixture
+def client(app: Flask) -> FlaskClient:
+    """A test client for the app.
+
+    Args:
+        app: The Flask application fixture.
+
+    Returns:
+        A Flask test client.
+    """
+    return app.test_client()
+
+
+@pytest.fixture(autouse=True)
+def manage_database_session(app: Flask) -> Generator[None, None, None]:
+    """Ensure each test has a clean database state (empty tables).
+
+    Args:
+        app: The Flask application fixture.
+
+    Yields:
+        None.
+    """
+    with app.app_context(): (duplicate-code)
+tests/database/test_models.py:1:0: R0801: Similar lines in 2 files
+==test_project_routes:[99:130]
+==test_sample_routes:[84:112]
+        for table in reversed(Base.metadata.sorted_tables):
+            # Use a session to execute delete statements
+            SessionLocal = get_session_local(engine_instance=engine)
+            db: SQLAlchemySession = SessionLocal()
+            try:
+                db.execute(table.delete())
+                db.commit()
+            except Exception as e:
+                db.rollback()
+                app.logger.error(f"Error clearing table {table.name}: {e}")
+                raise
+            finally:
+                db.close()
+
+        # Alternative: Drop and recreate all tables (slower but robust if schema changes or complex relations)
+        # Base.metadata.drop_all(bind=engine)
+        # Base.metadata.create_all(bind=engine)
+
+    yield  # Run the test
+
+    # Teardown after test (optional, if yield above handles it per test)
+    # For in-memory DB, data is gone anyway when connections close.
+    # If using persistent DB for tests, this is where you'd clean up.
+    # For this setup, clearing tables before each test is the primary strategy.
+
+
+# --- Project Route Tests ---
+
+
+def test_create_project_success(client: FlaskClient) -> None:
+    """Test successful project creation.""" (duplicate-code)
+tests/database/test_models.py:1:0: R0801: Similar lines in 2 files
+==test_audio_processor:[48:70]
+==test_models:[25:45]
+    engine: SQLAlchemyEngine = create_engine("sqlite:///:memory:")
+    initialize_db_utils(engine_instance=engine)
+    return engine
+
+
+@pytest.fixture(scope="function")
+def db_session(test_engine: SQLAlchemyEngine) -> Generator[SQLAlchemySession, None, None]:
+    """Creates a new database session for a test.
+
+    Args:
+        test_engine: The SQLAlchemy engine fixture.
+
+    Yields:
+        A SQLAlchemy Session instance.
+    """
+    session_generator: Generator[SQLAlchemySession, None, None] = get_db_utils(engine_instance=test_engine)
+    session: SQLAlchemySession = next(session_generator)
+    try:
+        yield session
+    finally: (duplicate-code)
+
+------------------------------------------------------------------
+Your code has been rated at 5.83/10 (previous run: 5.64/10, +0.19)

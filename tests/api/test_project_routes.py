@@ -1,7 +1,13 @@
 import pytest
 import json
+import pytest
+import json
 from flask import Flask
-from unittest.mock import patch, MagicMock
+from flask.testing import FlaskClient # For typing the client fixture
+from unittest.mock import patch, MagicMock # Keep if used, though not in current file
+from sqlalchemy.orm import Session as SQLAlchemySession # For typing sessions if needed
+from sqlalchemy.engine import Engine # For typing engine if needed
+
 from src.app import create_app  # Assuming your Flask app factory is in src.app
 from src.database.utils import (
     init_db as initialize_db_utils,
@@ -11,15 +17,21 @@ from src.database.utils import (
 from src.database.models import Base, Project as ProjectModel
 
 
+from typing import Generator # For typing fixtures that yield
+
 # --- Test Fixtures ---
 @pytest.fixture(scope="module")  # Use module scope for app to be faster
-def app():
-    """Create and configure a new app instance for each test module."""
+def app() -> Generator[Flask, None, None]:
+    """Create and configure a new app instance for each test module.
+
+    Yields:
+        The Flask application instance.
+    """
     # Use an in-memory SQLite database for testing API routes
-    test_db_url = "sqlite:///:memory:"
+    # test_db_url = "sqlite:///:memory:" # Not directly used, DATABASE_URL in config is key
 
     # Create a Flask app configured for testing
-    flask_app = create_app()
+    flask_app: Flask = create_app()
     flask_app.config.update(
         {
             "TESTING": True,
@@ -28,8 +40,7 @@ def app():
     )
 
     # Create an engine instance specifically for tests, using the test DB URL
-    engine = get_engine(flask_app.config["DATABASE_URL"])
-    # flask_app.test_engine = engine  # Attach to app for access in other fixtures
+    engine: Engine = get_engine(flask_app.config["DATABASE_URL"])
     # Provide this engine instance to the app config so get_engine() in utils can pick it up
     flask_app.config["TEST_ENGINE_INSTANCE"] = engine
 
@@ -42,31 +53,44 @@ def app():
     yield flask_app
 
     # No explicit teardown needed for _engine or _SessionLocal patching, as it's removed.
-    # The in-memory database ceases to exist when the connection is closed.
+    # The in-memory database ceases to exist when the connection is closed by tests ending.
 
 
 @pytest.fixture
-def client(app: Flask):
-    """A test client for the app."""
+def client(app: Flask) -> FlaskClient:
+    """A test client for the app.
+
+    Args:
+        app: The Flask application fixture.
+
+    Returns:
+        A Flask test client.
+    """
     return app.test_client()
 
 
 # Automatically use this for each test in this file
-@pytest.fixture(autouse=True)  # Ensures this runs for every test function
-def manage_database_session(app: Flask):
-    """
-    Ensure each test has a clean database state (empty tables).
+@pytest.fixture(autouse=True)
+def manage_database_session(app: Flask) -> Generator[None, None, None]:
+    """Ensure each test has a clean database state (empty tables).
+
     Relies on the app fixture to have configured the DATABASE_URL for an
     in-memory DB and initialized the schema once.
-    This fixture ensures data isolation between tests by clearing data.
+    This fixture ensures data isolation between tests by clearing data from tables.
+
+    Args:
+        app: The Flask application fixture.
+
+    Yields:
+        None.
     """
     with app.app_context():
-        import logging
+        import logging # Keep import local if only used here
 
         logger = logging.getLogger(__name__)
         # Retrieve the test-specific engine from the app fixture
-        engine = app.config["TEST_ENGINE_INSTANCE"]
-        logger.info(f"manage_db_session: Engine URL from app.test_engine: {engine.url}")
+        engine: Engine = app.config["TEST_ENGINE_INSTANCE"]
+        logger.info(f"manage_db_session: Engine URL from app.config: {str(engine.url)}")
         logger.info(
             f"manage_db_session: Sorted tables from Base.metadata: {[table.name for table in Base.metadata.sorted_tables]}"
         )
@@ -75,10 +99,8 @@ def manage_database_session(app: Flask):
         # This is faster than dropping and recreating tables if the schema is stable
         for table in reversed(Base.metadata.sorted_tables):
             # Use a session to execute delete statements
-            # Cannot use engine.execute(table.delete()) directly with SQLAlchemy 2.0 style
-            # A session is needed.
-            Session = get_session_local(engine_instance=engine)
-            db = Session()
+            SessionLocal = get_session_local(engine_instance=engine)
+            db: SQLAlchemySession = SessionLocal()
             try:
                 db.execute(table.delete())
                 db.commit()
@@ -104,7 +126,8 @@ def manage_database_session(app: Flask):
 # --- Project Route Tests ---
 
 
-def test_create_project_success(client):
+def test_create_project_success(client: FlaskClient) -> None:
+    """Test successful project creation."""
     response = client.post(
         "/projects",
         json={
@@ -129,7 +152,8 @@ def test_create_project_success(client):
     # assert project_in_db.name == "My First API Project"
 
 
-def test_create_project_missing_name(client):
+def test_create_project_missing_name(client: FlaskClient) -> None:
+    """Test project creation failure when name is missing."""
     response = client.post("/projects", json={"description": "Project without a name"})
     assert response.status_code == 400
     data = response.get_json()
@@ -137,7 +161,8 @@ def test_create_project_missing_name(client):
     assert "Project name is required" in data["error"]
 
 
-def test_get_project_success(client):
+def test_get_project_success(client: FlaskClient) -> None:
+    """Test successfully retrieving an existing project."""
     # First, create a project to fetch
     create_resp = client.post("/projects", json={"name": "Fetchable Project"})
     assert create_resp.status_code == 201
@@ -150,7 +175,8 @@ def test_get_project_success(client):
     assert data["name"] == "Fetchable Project"
 
 
-def test_get_project_not_found(client):
+def test_get_project_not_found(client: FlaskClient) -> None:
+    """Test retrieving a non-existent project results in 404."""
     response = client.get("/projects/9999")  # Assuming 9999 does not exist
     assert response.status_code == 404
     data = response.get_json()
@@ -158,7 +184,8 @@ def test_get_project_not_found(client):
     assert "Project not found" in data["error"]
 
 
-def test_list_projects_empty(client):
+def test_list_projects_empty(client: FlaskClient) -> None:
+    """Test listing projects when no projects exist."""
     response = client.get("/projects")
     assert response.status_code == 200
     data = response.get_json()
@@ -166,7 +193,8 @@ def test_list_projects_empty(client):
     assert len(data) == 0
 
 
-def test_list_projects_with_data(client):
+def test_list_projects_with_data(client: FlaskClient) -> None:
+    """Test listing projects when multiple projects exist."""
     client.post("/projects", json={"name": "Project Alpha"})
     client.post("/projects", json={"name": "Project Beta"})
 
@@ -179,7 +207,8 @@ def test_list_projects_with_data(client):
     assert project_names == ["Project Alpha", "Project Beta"]
 
 
-def test_root_path(client):
+def test_root_path(client: FlaskClient) -> None:
+    """Test the root path of the API returns a welcome message."""
     response = client.get("/")
     assert response.status_code == 200
     data = response.get_json()

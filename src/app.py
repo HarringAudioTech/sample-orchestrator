@@ -21,9 +21,11 @@ from src.database.utils import (
 
 
 # --- Application Factory ---
+from typing import Tuple
+from werkzeug.exceptions import HTTPException
+
 def create_app() -> Flask:
-    """
-    Creates and configures an instance of the Flask application.
+    """Creates and configures an instance of the Flask application.
 
     This factory function:
     1. Initializes the Flask app.
@@ -36,9 +38,9 @@ def create_app() -> Flask:
     6. Creates a simple root route for basic API health check/welcome message.
 
     Returns:
-        Flask: The configured Flask application instance.
+        The configured Flask application instance.
     """
-    app = Flask(__name__)
+    app: Flask = Flask(__name__)
 
     # --- Configuration ---
     # Determine project root to build absolute paths for data directories.
@@ -102,8 +104,15 @@ def create_app() -> Flask:
 
     # --- Basic Error Handling ---
     @app.errorhandler(404)
-    def not_found_error(error):
-        """Handles 404 Not Found errors with a JSON response."""
+    def not_found_error(error: HTTPException) -> Tuple[Flask.response_class, int]:
+        """Handles 404 Not Found errors with a JSON response.
+
+        Args:
+            error: The HTTPException object for the 404 error.
+
+        Returns:
+            A tuple containing a Flask JSON response and the 404 status code.
+        """
         app.logger.warning(f"404 Not Found: {request.path} (Error: {error})")
         return (
             jsonify(
@@ -116,8 +125,15 @@ def create_app() -> Flask:
         )
 
     @app.errorhandler(500)
-    def internal_server_error(error):
-        """Handles 500 Internal Server Error with a JSON response."""
+    def internal_server_error(error: HTTPException) -> Tuple[Flask.response_class, int]:
+        """Handles 500 Internal Server Error with a JSON response.
+
+        Args:
+            error: The HTTPException object for the 500 error.
+
+        Returns:
+            A tuple containing a Flask JSON response and the 500 status code.
+        """
         app.logger.error(
             f"500 Internal Server Error: {
                 request.path} (Error: {error})",
@@ -134,8 +150,12 @@ def create_app() -> Flask:
         )
 
     @app.route("/")
-    def index():
-        """A simple root route to indicate the API is running."""
+    def index() -> Flask.response_class:
+        """A simple root route to indicate the API is running.
+
+        Returns:
+            A Flask JSON response with a welcome message.
+        """
         return jsonify(
             {"message": "Welcome to the Audio Processing and Sample Management API!"}
         )

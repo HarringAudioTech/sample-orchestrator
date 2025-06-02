@@ -9,7 +9,7 @@ from src.database.models import (
     # SampleMapping as SampleMappingModel, # Not directly used in this file
     SampleMappingItem as SampleMappingItemModel,
 )
-from typing import List  # For type hinting
+from typing import List, Optional # For type hinting
 
 
 class DecentSamplerPresetGenerator:
@@ -31,7 +31,7 @@ class DecentSamplerPresetGenerator:
 
     def __init__(
         self, project: Project, instrument_data: InstrumentData, output_base_dir: str
-    ):
+    ) -> None:
         """Initializes the DecentSamplerPresetGenerator.
 
         Args:
@@ -46,6 +46,7 @@ class DecentSamplerPresetGenerator:
 
     def _sanitize_filename(self, name: str) -> str:
         """Sanitizes a string to be suitable for use as a filename or directory name.
+
         Replaces spaces with underscores and converts to lowercase.
 
         Args:
@@ -67,9 +68,9 @@ class DecentSamplerPresetGenerator:
         Possible OSErrors during directory or file operations will be caught and
         reported, potentially halting parts of the generation.
         """
-        instrument_name_fs = self._sanitize_filename(self.instrument_data.name)
-        instrument_dir = os.path.join(self.output_base_dir, instrument_name_fs)
-        samples_dir = os.path.join(instrument_dir, "Samples")
+        instrument_name_fs: str = self._sanitize_filename(self.instrument_data.name)
+        instrument_dir: str = os.path.join(self.output_base_dir, instrument_name_fs)
+        samples_dir: str = os.path.join(instrument_dir, "Samples")
         artwork_dir = os.path.join(instrument_dir, "Artwork")
 
         try:
@@ -85,9 +86,9 @@ class DecentSamplerPresetGenerator:
 
         # Copy Artwork
         if self.instrument_data.ui_background_image_path:
-            source_artwork_path = self.instrument_data.ui_background_image_path
-            artwork_filename = os.path.basename(source_artwork_path)
-            dest_artwork_path = os.path.join(artwork_dir, artwork_filename)
+            source_artwork_path: str = self.instrument_data.ui_background_image_path
+            artwork_filename: str = os.path.basename(source_artwork_path)
+            dest_artwork_path: str = os.path.join(artwork_dir, artwork_filename)
             if os.path.exists(source_artwork_path):
                 try:
                     shutil.copy2(source_artwork_path, dest_artwork_path)
@@ -102,23 +103,23 @@ class DecentSamplerPresetGenerator:
         # Create XML structure
         # Samples are copied within _create_groups_element, which needs
         # samples_dir
-        root_element = self._create_root_element()
-        ui_element = self._create_ui_element(
+        root_element: ET.Element = self._create_root_element()
+        ui_element: ET.Element = self._create_ui_element(
             artwork_dir
         )  # Pass artwork_dir for context if needed
         root_element.append(ui_element)
 
-        groups_element = self._create_groups_element(samples_dir)
+        groups_element: ET.Element = self._create_groups_element(samples_dir)
         root_element.append(groups_element)
 
-        effects_element = self._create_effects_element()
+        effects_element: ET.Element = self._create_effects_element()
         root_element.append(effects_element)
 
         # Write .dspreset file
-        dspreset_filename = instrument_name_fs + ".dspreset"
-        dspreset_path = os.path.join(instrument_dir, dspreset_filename)
+        dspreset_filename: str = instrument_name_fs + ".dspreset"
+        dspreset_path: str = os.path.join(instrument_dir, dspreset_filename)
         try:
-            tree = ET.ElementTree(root_element)
+            tree: ET.ElementTree = ET.ElementTree(root_element)
             # ET.indent(tree, space="\t", level=0) # For pretty printing,
             # Python 3.9+
             tree.write(dspreset_path, encoding="UTF-8", xml_declaration=True)
@@ -135,7 +136,7 @@ class DecentSamplerPresetGenerator:
         Returns:
             The `ET.Element` for the root of the DecentSampler preset.
         """
-        root = ET.Element("DecentSampler")
+        root: ET.Element = ET.Element("DecentSampler")
         root.set("minVersion", "1.0.0")
         if self.instrument_data.version:
             root.set("version", self.instrument_data.version)
@@ -146,30 +147,29 @@ class DecentSamplerPresetGenerator:
         #     root.append(ET.Comment(f"Website: {self.instrument_data.website}"))
         return root
 
-    def _create_ui_element(self, artwork_output_dir: str) -> ET.Element:
+    def _create_ui_element(self, artwork_output_dir: Optional[str] = None) -> ET.Element: # Made artwork_output_dir optional and default to None
         """Creates the <ui> XML element, including background image if specified.
 
         Args:
             artwork_output_dir: The absolute path to the 'Artwork' directory where UI
-                                 elements are stored. Used for context if needed,
-                                 though paths in XML are relative.
+                                 elements are stored. Currently unused, but kept for potential future use.
 
         Returns:
             The `ET.Element` for the <ui> section.
         """
-        ui_element = ET.Element("ui")
+        ui_element: ET.Element = ET.Element("ui")
         if self.instrument_data.ui_background_image_path:
             # Ensure the source file exists before referencing it in XML
             # (actual copy happens in generate_preset)
-            source_artwork_path = self.instrument_data.ui_background_image_path
+            source_artwork_path: str = self.instrument_data.ui_background_image_path
             if os.path.exists(source_artwork_path):
-                artwork_filename = os.path.basename(source_artwork_path)
+                artwork_filename: str = os.path.basename(source_artwork_path)
                 # XML path should be relative to the .dspreset file location
-                relative_image_path = os.path.join("Artwork", artwork_filename)
+                relative_image_path: str = os.path.join("Artwork", artwork_filename)
 
-                tab_element = ET.SubElement(ui_element, "tab")
+                tab_element: ET.Element = ET.SubElement(ui_element, "tab")
                 tab_element.set("name", "main")  # Default tab name
-                background_element = ET.SubElement(tab_element, "background")
+                background_element: ET.Element = ET.SubElement(tab_element, "background")
                 background_element.set("image", relative_image_path)
             # else:
             # Warning about missing artwork source is handled in generate_preset()
@@ -192,7 +192,7 @@ class DecentSamplerPresetGenerator:
         Returns:
             The `ET.Element` for the <groups> section.
         """
-        groups_element = ET.Element("groups")
+        groups_element: ET.Element = ET.Element("groups")
 
         if not self.project.project_model or not self.project.project_model.recordings:
             print("INFO: No recordings found in the project. Groups element will be empty.")
@@ -201,21 +201,21 @@ class DecentSamplerPresetGenerator:
         for recording_model in self.project.project_model.recordings:
             # Create a <group> for each recording.
             # You could add attributes to the group here, e.g., name
-            group_element = ET.SubElement(groups_element, "group")
+            group_element: ET.Element = ET.SubElement(groups_element, "group")
             if recording_model.name:  # Add group name if available
                 group_element.set("name", recording_model.name)
 
             if not recording_model.samples:
+                # Drastically simplified f-string for pylint testing
                 print(
-                    f"INFO: No samples found for recording '{
-                        recording_model.name}'. Group will be empty."
+                    f"INFO: Rec {recording_model.name} empty."
                 )
                 continue
 
             for sample_model in recording_model.samples:
-                source_sample_path = sample_model.file_path
-                sample_filename = os.path.basename(source_sample_path)
-                dest_sample_path = os.path.join(samples_output_dir, sample_filename)
+                source_sample_path: str = sample_model.file_path
+                sample_filename: str = os.path.basename(source_sample_path)
+                dest_sample_path: str = os.path.join(samples_output_dir, sample_filename)
 
                 # Attempt to copy the sample file
                 if os.path.exists(source_sample_path):
@@ -232,28 +232,28 @@ class DecentSamplerPresetGenerator:
                     continue  # Skip this sample if source doesn't exist
 
                 # Create the <sample> XML element
-                sample_element = ET.SubElement(group_element, "sample")
+                sample_element: ET.Element = ET.SubElement(group_element, "sample")
 
                 # Path is relative to the .dspreset file, within the 'Samples'
                 # subdirectory
-                xml_sample_path = os.path.join("Samples", sample_filename)
+                xml_sample_path: str = os.path.join("Samples", sample_filename)
                 sample_element.set("path", xml_sample_path)
 
                 # Root note (MIDI note number)
-                root_note_val = sample_model.midi_pitch
-                root_note_str = (
+                root_note_val: int = sample_model.midi_pitch
+                root_note_str: str = (
                     str(root_note_val) if root_note_val is not None else "60"
                 )  # Default to C3 (MIDI 60)
                 sample_element.set("rootNote", root_note_str)
 
                 # Key range (loKey, hiKey)
-                lo_key_str = root_note_str
-                hi_key_str = root_note_str
+                lo_key_str: str = root_note_str
+                hi_key_str: str = root_note_str
                 if sample_model.sample_mapping_items:
                     # Assuming the first mapping item dictates the key range for this sample.
                     # More complex logic might be needed if multiple items or
                     # complex mappings exist.
-                    mapping_item = sample_model.sample_mapping_items[0]
+                    mapping_item: SampleMappingItemModel = sample_model.sample_mapping_items[0]
                     if mapping_item.key_range_start is not None:
                         lo_key_str = str(mapping_item.key_range_start)
                     if mapping_item.key_range_end is not None:
@@ -263,8 +263,8 @@ class DecentSamplerPresetGenerator:
                 sample_element.set("hiKey", hi_key_str)
 
                 # Velocity range (loVel, hiVel) - defaults to full range
-                lo_vel_str = "0"
-                hi_vel_str = "127"
+                lo_vel_str: str = "0"
+                hi_vel_str: str = "127"
                 # Example of how to integrate velocity from mapping_item if it were available:
                 # if sample_model.sample_mapping_items:
                 #     mapping_item = sample_model.sample_mapping_items[0]
@@ -289,7 +289,7 @@ class DecentSamplerPresetGenerator:
         Returns:
             The `ET.Element` for the <effects> section.
         """
-        effects_element = ET.Element("effects")
+        effects_element: ET.Element = ET.Element("effects")
         # Example: ET.SubElement(effects_element, "effect", type="reverb", wetLevel="0.5")
         # ET.Comment("Effects can be added here, e.g., reverb, delay.")
         return effects_element
