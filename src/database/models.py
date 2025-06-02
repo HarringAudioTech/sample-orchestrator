@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from sqlalchemy import (
     create_engine,
     Column,
@@ -37,7 +39,7 @@ class Project(Base):
         "SampleMapping", back_populates="project", cascade="all, delete-orphan"
     )
     # Relationship for MidiCaptureSession added at the end of the file
-    midi_capture_sessions: Mapped[List["MidiCaptureSession"]]
+    # midi_capture_sessions: Mapped[List["MidiCaptureSession"]] # Removed this line
 
 
 class Recording(Base):

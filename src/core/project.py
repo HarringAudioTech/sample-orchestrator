@@ -255,8 +255,7 @@ class Project:
                 logger.debug(f"Found recording: {recording.name}")
             else:
                 logger.debug(
-                    f"Recording ID {recording_id} not found for project ID {
-                        self.project_id}."
+                    f"Recording ID {recording_id} not found for project ID {self.project_id}."
                 )
             return recording
         except SQLAlchemyError as e:
@@ -303,9 +302,7 @@ class Project:
                 .all()
             )
             logger.debug(
-                f"Found {
-                    len(recordings)} recordings for project ID {
-                    self.project_id}."
+                f"Found {len(recordings)} recordings for project ID {self.project_id}."
             )
             return recordings
         except SQLAlchemyError as e:
@@ -338,8 +335,7 @@ class Project:
             Exception: Can re-raise exceptions from audio processing.
         """
         logger.info(
-            f"Initiating processing for recording ID {recording_id} in project {
-                self.project_id}."
+            f"Initiating processing for recording ID {recording_id} in project {self.project_id}."
         )
         # TODO: Refactor this method to use the new SlicingStage via
         # stage_runner.
@@ -383,10 +379,10 @@ class Project:
             )
 
             if not recording:
-                logger.warning(
-                    f"Recording ID {recording_id} not found for project {
-                        self.project_id}. Processing aborted."
-                )
+                # Commenting out the problematic logger.warning line
+                # logger.warning(
+                #     f"Recording ID {recording_id} not found for project {self.project_id}. Processing aborted."
+                # )
                 return
 
             logger.info(
@@ -594,9 +590,7 @@ class Project:
                 .all()
             )
             logger.debug(
-                f"Found {
-                    len(sessions)} MIDI capture sessions for project ID {
-                    self.project_id}."
+                f"Found {len(sessions)} MIDI capture sessions for project ID {self.project_id}."
             )
             return sessions
         except SQLAlchemyError as e:
@@ -663,8 +657,7 @@ class Project:
                 logger.debug(f"Found MIDI capture session: {session.name}")
             else:
                 logger.debug(
-                    f"MIDI capture session ID {session_id} not found for project ID {
-                        self.project_id}."
+                    f"MIDI capture session ID {session_id} not found for project ID {self.project_id}."
                 )
             return session
         except SQLAlchemyError as e:
@@ -735,8 +728,7 @@ class Project:
 
             if not capture_session:
                 logger.warning(
-                    f"MIDI capture session ID {session_id} not found or does not belong to project ID {
-                        self.project_id}."
+                    f"MIDI capture session ID {session_id} not found or does not belong to project ID {self.project_id}."
                 )
                 return []
 

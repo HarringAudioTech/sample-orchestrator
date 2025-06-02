@@ -193,9 +193,7 @@ if __name__ == "__main__":
         stage = ExampleFilePathProcessor()
         print(f"Stage: {stage.name}, Description: {stage.description}")
         print(
-            f"Input type: {
-                stage.input_type}, Output type: {
-                stage.output_type}"
+            f"Input type: {stage.input_type}, Output type: {stage.output_type}"
         )
         print(f"Default params: {stage.default_params}")
 

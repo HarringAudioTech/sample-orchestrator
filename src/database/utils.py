@@ -86,8 +86,7 @@ def init_db(engine_instance: Optional[Engine] = None) -> None:
     )
     Base.metadata.create_all(bind=current_engine)
     logger.info(
-        f"Database initialized with engine: {
-            str(current_engine.url)} and tables created (if they didn't exist)."
+        f"Database initialized with engine: {str(current_engine.url)} and tables created (if they didn't exist)."
     )
 
 

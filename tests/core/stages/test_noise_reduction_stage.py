@@ -85,12 +85,7 @@ def test_noise_reduction_stage_process_logs_parameters(caplog: LogCaptureFixture
         stage.process(dummy_input_data, params, context)
 
     assert f"[{stage.name}] Applying noise reduction (placeholder)..." in caplog.text
-    assert (
-        f"Parameters: amount={
-            params['amount']}, aggressiveness={
-            params['aggressiveness']}"
-        in caplog.text
-    )
+    assert f"Parameters: amount={params['amount']}, aggressiveness={params['aggressiveness']}" in caplog.text
     assert f"Input data shape: {dummy_input_data.shape}" in caplog.text
 
 

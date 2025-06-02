@@ -9,7 +9,7 @@ from src.database.models import (
     # SampleMapping as SampleMappingModel, # Not directly used in this file
     SampleMappingItem as SampleMappingItemModel,
 )
-from typing import List  # For type hinting
+from typing import List, Optional # For type hinting
 
 
 class DecentSamplerPresetGenerator:
@@ -147,13 +147,12 @@ class DecentSamplerPresetGenerator:
         #     root.append(ET.Comment(f"Website: {self.instrument_data.website}"))
         return root
 
-    def _create_ui_element(self, artwork_output_dir: str) -> ET.Element:
+    def _create_ui_element(self, artwork_output_dir: Optional[str] = None) -> ET.Element: # Made artwork_output_dir optional and default to None
         """Creates the <ui> XML element, including background image if specified.
 
         Args:
             artwork_output_dir: The absolute path to the 'Artwork' directory where UI
-                                 elements are stored. Used for context if needed,
-                                 though paths in XML are relative.
+                                 elements are stored. Currently unused, but kept for potential future use.
 
         Returns:
             The `ET.Element` for the <ui> section.
@@ -207,9 +206,9 @@ class DecentSamplerPresetGenerator:
                 group_element.set("name", recording_model.name)
 
             if not recording_model.samples:
+                # Drastically simplified f-string for pylint testing
                 print(
-                    f"INFO: No samples found for recording '{
-                        recording_model.name}'. Group will be empty."
+                    f"INFO: Rec {recording_model.name} empty."
                 )
                 continue
 
