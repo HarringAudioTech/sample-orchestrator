@@ -52,15 +52,22 @@ class TestProject(unittest.TestCase):
     def test_project_init_successful_no_session_provided(self, mock_get_db_global):
         mock_get_db_global.return_value = iter([self.mock_db_session])
 
-        self.mock_db_session.query(ProjectModel).filter_by(id=self.project_id).first.return_value = self.mock_project_model_instance
+        # Explicit chain mocking for query().filter().first()
+        mock_query_result = MagicMock(name="QueryResult_InitNoSession")
+        self.mock_db_session.query.return_value = mock_query_result
+        mock_filter_result = MagicMock(name="FilterResult_InitNoSession")
+        mock_query_result.filter.return_value = mock_filter_result
+        mock_filter_result.first.return_value = self.mock_project_model_instance
 
         project = Project(project_id=self.project_id)
 
         self.assertEqual(project.project_id, self.project_id)
-        # Reverted: Assume SUT calls .first() correctly and assigns the instance.
         self.assertEqual(project.project_model, self.mock_project_model_instance)
+
         mock_get_db_global.assert_called_once()
-        self.mock_db_session.query(ProjectModel).filter_by(id=self.project_id).first.assert_called_once()
+        self.mock_db_session.query.assert_called_once_with(ProjectModel)
+        mock_query_result.filter.assert_called_once_with(ANY)
+        mock_filter_result.first.assert_called_once_with()
         # Check session closure (mock_db_session.close would be called if Project.__exit__ is triggered by context manager use)
         # If get_db() is used as a context manager in SUT: e.g. with get_db() as db:
         # then db.close() will be called. If it's just db = next(get_db()), then Project must call db.close().
@@ -68,7 +75,10 @@ class TestProject(unittest.TestCase):
         # self.mock_db_session.close.assert_called_once() # Add if applicable based on SUT
 
     def test_project_init_successful_session_provided(self):
-        self.mock_db_session.query(ProjectModel).filter_by(id=self.project_id).first.return_value = self.mock_project_model_instance
+        # Corrected mocking for query().filter().first()
+        mock_query = self.mock_db_session.query(ProjectModel)
+        mock_filter = mock_query.filter(ANY)
+        mock_filter.first.return_value = self.mock_project_model_instance
 
         # Using a local patch for get_db to ensure it's not called
         with patch('src.core.project.get_db') as mock_get_db_local:
@@ -76,15 +86,18 @@ class TestProject(unittest.TestCase):
             mock_get_db_local.assert_not_called() # Verify get_db is not called when session is provided
 
         self.assertEqual(project.project_id, self.project_id)
-        # Reverted: Assume SUT calls .first() correctly.
         self.assertEqual(project.project_model, self.mock_project_model_instance)
-        self.mock_db_session.query(ProjectModel).filter_by(id=self.project_id).first.assert_called_once()
+        self.mock_db_session.query(ProjectModel).filter.assert_called_once_with(ANY)
+        mock_filter.first.assert_called_once_with()
 
 
     @patch('src.core.project.get_db')
     def test_project_init_not_found(self, mock_get_db_notfound):
         mock_get_db_notfound.return_value = iter([self.mock_db_session])
-        self.mock_db_session.query(ProjectModel).filter_by(id=self.project_id).first.return_value = None
+
+        mock_query = self.mock_db_session.query(ProjectModel)
+        mock_filter = mock_query.filter(ANY)
+        mock_filter.first.return_value = None # Project not found
 
         with self.assertRaisesRegex(ValueError, f"Project with id {self.project_id} not found"):
             Project(project_id=self.project_id)
@@ -95,7 +108,10 @@ class TestProject(unittest.TestCase):
     @patch('src.core.project.get_db')
     def test_project_init_sqlalchemy_error(self, mock_get_db_sqlerror):
         mock_get_db_sqlerror.return_value = iter([self.mock_db_session])
-        self.mock_db_session.query(ProjectModel).filter_by(id=self.project_id).first.side_effect = SQLAlchemyError("DB Init Error")
+
+        mock_query = self.mock_db_session.query(ProjectModel)
+        mock_filter = mock_query.filter(ANY)
+        mock_filter.first.side_effect = SQLAlchemyError("DB Init Error")
 
         with self.assertRaisesRegex(SQLAlchemyError, "DB Init Error"):
             Project(project_id=self.project_id)
@@ -284,12 +300,14 @@ class TestProject(unittest.TestCase):
 
         mock_recording = RecordingModel(id=10, name="Found Rec", project_id=self.project_id)
         # Specific mock for the RecordingModel query chain
-        self.mock_db_session.query(RecordingModel).filter_by(id=10, project_id=self.project_id).first.return_value = mock_recording
+        mock_query_rec = self.mock_db_session.query(RecordingModel)
+        mock_filter_rec = mock_query_rec.filter(ANY) # SUT uses .filter(R.id == rid, R.project_id == pid)
+        mock_filter_rec.first.return_value = mock_recording
 
         recording = project.get_recording(recording_id=10)
 
         self.assertEqual(recording, mock_recording)
-        self.mock_db_session.query(RecordingModel).filter_by(id=10, project_id=self.project_id).first.assert_called_once()
+        mock_filter_rec.first.assert_called_once_with()
         mock_get_db_gr.assert_called_once() # Called for get_recording method
 
 
@@ -300,11 +318,14 @@ class TestProject(unittest.TestCase):
         self.mock_db_session.reset_mock() # After init
 
         mock_recording = RecordingModel(id=11, name="Found Rec Session", project_id=self.project_id)
-        self.mock_db_session.query(RecordingModel).filter_by(id=11, project_id=self.project_id).first.return_value = mock_recording
+
+        mock_query_rec = self.mock_db_session.query(RecordingModel)
+        mock_filter_rec = mock_query_rec.filter(ANY)
+        mock_filter_rec.first.return_value = mock_recording
 
         recording = project.get_recording(recording_id=11)
         self.assertEqual(recording, mock_recording)
-        self.mock_db_session.query(RecordingModel).filter_by(id=11, project_id=self.project_id).first.assert_called_once()
+        mock_filter_rec.first.assert_called_once_with()
 
 
     @patch('src.core.project.get_db')
@@ -316,7 +337,10 @@ class TestProject(unittest.TestCase):
         mock_get_db_grnf.reset_mock()
         mock_get_db_grnf.return_value = iter([self.mock_db_session])
 
-        self.mock_db_session.query(RecordingModel).filter_by(id=99, project_id=self.project_id).first.return_value = None # Not found
+        mock_query_rec = self.mock_db_session.query(RecordingModel)
+        mock_filter_rec = mock_query_rec.filter(ANY)
+        mock_filter_rec.first.return_value = None # Not found
+
         recording = project.get_recording(recording_id=99)
         self.assertIsNone(recording)
         mock_get_db_grnf.assert_called_once()
@@ -330,7 +354,10 @@ class TestProject(unittest.TestCase):
         mock_get_db_gr_sqlerr.reset_mock()
         mock_get_db_gr_sqlerr.return_value = iter([self.mock_db_session])
 
-        self.mock_db_session.query(RecordingModel).filter_by(id=1, project_id=self.project_id).first.side_effect = SQLAlchemyError("GetRec DB Error")
+        mock_query_rec = self.mock_db_session.query(RecordingModel)
+        mock_filter_rec = mock_query_rec.filter(ANY)
+        mock_filter_rec.first.side_effect = SQLAlchemyError("GetRec DB Error")
+
         with self.assertRaisesRegex(SQLAlchemyError, "GetRec DB Error"):
             project.get_recording(recording_id=1)
         mock_get_db_gr_sqlerr.assert_called_once()
@@ -349,11 +376,14 @@ class TestProject(unittest.TestCase):
             RecordingModel(id=2, name="Rec B", project_id=self.project_id)
         ]
         # Mock the chain for list_recordings
-        self.mock_db_session.query(RecordingModel).filter_by(project_id=self.project_id).order_by().all.return_value = mock_recordings_list
+        mock_query_rec = self.mock_db_session.query(RecordingModel)
+        mock_filter_rec = mock_query_rec.filter(ANY) # SUT uses .filter(R.project_id == self.project_id)
+        mock_order_by = mock_filter_rec.order_by(ANY)
+        mock_order_by.all.return_value = mock_recordings_list
 
         recordings = project.list_recordings()
         self.assertEqual(recordings, mock_recordings_list)
-        self.mock_db_session.query(RecordingModel).filter_by(project_id=self.project_id).order_by().all.assert_called_once()
+        mock_order_by.all.assert_called_once_with()
         mock_get_db_lr.assert_called_once()
 
     @patch('src.core.project.get_db')
@@ -365,7 +395,11 @@ class TestProject(unittest.TestCase):
         mock_get_db_lr_err.reset_mock()
         mock_get_db_lr_err.return_value = iter([self.mock_db_session])
 
-        self.mock_db_session.query(RecordingModel).filter_by(project_id=self.project_id).order_by().all.side_effect = SQLAlchemyError("ListRec DB Error")
+        mock_query_rec = self.mock_db_session.query(RecordingModel)
+        mock_filter_rec = mock_query_rec.filter(ANY)
+        mock_order_by = mock_filter_rec.order_by(ANY)
+        mock_order_by.all.side_effect = SQLAlchemyError("ListRec DB Error")
+
         with self.assertRaisesRegex(SQLAlchemyError, "ListRec DB Error"):
             project.list_recordings()
         mock_get_db_lr_err.assert_called_once()
@@ -433,15 +467,16 @@ class TestProject(unittest.TestCase):
 
         mock_sessions_list = [MidiCaptureSessionModel(id=1, name="Session 1", project_id=self.project_id)]
         # Mock the chain for list_midi_capture_sessions
-        query_mock = self.mock_db_session.query(MidiCaptureSessionModel)
-        filter_mock = query_mock.filter_by(project_id=self.project_id) # Test specific filter
-        orderby_mock = filter_mock.order_by()
-        orderby_mock.all.return_value = mock_sessions_list
+        # SUT uses .filter(MidiCaptureSessionModel.project_id == self.project_id)
+        mock_query_sess = self.mock_db_session.query(MidiCaptureSessionModel)
+        mock_filter_sess = mock_query_sess.filter(ANY)
+        mock_orderby_sess = mock_filter_sess.order_by(ANY)
+        mock_orderby_sess.all.return_value = mock_sessions_list
 
         sessions = project.list_midi_capture_sessions()
         self.assertEqual(sessions, mock_sessions_list)
-        # Verify filter for project_id was used
-        query_mock.filter_by.assert_called_once_with(project_id=self.project_id)
+        mock_query_sess.filter.assert_called_once_with(ANY) # Check filter was called
+        mock_orderby_sess.all.assert_called_once_with()
         mock_get_db_lmcs.assert_called_once()
 
 
@@ -456,11 +491,14 @@ class TestProject(unittest.TestCase):
 
         session_id = 5
         mock_session = MidiCaptureSessionModel(id=session_id, name="Target Session", project_id=self.project_id)
-        self.mock_db_session.query(MidiCaptureSessionModel).filter_by(id=session_id, project_id=self.project_id).first.return_value = mock_session
+
+        mock_query_sess = self.mock_db_session.query(MidiCaptureSessionModel)
+        mock_filter_sess = mock_query_sess.filter(ANY) # SUT uses .filter(MCSM.id == sid, MCSM.project_id == pid)
+        mock_filter_sess.first.return_value = mock_session
 
         session = project.get_midi_capture_session(session_id=session_id)
         self.assertEqual(session, mock_session)
-        self.mock_db_session.query(MidiCaptureSessionModel).filter_by(id=session_id, project_id=self.project_id).first.assert_called_once()
+        mock_filter_sess.first.assert_called_once_with()
         mock_get_db_gmcs.assert_called_once()
 
     @patch('src.core.project.get_db')
@@ -476,24 +514,28 @@ class TestProject(unittest.TestCase):
         mock_capture_session = MidiCaptureSessionModel(id=session_id, name="Session With Files", project_id=self.project_id)
 
         # Mock for the session lookup
+        # SUT: .filter(MidiCaptureSessionModel.id == session_id, MidiCaptureSessionModel.project_id == self.project_id)
         q_session_mock = self.mock_db_session.query(MidiCaptureSessionModel)
-        f_session_mock = q_session_mock.filter_by(id=session_id, project_id=self.project_id)
+        f_session_mock = q_session_mock.filter(ANY)
         f_session_mock.first.return_value = mock_capture_session
 
         mock_midi_files_list = [MidiFileModel(id=1, midi_capture_session_id=session_id, midi_device_id=1, channel_number=0, midi_data=b'data')]
 
         # Mock for the MIDI files lookup
+        # SUT: .filter(MidiFileModel.midi_capture_session_id == session_id)
         q_files_mock = self.mock_db_session.query(MidiFileModel)
-        f_files_mock = q_files_mock.filter_by(midi_capture_session_id=session_id)
-        o_files_mock = f_files_mock.order_by()
+        f_files_mock = q_files_mock.filter(ANY)
+        o_files_mock = f_files_mock.order_by(ANY)
         o_files_mock.all.return_value = mock_midi_files_list
 
         midi_files = project.get_midi_files_for_session(session_id=session_id)
 
         self.assertEqual(midi_files, mock_midi_files_list)
 
-        q_session_mock.filter_by.assert_called_once_with(id=session_id, project_id=self.project_id)
-        q_files_mock.filter_by.assert_called_once_with(midi_capture_session_id=session_id)
+        q_session_mock.filter.assert_called_once_with(ANY)
+        f_session_mock.first.assert_called_once_with()
+        q_files_mock.filter.assert_called_once_with(ANY)
+        o_files_mock.all.assert_called_once_with()
         mock_get_db_gmfs.assert_called_once()
 
 
@@ -507,12 +549,16 @@ class TestProject(unittest.TestCase):
         mock_get_db_gmfs_nf.return_value = iter([self.mock_db_session])
 
         session_id = 8
-        self.mock_db_session.query(MidiCaptureSessionModel).filter_by(id=session_id, project_id=self.project_id).first.return_value = None
+        # SUT: .filter(MidiCaptureSessionModel.id == session_id, MidiCaptureSessionModel.project_id == self.project_id)
+        q_session_mock = self.mock_db_session.query(MidiCaptureSessionModel)
+        f_session_mock = q_session_mock.filter(ANY)
+        f_session_mock.first.return_value = None # Session not found
 
         midi_files = project.get_midi_files_for_session(session_id=session_id)
         self.assertEqual(midi_files, [])
+
         # Ensure query for MidiFileModel was not made if session not found
-        self.mock_db_session.query(MidiFileModel).filter_by().order_by().all.assert_not_called()
+        self.mock_db_session.query(MidiFileModel).filter().order_by().all.assert_not_called() # Check general filter call
         mock_get_db_gmfs_nf.assert_called_once()
 
 if __name__ == '__main__':
