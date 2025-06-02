@@ -2,10 +2,12 @@ import pytest
 import logging
 
 from src.core.stage_runner import STAGE_REGISTRY, register_stage, execute_stage_chain
-from src.core.processing_stages import AudioProcessingStage, DATA_TYPE_FILE_PATH, DATA_TYPE_AUDIO_BUFFER_MONO, DATA_TYPE_TEXT
+from src.core.processing_stages import AudioProcessingStage, DATA_TYPE_FILE_PATH, DATA_TYPE_AUDIO_BUFFER_MONO
 
-# New dummy data type for testing
-DATA_TYPE_DUMMY = "DATA_TYPE_DUMMY"
+# New dummy data types for testing
+DATA_TYPE_DUMMY = "DATA_TYPE_DUMMY" # Existing one
+DATA_TYPE_DUMMY_TEXT = "dummy_text"
+DATA_TYPE_DUMMY_OUTPUT = "dummy_output"
 
 @pytest.fixture
 def clear_stage_registry():
@@ -81,7 +83,7 @@ class MockTypeBtoCStage(AudioProcessingStage):
     def __init__(self, config=None, **kwargs): # Added **kwargs
         super().__init__(config)
         self.input_type = DATA_TYPE_AUDIO_BUFFER_MONO
-        self.output_type = DATA_TYPE_TEXT
+        self.output_type = DATA_TYPE_DUMMY_TEXT # Changed from DATA_TYPE_TEXT
         self.called = False
         self.received_kwargs = kwargs
 
@@ -98,7 +100,7 @@ class MockTypeCtoDStage(AudioProcessingStage):
 
     def __init__(self, config=None, **kwargs): # Added **kwargs
         super().__init__(config)
-        self.input_type = DATA_TYPE_TEXT
+        self.input_type = DATA_TYPE_DUMMY_TEXT # Changed from DATA_TYPE_TEXT
         self.output_type = DATA_TYPE_DUMMY
         self.called = False # Added for consistency, though not strictly needed by current tests
         self.received_kwargs = kwargs
@@ -152,9 +154,9 @@ def test_register_stage_overwrite_warning(clear_stage_registry, caplog): # Alrea
             return initial_stage_class.name # Same name as MockSuccessStage
 
         @property
-        def input_type(self): return DATA_TYPE_TEXT
+        def input_type(self): return DATA_TYPE_DUMMY_TEXT # Changed from DATA_TYPE_TEXT
         @property
-        def output_type(self): return DATA_TYPE_TEXT
+        def output_type(self): return DATA_TYPE_DUMMY_TEXT # Changed from DATA_TYPE_TEXT
         def process(self, data, temp_dir_path: str, params: dict = None, context: dict = None): return data
 
 
@@ -186,9 +188,9 @@ class StageMissingNameProperty(AudioProcessingStage):
         return None
 
     @property
-    def input_type(self): return DATA_TYPE_TEXT
+    def input_type(self): return DATA_TYPE_DUMMY_TEXT # Changed from DATA_TYPE_TEXT
     @property
-    def output_type(self): return DATA_TYPE_TEXT
+    def output_type(self): return DATA_TYPE_DUMMY_TEXT # Changed from DATA_TYPE_TEXT
     def process(self, data, temp_dir_path: str, params: dict = None, context: dict = None): return data
 
 
@@ -326,20 +328,20 @@ def test_execute_chain_initial_type_mismatch(clear_stage_registry):
     """Test chain execution where initial data type mismatches first stage's input type."""
     register_stage(MockTypeAtoBStage) # Expects DATA_TYPE_FILE_PATH
     chain_definition = [{"stage_name": MockTypeAtoBStage.name}]
-    initial_data_type = DATA_TYPE_TEXT # Mismatch
+    initial_data_type = DATA_TYPE_DUMMY_TEXT # Mismatch, changed from DATA_TYPE_TEXT
     with pytest.raises(TypeError, match=f"Type mismatch: Stage {MockTypeAtoBStage.name} expected {MockTypeAtoBStage.input_type}, but got {initial_data_type}"):
         execute_stage_chain("data", initial_data_type, chain_definition, {}, "dummy_temp_dir")
 
 def test_execute_chain_intermediate_type_mismatch(clear_stage_registry):
     """Test chain execution where output type of one stage mismatches input type of the next."""
     register_stage(MockTypeAtoBStage) # Outputs: DATA_TYPE_AUDIO_BUFFER_MONO
-    register_stage(MockTypeCtoDStage) # Expects: DATA_TYPE_TEXT
+    register_stage(MockTypeCtoDStage) # Expects: DATA_TYPE_DUMMY_TEXT (after change)
 
     chain_definition = [
         {"stage_name": MockTypeAtoBStage.name},
         {"stage_name": MockTypeCtoDStage.name}
     ]
-    expected_error_msg = (f"Type mismatch: Stage {MockTypeCtoDStage.name} expected {MockTypeCtoDStage.input_type}, "
+    expected_error_msg = (f"Type mismatch: Stage {MockTypeCtoDStage.name} expected {DATA_TYPE_DUMMY_TEXT}, " # Verifying against DATA_TYPE_DUMMY_TEXT
                           f"but got {MockTypeAtoBStage.output_type} from previous stage {MockTypeAtoBStage.name}")
 
     with pytest.raises(TypeError, match=expected_error_msg):
@@ -447,7 +449,7 @@ def test_execute_stage_chain_logging_errors(clear_stage_registry, caplog):
     # 1. Type Mismatch (Initial)
     register_stage(MockTypeAtoBStage) # Expects DATA_TYPE_FILE_PATH
     chain_def_type_mismatch = [{"stage_name": MockTypeAtoBStage.name}]
-    initial_data_type_mismatch = DATA_TYPE_TEXT
+    initial_data_type_mismatch = DATA_TYPE_DUMMY_TEXT # Changed from DATA_TYPE_TEXT
 
     caplog.clear()
     with caplog.at_level(logging.ERROR):
@@ -460,7 +462,30 @@ def test_execute_stage_chain_logging_errors(clear_stage_registry, caplog):
     assert log_record.levelname == "ERROR"
     assert f"Type mismatch for stage {MockTypeAtoBStage.name} (index 0): Expected {MockTypeAtoBStage.input_type}, got {initial_data_type_mismatch}" in log_record.message
 
-    # 2. Stage Instantiation Error
+    # 2. Type Mismatch (Intermediate)
+    # MockTypeAtoBStage (FILE_PATH -> AUDIO_BUFFER_MONO)
+    # MockTypeCtoDStage (expects DUMMY_TEXT, but gets AUDIO_BUFFER_MONO)
+    # register_stage(MockTypeAtoBStage) is done above
+    register_stage(MockTypeCtoDStage) # Expects DUMMY_TEXT
+    chain_def_intermediate_mismatch = [
+        {"stage_name": MockTypeAtoBStage.name},
+        {"stage_name": MockTypeCtoDStage.name}
+    ]
+    caplog.clear()
+    with caplog.at_level(logging.ERROR):
+        with pytest.raises(TypeError):
+            execute_stage_chain("data", DATA_TYPE_FILE_PATH, chain_def_intermediate_mismatch, {}, "dummy_temp_dir")
+
+    assert len(caplog.records) == 1
+    log_record_intermediate = caplog.records[0]
+    assert log_record_intermediate.name == "src.core.stage_runner"
+    assert log_record_intermediate.levelname == "ERROR"
+    # Note: MockTypeCtoDStage.input_type is now DATA_TYPE_DUMMY_TEXT
+    expected_intermediate_error_msg = (f"Type mismatch for stage {MockTypeCtoDStage.name} (index 1): Expected {DATA_TYPE_DUMMY_TEXT}, "
+                                       f"got {MockTypeAtoBStage.output_type} from previous stage {MockTypeAtoBStage.name}")
+    assert expected_intermediate_error_msg in log_record_intermediate.message
+
+    # 3. Stage Instantiation Error
     register_stage(MockStageWithInitError)
     chain_def_init_error = [{"stage_name": MockStageWithInitError.name}]
 
@@ -476,7 +501,7 @@ def test_execute_stage_chain_logging_errors(clear_stage_registry, caplog):
     assert f"Error instantiating stage {MockStageWithInitError.name} (index 0)" in log_record.message
     assert "Init failed for MockStageWithInitError" in log_record.message # Original error in message
 
-    # 3. Stage Processing Error
+    # 4. Stage Processing Error
     register_stage(MockErrorStage)
     chain_def_proc_error = [{"stage_name": MockErrorStage.name}]
 
