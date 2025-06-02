@@ -11,6 +11,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: write
 
 jobs:
   build:
@@ -35,5 +36,22 @@ jobs:
         poetry install
     - name: Test with pytest
       run: |
-        poetry run pytest
-  
+        poetry run pytest --cov=src --cov-report=xml:coverage.xml
+    - name: Upload coverage report
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-report
+        path: coverage.xml
+    - name: Publish Coverage Check
+      uses: MADLAD/publish-coverage-check@v1
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        coverage_file: coverage.xml
+        coverage_type: cobertura # pytest-cov's XML format is cobertura
+        comment_title: 'Code Coverage Report'
+        min_coverage_overall: 0 # We don't want to fail the check based on overall coverage
+        min_coverage_new: 0 # We don't want to fail based on new code coverage
+        # The following are important for reporting changes
+        comment_on_changed_files: true
+        # Ensure this action has permissions to write to PRs.
+        # The main workflow permissions might need `pull-requests: write`.
