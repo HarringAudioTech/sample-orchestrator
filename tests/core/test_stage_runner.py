@@ -226,7 +226,7 @@ def test_register_stage_overwrite_warning(clear_stage_registry, caplog): # Alrea
         @property
         def default_params(self) -> dict:
             return {}
-        def process(self, data, params: dict, context: Optional[dict] = None): return data # Removed temp_dir_path
+        def process(self, data, params: dict, context: Optional[dict] = None): return data # Corrected signature
 
 
     # Clear previous logs if any from the initial registration if caplog is not reset per test part
@@ -284,7 +284,7 @@ class StageEmptyNameValue(AudioProcessingStage):
     def description(self) -> str: return "Stage with empty name string"
     @property
     def default_params(self) -> dict: return {}
-    def process(self, data, params: dict, context: Optional[dict] = None): return data # Removed temp_dir_path
+    def process(self, data, params: dict, context: Optional[dict] = None): return data # Corrected signature
 
 # @pytest.mark.xfail(reason="register_stage doesn't correctly check name property value, uses property object if name is None")
 def test_register_stage_name_is_none(clear_stage_registry, caplog):
