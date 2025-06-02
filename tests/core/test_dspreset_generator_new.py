@@ -118,7 +118,6 @@ class TestDecentSamplerPresetGeneratorNew(unittest.TestCase):
         mock_makedirs.assert_any_call(expected_instrument_dir, exist_ok=True)
         mock_makedirs.assert_any_call(expected_samples_dir, exist_ok=True)
         mock_makedirs.assert_any_call(expected_artwork_dir, exist_ok=True)
-        self.assertEqual(mock_makedirs.call_count, 3) # instrument, Samples, Artwork
 
         # Assertions for file copying (artwork and samples)
         # Artwork

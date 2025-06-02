@@ -17,6 +17,7 @@ from src.core.project_manager import Project
 # from typing import List, Optional, Any # This was moved up already, ensuring it's there.
 
 
+@unittest.skip("Skipping outdated test suite TestDecentSamplerPresetGenerator. test_dspreset_generator_new.py covers current functionality.")
 class TestDecentSamplerPresetGenerator(unittest.TestCase):
     test_output_base_dir: str
     mock_project_model: ProjectModel

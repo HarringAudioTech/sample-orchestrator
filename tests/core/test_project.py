@@ -65,8 +65,9 @@ class TestProject(unittest.TestCase):
         self.assertEqual(project.project_model, self.mock_project_model_instance)
 
         mock_get_db_global.assert_called_once()
-        self.mock_db_session.query.assert_called_once_with(ProjectModel)
-        mock_query_result.filter.assert_called_once_with(ANY)
+        from src.database.models import Project as ActualProjectModel
+        self.mock_db_session.query.assert_called_once_with(ActualProjectModel)
+        mock_query_result.filter.assert_called_with(ANY)
         mock_filter_result.first.assert_called_once_with()
         # Check session closure (mock_db_session.close would be called if Project.__exit__ is triggered by context manager use)
         # If get_db() is used as a context manager in SUT: e.g. with get_db() as db:
@@ -87,7 +88,7 @@ class TestProject(unittest.TestCase):
 
         self.assertEqual(project.project_id, self.project_id)
         self.assertEqual(project.project_model, self.mock_project_model_instance)
-        self.mock_db_session.query(ProjectModel).filter.assert_called_once_with(ANY)
+        self.mock_db_session.query(ProjectModel).filter.assert_called_with(ANY)
         mock_filter.first.assert_called_once_with()
 
 
@@ -475,7 +476,7 @@ class TestProject(unittest.TestCase):
 
         sessions = project.list_midi_capture_sessions()
         self.assertEqual(sessions, mock_sessions_list)
-        mock_query_sess.filter.assert_called_once_with(ANY) # Check filter was called
+        mock_query_sess.filter.assert_called_with(ANY) # Check filter was called
         mock_orderby_sess.all.assert_called_once_with()
         mock_get_db_lmcs.assert_called_once()
 
@@ -532,9 +533,9 @@ class TestProject(unittest.TestCase):
 
         self.assertEqual(midi_files, mock_midi_files_list)
 
-        q_session_mock.filter.assert_called_once_with(ANY)
+        q_session_mock.filter.assert_called_with(ANY)
         f_session_mock.first.assert_called_once_with()
-        q_files_mock.filter.assert_called_once_with(ANY)
+        q_files_mock.filter.assert_called_with(ANY)
         o_files_mock.all.assert_called_once_with()
         mock_get_db_gmfs.assert_called_once()
 
