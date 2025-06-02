@@ -63,8 +63,7 @@ def register_workflow(workflow_class: Type["BaseWorkflow"]) -> None:
     """
     if not issubclass(workflow_class, BaseWorkflow):
         raise TypeError(
-            f"Workflow class '{
-                workflow_class.__name__}' must inherit from BaseWorkflow."
+            f"Workflow class '{workflow_class.__name__}' must inherit from BaseWorkflow."
         )
 
     registry_key_name: str = _camel_to_snake(workflow_class.__name__)
@@ -73,16 +72,13 @@ def register_workflow(workflow_class: Type["BaseWorkflow"]) -> None:
 
     if registry_key_name in WORKFLOW_REGISTRY:
         logger.warning(
-            f"Workflow registry key '{registry_key_name}' (derived from class '{
-                workflow_class.__name__}') "
+            f"Workflow registry key '{registry_key_name}' (derived from class '{workflow_class.__name__}') "
             f"is already registered. Overwriting with new class. "
-            f"Previous class: '{
-                WORKFLOW_REGISTRY[registry_key_name].__name__}'."
+            f"Previous class: '{WORKFLOW_REGISTRY[registry_key_name].__name__}'."
         )
     WORKFLOW_REGISTRY[registry_key_name] = workflow_class
     logger.info(
-        f"Successfully registered workflow: '{registry_key_name}' (class: '{
-            workflow_class.__name__}')"
+        f"Successfully registered workflow: '{registry_key_name}' (class: '{workflow_class.__name__}')"
     )
 
 

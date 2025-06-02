@@ -85,6 +85,7 @@ class DecentSamplerPresetGenerator:
             return  # Stop if base directories can't be made
 
         # Copy Artwork
+        artwork_copied_successfully = False # Initialize flag
         if self.instrument_data.ui_background_image_path:
             source_artwork_path: str = self.instrument_data.ui_background_image_path
             artwork_filename: str = os.path.basename(source_artwork_path)
@@ -95,18 +96,22 @@ class DecentSamplerPresetGenerator:
                     print(
                         f"INFO: Copied artwork: {source_artwork_path} to {dest_artwork_path}"
                     )
+                    artwork_copied_successfully = True # Set flag on success
                 except IOError as e:
                     print(f"ERROR: Could not copy artwork file {artwork_filename}: {e}")
+                    # artwork_copied_successfully remains False
             else:
                 print(f"WARNING: Artwork source file not found: {source_artwork_path}")
+                # artwork_copied_successfully remains False
 
         # Create XML structure
         # Samples are copied within _create_groups_element, which needs
         # samples_dir
         root_element: ET.Element = self._create_root_element()
         ui_element: ET.Element = self._create_ui_element(
-            artwork_dir
-        )  # Pass artwork_dir for context if needed
+            artwork_output_dir=artwork_dir,
+            artwork_successfully_copied=artwork_copied_successfully
+        )
         root_element.append(ui_element)
 
         groups_element: ET.Element = self._create_groups_element(samples_dir)
@@ -147,34 +152,29 @@ class DecentSamplerPresetGenerator:
         #     root.append(ET.Comment(f"Website: {self.instrument_data.website}"))
         return root
 
-    def _create_ui_element(self, artwork_output_dir: Optional[str] = None) -> ET.Element: # Made artwork_output_dir optional and default to None
+    def _create_ui_element(self, artwork_output_dir: Optional[str] = None, artwork_successfully_copied: bool = False) -> ET.Element:
         """Creates the <ui> XML element, including background image if specified.
 
         Args:
             artwork_output_dir: The absolute path to the 'Artwork' directory where UI
                                  elements are stored. Currently unused, but kept for potential future use.
+            artwork_successfully_copied: Boolean indicating if the artwork was copied.
+
 
         Returns:
             The `ET.Element` for the <ui> section.
         """
         ui_element: ET.Element = ET.Element("ui")
-        if self.instrument_data.ui_background_image_path:
-            # Ensure the source file exists before referencing it in XML
-            # (actual copy happens in generate_preset)
+        if self.instrument_data.ui_background_image_path and artwork_successfully_copied:
             source_artwork_path: str = self.instrument_data.ui_background_image_path
-            if os.path.exists(source_artwork_path):
-                artwork_filename: str = os.path.basename(source_artwork_path)
-                # XML path should be relative to the .dspreset file location
-                relative_image_path: str = os.path.join("Artwork", artwork_filename)
+            artwork_filename: str = os.path.basename(source_artwork_path)
+            # XML path should be relative to the .dspreset file location
+            relative_image_path: str = os.path.join("Artwork", artwork_filename)
 
-                tab_element: ET.Element = ET.SubElement(ui_element, "tab")
-                tab_element.set("name", "main")  # Default tab name
-                background_element: ET.Element = ET.SubElement(tab_element, "background")
-                background_element.set("image", relative_image_path)
-            # else:
-            # Warning about missing artwork source is handled in generate_preset()
-            # No need to duplicate here, as this method only builds XML
-            # structure.
+            tab_element: ET.Element = ET.SubElement(ui_element, "tab")
+            tab_element.set("name", "main")  # Default tab name
+            background_element: ET.Element = ET.SubElement(tab_element, "background")
+            background_element.set("image", relative_image_path)
         return ui_element
 
     def _create_groups_element(self, samples_output_dir: str) -> ET.Element:
