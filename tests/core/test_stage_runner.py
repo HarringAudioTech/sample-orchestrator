@@ -1,5 +1,6 @@
 import pytest
 import logging
+from typing import Optional # Added
 
 from src.core.stage_runner import STAGE_REGISTRY, register_stage, execute_stage_chain
 from src.core.processing_stages import AudioProcessingStage, DATA_TYPE_FILE_PATH, DATA_TYPE_AUDIO_BUFFER_MONO
@@ -20,22 +21,30 @@ def clear_stage_registry():
 class MockSuccessStage(AudioProcessingStage):
     """A simple stage that records it was called and returns modified data."""
     @property
-    def name(self):
+    def name(self) -> str:
         return "mock_success_stage"
+    @property
+    def description(self) -> str:
+        return "A mock stage that simulates successful processing and captures inputs."
+    @property
+    def input_type(self) -> str:
+        return DATA_TYPE_FILE_PATH
+    @property
+    def output_type(self) -> str:
+        return DATA_TYPE_FILE_PATH
+    @property
+    def default_params(self) -> dict:
+        return {"default_param_key": "default_param_value"}
 
-    def __init__(self, config=None, **kwargs): # Added **kwargs
+    def __init__(self, config=None, **kwargs):
         super().__init__(config)
         self.called = False
-        self.input_type = DATA_TYPE_FILE_PATH
-        self.output_type = DATA_TYPE_FILE_PATH
         self.received_config = config
         self.received_kwargs = kwargs
         self.received_params_in_process = None
         self.received_context_in_process = None
 
-    default_params = {"default_param_key": "default_param_value"}
-
-    def process(self, data, temp_dir_path: str, params: dict = None, context: dict = None): # Modified signature
+    def process(self, data, params: dict, context: Optional[dict] = None): # Removed temp_dir_path, updated signature
         self.called = True
         self.received_params_in_process = params
         self.received_context_in_process = context
@@ -44,85 +53,135 @@ class MockSuccessStage(AudioProcessingStage):
 class MockErrorStage(AudioProcessingStage):
     """A stage that raises an exception during its process method."""
     @property
-    def name(self):
+    def name(self) -> str:
         return "mock_error_stage"
+    @property
+    def description(self) -> str:
+        return "A mock stage that always raises an error during process."
+    @property
+    def input_type(self) -> str:
+        return DATA_TYPE_FILE_PATH
+    @property
+    def output_type(self) -> str:
+        return DATA_TYPE_FILE_PATH
+    @property
+    def default_params(self) -> dict:
+        return {}
 
-    def __init__(self, config=None, **kwargs): # Added **kwargs
+    def __init__(self, config=None, **kwargs):
         super().__init__(config)
-        self.input_type = DATA_TYPE_FILE_PATH
-        self.output_type = DATA_TYPE_FILE_PATH
-        self.received_kwargs = kwargs
+        self.received_kwargs = kwargs # To store any extra kwargs passed during instantiation
 
-    def process(self, data, temp_dir_path: str, params: dict = None, context: dict = None): # Modified signature
+    def process(self, data, params: dict, context: Optional[dict] = None): # Removed temp_dir_path
         raise ValueError("Mock error in processing stage")
 
 class MockTypeAtoBStage(AudioProcessingStage):
     """Stage with input_type DATA_TYPE_FILE_PATH and output_type DATA_TYPE_AUDIO_BUFFER_MONO."""
     @property
-    def name(self):
+    def name(self) -> str:
         return "mock_type_a_to_b_stage"
+    @property
+    def description(self) -> str:
+        return "Converts type A (file path) to type B (audio buffer)."
+    @property
+    def input_type(self) -> str:
+        return DATA_TYPE_FILE_PATH
+    @property
+    def output_type(self) -> str:
+        return DATA_TYPE_AUDIO_BUFFER_MONO
+    @property
+    def default_params(self) -> dict:
+        return {}
 
-    def __init__(self, config=None, **kwargs): # Added **kwargs
+    def __init__(self, config=None, **kwargs):
         super().__init__(config)
-        self.input_type = DATA_TYPE_FILE_PATH
-        self.output_type = DATA_TYPE_AUDIO_BUFFER_MONO
         self.called = False
         self.received_kwargs = kwargs
 
-    def process(self, data, temp_dir_path: str, params: dict = None, context: dict = None): # Modified signature
+    def process(self, data, params: dict, context: Optional[dict] = None): # Removed temp_dir_path
         self.called = True
         # Simulate converting file path to audio buffer
         return {"sample_rate": 16000, "audio_data": [0.1, 0.2, 0.3]}
 
 class MockTypeBtoCStage(AudioProcessingStage):
-    """Stage with input_type DATA_TYPE_AUDIO_BUFFER_MONO and output_type DATA_TYPE_TEXT."""
+    """Stage with input_type DATA_TYPE_AUDIO_BUFFER_MONO and output_type DATA_TYPE_DUMMY_TEXT."""
     @property
-    def name(self):
+    def name(self) -> str:
         return "mock_type_b_to_c_stage"
+    @property
+    def description(self) -> str:
+        return "Converts type B (audio buffer) to type C (dummy text)."
+    @property
+    def input_type(self) -> str:
+        return DATA_TYPE_AUDIO_BUFFER_MONO
+    @property
+    def output_type(self) -> str:
+        return DATA_TYPE_DUMMY_TEXT
+    @property
+    def default_params(self) -> dict:
+        return {}
 
-    def __init__(self, config=None, **kwargs): # Added **kwargs
+    def __init__(self, config=None, **kwargs):
         super().__init__(config)
-        self.input_type = DATA_TYPE_AUDIO_BUFFER_MONO
-        self.output_type = DATA_TYPE_DUMMY_TEXT # Changed from DATA_TYPE_TEXT
         self.called = False
         self.received_kwargs = kwargs
 
-    def process(self, data, temp_dir_path: str, params: dict = None, context: dict = None): # Modified signature
+    def process(self, data, params: dict, context: Optional[dict] = None):  # Removed temp_dir_path
         self.called = True
         # Simulate converting audio buffer to text
         return "transcribed text from audio"
 
 class MockTypeCtoDStage(AudioProcessingStage):
-    """Stage with input_type DATA_TYPE_TEXT and output_type DATA_TYPE_DUMMY."""
+    """Stage with input_type DATA_TYPE_DUMMY_TEXT and output_type DATA_TYPE_DUMMY."""
     @property
-    def name(self):
+    def name(self) -> str:
         return "mock_type_c_to_d_stage"
+    @property
+    def description(self) -> str:
+        return "Converts type C (dummy text) to type D (dummy)."
+    @property
+    def input_type(self) -> str:
+        return DATA_TYPE_DUMMY_TEXT
+    @property
+    def output_type(self) -> str:
+        return DATA_TYPE_DUMMY
+    @property
+    def default_params(self) -> dict:
+        return {}
 
-    def __init__(self, config=None, **kwargs): # Added **kwargs
+    def __init__(self, config=None, **kwargs):
         super().__init__(config)
-        self.input_type = DATA_TYPE_DUMMY_TEXT # Changed from DATA_TYPE_TEXT
-        self.output_type = DATA_TYPE_DUMMY
-        self.called = False # Added for consistency, though not strictly needed by current tests
+        self.called = False
         self.received_kwargs = kwargs
 
-    def process(self, data, temp_dir_path: str, params: dict = None, context: dict = None): # Modified signature
+    def process(self, data, params: dict, context: Optional[dict] = None):  # Removed temp_dir_path
         self.called = True
         # Simulate processing text to a dummy data type
         return {"dummy_data": f"processed_{data}"}
 
 class MockStageWithInitError(AudioProcessingStage):
     @property
-    def name(self):
+    def name(self) -> str:
         return "mock_init_error_stage"
+    @property
+    def description(self) -> str:
+        return "A mock stage that is designed to fail during initialization."
+    @property
+    def input_type(self) -> str:
+        return DATA_TYPE_FILE_PATH
+    @property
+    def output_type(self) -> str:
+        return DATA_TYPE_FILE_PATH
+    @property
+    def default_params(self) -> dict:
+        return {}
 
     def __init__(self, config=None, **kwargs):
+        super().__init__(config) # Call super for basic setup before failing
         raise RuntimeError("Init failed for MockStageWithInitError")
 
-    @property
-    def input_type(self): return DATA_TYPE_FILE_PATH # Must be implemented
-    @property
-    def output_type(self): return DATA_TYPE_FILE_PATH # Must be implemented
-    def process(self, data, temp_dir_path: str, params: dict = None, context: dict = None): # Must be implemented
+    def process(self, data, params: dict, context: Optional[dict] = None):  # Removed temp_dir_path
+        # This method is required by the ABC but won't be reached if __init__ fails.
         return data
 
 
@@ -153,14 +212,21 @@ def test_register_stage_overwrite_warning(clear_stage_registry, caplog): # Alrea
 
     class AnotherStageWithName(AudioProcessingStage):
         @property
-        def name(self):
+        def name(self) -> str:
             return initial_stage_name # Use the fetched name string
-
         @property
-        def input_type(self): return DATA_TYPE_DUMMY_TEXT # Changed from DATA_TYPE_TEXT
+        def description(self) -> str:
+            return "A temporary stage for testing overwrite warnings."
         @property
-        def output_type(self): return DATA_TYPE_DUMMY_TEXT # Changed from DATA_TYPE_TEXT
-        def process(self, data, temp_dir_path: str, params: dict = None, context: dict = None): return data
+        def input_type(self) -> str:
+            return DATA_TYPE_DUMMY_TEXT
+        @property
+        def output_type(self) -> str:
+            return DATA_TYPE_DUMMY_TEXT
+        @property
+        def default_params(self) -> dict:
+            return {}
+        def process(self, data, params: dict, context: Optional[dict] = None): return data # Removed temp_dir_path
 
 
     # Clear previous logs if any from the initial registration if caplog is not reset per test part
@@ -184,7 +250,8 @@ def test_register_stage_invalid_type(clear_stage_registry): # No specific loggin
         name = "not_audio_stage" # This attribute is not used by register_stage's type check itself
 
     # Match the exact error message, including the class name and escaped period.
-    expected_error_message = "Stage class 'NotAudioStage' must inherit from AudioProcessingStage\."
+    # Using a raw string for the regex pattern.
+    expected_error_message = r"Stage class 'NotAudioStage' must inherit from AudioProcessingStage\."
     with pytest.raises(TypeError, match=expected_error_message):
         register_stage(NotAudioStage)
 
@@ -198,10 +265,10 @@ class StageMissingNameProperty(AudioProcessingStage):
     @property
     def output_type(self): return DATA_TYPE_DUMMY_TEXT
     @property
-    def description(self): return "Stage with name returning None" # Added
+    def description(self) -> str: return "Stage with name returning None"
     @property
-    def default_params(self): return {} # Added
-    def process(self, data, temp_dir_path: str, params: dict = None, context: dict = None): return data
+    def default_params(self) -> dict: return {}
+    def process(self, data, params: dict, context: Optional[dict] = None): return data # Removed temp_dir_path
 
 
 class StageEmptyNameValue(AudioProcessingStage):
@@ -214,10 +281,10 @@ class StageEmptyNameValue(AudioProcessingStage):
     @property
     def output_type(self): return DATA_TYPE_FILE_PATH
     @property
-    def description(self): return "Stage with empty name string" # Added
+    def description(self) -> str: return "Stage with empty name string"
     @property
-    def default_params(self): return {} # Added
-    def process(self, data, temp_dir_path: str, params: dict = None, context: dict = None): return data
+    def default_params(self) -> dict: return {}
+    def process(self, data, params: dict, context: Optional[dict] = None): return data # Removed temp_dir_path
 
 # @pytest.mark.xfail(reason="register_stage doesn't correctly check name property value, uses property object if name is None")
 def test_register_stage_name_is_none(clear_stage_registry, caplog):
@@ -225,16 +292,16 @@ def test_register_stage_name_is_none(clear_stage_registry, caplog):
     # uses the property object if the name evaluates to None.
     class StageNameIsNone(AudioProcessingStage):
         @property
-        def name(self): return None
+        def name(self) -> str: return None # Intentionally None for this test
         @property
-        def description(self): return "A stage whose name property returns None"
+        def description(self) -> str: return "A stage whose name property returns None"
         @property
-        def input_type(self): return DATA_TYPE_FILE_PATH
+        def input_type(self) -> str: return DATA_TYPE_FILE_PATH
         @property
-        def output_type(self): return DATA_TYPE_FILE_PATH
+        def output_type(self) -> str: return DATA_TYPE_FILE_PATH
         @property
-        def default_params(self): return {}
-        def process(self, data, params: dict = None, context: dict = None): return data
+        def default_params(self) -> dict: return {}
+        def process(self, data, params: dict, context: Optional[dict] = None): return data # Corrected
 
     with caplog.at_level(logging.INFO):
         register_stage(StageNameIsNone)
@@ -259,16 +326,16 @@ def test_register_stage_empty_name_value(clear_stage_registry, caplog):
     # uses the property object if the name evaluates to an empty string.
     class StageEmptyName(AudioProcessingStage):
         @property
-        def name(self): return ""
+        def name(self) -> str: return "" # Intentionally empty for this test
         @property
-        def description(self): return "A stage whose name property returns an empty string"
+        def description(self) -> str: return "A stage whose name property returns an empty string"
         @property
-        def input_type(self): return DATA_TYPE_FILE_PATH
+        def input_type(self) -> str: return DATA_TYPE_FILE_PATH
         @property
-        def output_type(self): return DATA_TYPE_FILE_PATH
+        def output_type(self) -> str: return DATA_TYPE_FILE_PATH
         @property
-        def default_params(self): return {}
-        def process(self, data, params: dict = None, context: dict = None): return data
+        def default_params(self) -> dict: return {}
+        def process(self, data, params: dict, context: Optional[dict] = None): return data # Corrected
 
     with caplog.at_level(logging.INFO):
         register_stage(StageEmptyName)
@@ -293,12 +360,18 @@ class InspectableMockSuccessStage(MockSuccessStage):
     last_instance_received_params = None
     last_instance_received_context = None
 
+    # name is overridden for inspectability.
+    # description is overridden for clarity.
+    # input_type, output_type, default_params are inherited from MockSuccessStage.
     @property
-    def name(self):
+    def name(self) -> str:
         return "inspectable_mock_success_stage"
+    @property
+    def description(self) -> str: # Specific description for this subclass
+        return "An inspectable version of MockSuccessStage, used for detailed checks of context and params."
 
-    def process(self, data, temp_dir_path: str, params: dict = None, context: dict = None):
-        super().process(data, temp_dir_path, params, context)
+    def process(self, data, params: dict, context: Optional[dict] = None): # Removed temp_dir_path
+        super().process(data, params=params, context=context) # Pass params and context to super
         InspectableMockSuccessStage.last_instance_called_flag = self.called
         InspectableMockSuccessStage.last_instance_received_params = self.received_params_in_process
         InspectableMockSuccessStage.last_instance_received_context = self.received_context_in_process
@@ -400,13 +473,16 @@ def test_execute_chain_parameter_merging(clear_stage_registry):
 def test_execute_chain_unregistered_stage(clear_stage_registry):
     """Test chain execution with an unregistered stage name."""
     chain_definition = [{"stage_name": "UnregisteredStageName"}]
-    with pytest.raises(ValueError, match="Stage 'UnregisteredStageName' not found in STAGE_REGISTRY."):
+    # Using a regex to match the core parts of the message, allowing for variations in index or available stages list
+    expected_match_regex = r"Stage 'UnregisteredStageName'.*not found in STAGE_REGISTRY"
+    with pytest.raises(ValueError, match=expected_match_regex):
         execute_stage_chain("data", DATA_TYPE_FILE_PATH, chain_definition, {})
 
 def test_execute_chain_missing_stage_name_key(clear_stage_registry):
     """Test chain execution with a malformed stage definition (missing 'stage_name')."""
     chain_definition = [{"params": {"some_param": "value"}}] # Missing 'stage_name'
-    with pytest.raises(ValueError, match="Missing 'stage_name' in stage definition:"):
+    expected_match_regex = r"Missing 'stage_name' in chain definition.*"
+    with pytest.raises(ValueError, match=expected_match_regex):
         execute_stage_chain("data", DATA_TYPE_FILE_PATH, chain_definition, {})
 
 def test_execute_chain_initial_type_mismatch(clear_stage_registry):
