@@ -43,7 +43,7 @@ jobs:
         name: coverage-report
         path: coverage.xml
     - name: Publish Coverage Check
-      uses: MADLAD/publish-coverage-check@v1
+      uses: MADLAD/publish-coverage-check@v3
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         coverage_file: coverage.xml
