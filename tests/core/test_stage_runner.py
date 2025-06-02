@@ -1,369 +1,493 @@
-"""
-Unit tests for the stage_runner.py module.
-"""
-
 import pytest
 import logging
-from typing import Any, Dict, Type
-from unittest.mock import MagicMock, patch
 
-from src.core.processing_stages import (
-    AudioProcessingStage,
-    DATA_TYPE_FILE_PATH,
-    DATA_TYPE_AUDIO_BUFFER_MONO,
-    DATA_TYPE_LIST_OF_SAMPLE_DATA,  # Though not used by mocks, good to have for context
-)
 from src.core.stage_runner import STAGE_REGISTRY, register_stage, execute_stage_chain
+from src.core.processing_stages import AudioProcessingStage, DATA_TYPE_FILE_PATH, DATA_TYPE_AUDIO_BUFFER_MONO, DATA_TYPE_TEXT
 
-# Configure basic logging for tests (optional, but can be helpful)
-# logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
+# New dummy data type for testing
+DATA_TYPE_DUMMY = "DATA_TYPE_DUMMY"
 
-# --- Mock AudioProcessingStage Implementations ---
-
-
-class MockStageA_FilePathToBuffer(AudioProcessingStage):
-    """Mock stage: FilePath -> AudioBufferMono. Logs calls."""
-
-    name = "mock_stage_a"  # Changed to class attribute
-    _description = "Converts file path to mono audio buffer (mocked)."
-    _input_type = DATA_TYPE_FILE_PATH
-    _output_type = DATA_TYPE_AUDIO_BUFFER_MONO
-    _default_params = {"param_a": 1}
-
-    # Store calls for assertion
-    call_log = []
-
-    # name property removed
-
-    @property
-    def description(self) -> str:
-        return self._description
-
-    @property
-    def input_type(self) -> str:
-        return self._input_type
-
-    @property
-    def output_type(self) -> str:
-        return self._output_type
-
-    @property
-    def default_params(self) -> dict:
-        return self._default_params.copy()
-
-    def process(
-        self, data: str, params: dict, context: dict = None
-    ) -> list:  # Simulating buffer as list
-        logger.info(
-            f"[{self.name}] CALLED with data: {data}, params: {params}, context: {context}"
-        )
-        self.call_log.append({"data": data, "params": params, "context": context})
-        if not isinstance(data, str):  # Basic type check for test
-            raise TypeError(f"{self.name} expected str, got {type(data)}")
-        return [0.1, 0.2, 0.3]  # Mock audio buffer
-
-
-class MockStageB_BufferToBuffer(AudioProcessingStage):
-    """Mock stage: AudioBufferMono -> AudioBufferMono. Logs calls."""
-
-    name = "mock_stage_b"  # Changed to class attribute
-    _description = "Processes a mono audio buffer (mocked)."
-    _input_type = DATA_TYPE_AUDIO_BUFFER_MONO
-    _output_type = DATA_TYPE_AUDIO_BUFFER_MONO
-    _default_params = {"param_b": "hello"}
-    call_log = []
-
-    # name property removed
-
-    @property
-    def description(self) -> str:
-        return self._description
-
-    @property
-    def input_type(self) -> str:
-        return self._input_type
-
-    @property
-    def output_type(self) -> str:
-        return self._output_type
-
-    @property
-    def default_params(self) -> dict:
-        return self._default_params.copy()
-
-    def process(self, data: list, params: dict, context: dict = None) -> list:
-        logger.info(
-            f"[{self.name}] CALLED with data: {data}, params: {params}, context: {context}"
-        )
-        self.call_log.append({"data": data, "params": params, "context": context})
-        if not isinstance(data, list):  # Basic type check for test
-            raise TypeError(f"{self.name} expected list, got {type(data)}")
-        return [d * 2 for d in data]  # Mock processing
-
-
-class MockStageC_BufferToFilePath(AudioProcessingStage):
-    """Mock stage: AudioBufferMono -> FilePath. Logs calls."""
-
-    name = "mock_stage_c"  # Changed to class attribute
-    _description = "Saves a mono audio buffer to a file path (mocked)."
-    _input_type = DATA_TYPE_AUDIO_BUFFER_MONO
-    _output_type = DATA_TYPE_FILE_PATH
-    _default_params = {"output_filename": "output.wav"}
-    call_log = []
-
-    # name property removed
-
-    @property
-    def description(self) -> str:
-        return self._description
-
-    @property
-    def input_type(self) -> str:
-        return self._input_type
-
-    @property
-    def output_type(self) -> str:
-        return self._output_type
-
-    @property
-    def default_params(self) -> dict:
-        return self._default_params.copy()
-
-    def process(self, data: list, params: dict, context: dict = None) -> str:
-        logger.info(
-            f"[{self.name}] CALLED with data: {data}, params: {params}, context: {context}"
-        )
-        self.call_log.append({"data": data, "params": params, "context": context})
-        if not isinstance(data, list):
-            raise TypeError(f"{self.name} expected list, got {type(data)}")
-        return f"/tmp/mock_output/{
-            params.get(
-                'output_filename',
-                'default_out.wav')}"
-
-
-# --- Fixture to manage STAGE_REGISTRY ---
-@pytest.fixture(autouse=True)  # Automatically use this fixture for all tests in this module
-def clear_stage_registry_and_logs():
-    """Clears the STAGE_REGISTRY and mock stage call logs before each test."""
-    original_registry = STAGE_REGISTRY.copy()
+@pytest.fixture
+def clear_stage_registry():
+    """Clears the STAGE_REGISTRY before each test."""
+    STAGE_REGISTRY.clear()
+    yield
     STAGE_REGISTRY.clear()
 
-    # Clear call logs for each mock stage
-    MockStageA_FilePathToBuffer.call_log.clear()
-    MockStageB_BufferToBuffer.call_log.clear()
-    MockStageC_BufferToFilePath.call_log.clear()
+# --- Mock Stage Implementations (from previous step) ---
+class MockSuccessStage(AudioProcessingStage):
+    """A simple stage that records it was called and returns modified data."""
+    @property
+    def name(self):
+        return "mock_success_stage"
 
-    yield  # Test runs here
+    def __init__(self, config=None, **kwargs): # Added **kwargs
+        super().__init__(config)
+        self.called = False
+        self.input_type = DATA_TYPE_FILE_PATH
+        self.output_type = DATA_TYPE_FILE_PATH
+        self.received_config = config
+        self.received_kwargs = kwargs
+        self.received_params_in_process = None
+        self.received_context_in_process = None
 
-    # Restore original registry content after test (optional, usually clear is
-    # enough for isolation)
-    STAGE_REGISTRY.clear()
-    STAGE_REGISTRY.update(original_registry)
+    default_params = {"default_param_key": "default_param_value"}
+
+    def process(self, data, temp_dir_path: str, params: dict = None, context: dict = None): # Modified signature
+        self.called = True
+        self.received_params_in_process = params
+        self.received_context_in_process = context
+        return f"processed_{data}"
+
+class MockErrorStage(AudioProcessingStage):
+    """A stage that raises an exception during its process method."""
+    @property
+    def name(self):
+        return "mock_error_stage"
+
+    def __init__(self, config=None, **kwargs): # Added **kwargs
+        super().__init__(config)
+        self.input_type = DATA_TYPE_FILE_PATH
+        self.output_type = DATA_TYPE_FILE_PATH
+        self.received_kwargs = kwargs
+
+    def process(self, data, temp_dir_path: str, params: dict = None, context: dict = None): # Modified signature
+        raise ValueError("Mock error in processing stage")
+
+class MockTypeAtoBStage(AudioProcessingStage):
+    """Stage with input_type DATA_TYPE_FILE_PATH and output_type DATA_TYPE_AUDIO_BUFFER_MONO."""
+    @property
+    def name(self):
+        return "mock_type_a_to_b_stage"
+
+    def __init__(self, config=None, **kwargs): # Added **kwargs
+        super().__init__(config)
+        self.input_type = DATA_TYPE_FILE_PATH
+        self.output_type = DATA_TYPE_AUDIO_BUFFER_MONO
+        self.called = False
+        self.received_kwargs = kwargs
+
+    def process(self, data, temp_dir_path: str, params: dict = None, context: dict = None): # Modified signature
+        self.called = True
+        # Simulate converting file path to audio buffer
+        return {"sample_rate": 16000, "audio_data": [0.1, 0.2, 0.3]}
+
+class MockTypeBtoCStage(AudioProcessingStage):
+    """Stage with input_type DATA_TYPE_AUDIO_BUFFER_MONO and output_type DATA_TYPE_TEXT."""
+    @property
+    def name(self):
+        return "mock_type_b_to_c_stage"
+
+    def __init__(self, config=None, **kwargs): # Added **kwargs
+        super().__init__(config)
+        self.input_type = DATA_TYPE_AUDIO_BUFFER_MONO
+        self.output_type = DATA_TYPE_TEXT
+        self.called = False
+        self.received_kwargs = kwargs
+
+    def process(self, data, temp_dir_path: str, params: dict = None, context: dict = None): # Modified signature
+        self.called = True
+        # Simulate converting audio buffer to text
+        return "transcribed text from audio"
+
+class MockTypeCtoDStage(AudioProcessingStage):
+    """Stage with input_type DATA_TYPE_TEXT and output_type DATA_TYPE_DUMMY."""
+    @property
+    def name(self):
+        return "mock_type_c_to_d_stage"
+
+    def __init__(self, config=None, **kwargs): # Added **kwargs
+        super().__init__(config)
+        self.input_type = DATA_TYPE_TEXT
+        self.output_type = DATA_TYPE_DUMMY
+        self.called = False # Added for consistency, though not strictly needed by current tests
+        self.received_kwargs = kwargs
+
+    def process(self, data, temp_dir_path: str, params: dict = None, context: dict = None): # Modified signature
+        self.called = True
+        # Simulate processing text to a dummy data type
+        return {"dummy_data": f"processed_{data}"}
+
+class MockStageWithInitError(AudioProcessingStage):
+    @property
+    def name(self):
+        return "mock_init_error_stage"
+
+    def __init__(self, config=None, **kwargs):
+        raise RuntimeError("Init failed for MockStageWithInitError")
+
+    @property
+    def input_type(self): return DATA_TYPE_FILE_PATH # Must be implemented
+    @property
+    def output_type(self): return DATA_TYPE_FILE_PATH # Must be implemented
+    def process(self, data, temp_dir_path: str, params: dict = None, context: dict = None): # Must be implemented
+        return data
 
 
 # --- Tests for register_stage ---
-def test_register_stage_success():
-    register_stage(MockStageA_FilePathToBuffer)
-    assert MockStageA_FilePathToBuffer.name in STAGE_REGISTRY
-    assert STAGE_REGISTRY[MockStageA_FilePathToBuffer.name] == MockStageA_FilePathToBuffer
 
+def test_register_stage_success_and_logging(clear_stage_registry, caplog):
+    """Test successful registration of a valid stage and INFO logging."""
+    stage_class = MockSuccessStage
+    with caplog.at_level(logging.INFO):
+        register_stage(stage_class)
 
-def test_register_stage_reregistration(caplog):
-    register_stage(MockStageA_FilePathToBuffer)  # Initial registration
+    assert stage_class.name in STAGE_REGISTRY
+    assert STAGE_REGISTRY[stage_class.name] == stage_class
 
-    class MockStageA_Variant(MockStageA_FilePathToBuffer):  # Same name, different class
-        pass
+    assert len(caplog.records) == 1
+    log_record = caplog.records[0]
+    assert log_record.levelname == "INFO"
+    assert f"Successfully registered stage '{stage_class.name}' from class {stage_class.__name__}" in log_record.message
+    assert log_record.name == "src.core.stage_runner"
 
-    with caplog.at_level(logging.WARNING):
-        register_stage(MockStageA_Variant)
+def test_register_stage_overwrite_warning(clear_stage_registry, caplog): # Already uses caplog
+    """Test that overwriting an existing stage logs a WARNING."""
+    initial_stage_class = MockSuccessStage
+    register_stage(initial_stage_class) # Initial registration
 
-    assert MockStageA_FilePathToBuffer.name in STAGE_REGISTRY
-    assert (
-        STAGE_REGISTRY[MockStageA_FilePathToBuffer.name] == MockStageA_Variant
-    )  # Overwritten
-
-    assert any(
-        f"Stage name '{
-            MockStageA_FilePathToBuffer.name}' from class '{
-            MockStageA_Variant.__name__}' is already registered. Overwriting"
-        in record.message
-        for record in caplog.records
-    )
-
-
-def test_register_stage_type_error_not_subclass():
-    class NotAStage:
-        name = "invalid_stage"
-
-    with pytest.raises(TypeError, match="must inherit from AudioProcessingStage"):
-        register_stage(NotAStage)
-
-
-def test_register_stage_type_error_missing_name_property():
-    class StageWithoutName(AudioProcessingStage):  # Missing abstract 'name' property
+    class AnotherStageWithName(AudioProcessingStage):
         @property
-        def description(self) -> str:
-            return "No name"
+        def name(self):
+            return initial_stage_class.name # Same name as MockSuccessStage
 
         @property
-        def input_type(self) -> str:
-            return DATA_TYPE_FILE_PATH
-
+        def input_type(self): return DATA_TYPE_TEXT
         @property
-        def output_type(self) -> str:
-            return DATA_TYPE_FILE_PATH
-
-        @property
-        def default_params(self) -> dict:
-            return {}
-
-        def process(self, data, params, context=None):
-            return data
+        def output_type(self): return DATA_TYPE_TEXT
+        def process(self, data, temp_dir_path: str, params: dict = None, context: dict = None): return data
 
 
-# --- Tests for execute_stage_chain ---
-@pytest.fixture
-def registered_mock_stages():
-    """Fixture to register all mock stages for use in chain execution tests."""
-    register_stage(MockStageA_FilePathToBuffer)
-    register_stage(MockStageB_BufferToBuffer)
-    register_stage(MockStageC_BufferToFilePath)
+    # Clear previous logs if any from the initial registration if caplog is not reset per test part
+    caplog.clear()
+
+    with caplog.at_level(logging.WARNING): # Ensure this context manager is capturing for the overwrite
+        register_stage(AnotherStageWithName)
+
+    assert STAGE_REGISTRY[initial_stage_class.name] == AnotherStageWithName # Check it's overwritten
+
+    assert len(caplog.records) == 1
+    log_record = caplog.records[0]
+    assert log_record.levelname == "WARNING"
+    assert f"Stage name '{initial_stage_class.name}' from class {AnotherStageWithName.__name__} is already registered (currently {initial_stage_class.__name__}). Overwriting." in log_record.message
+    assert log_record.name == "src.core.stage_runner"
+
+def test_register_stage_invalid_type(clear_stage_registry): # No specific logging for this before error
+    """Test that registering a class not inheriting from AudioProcessingStage raises TypeError."""
+    class NotAudioStage:
+        name = "not_audio_stage"
+
+    with pytest.raises(TypeError, match="Stage class must inherit from AudioProcessingStage"):
+        register_stage(NotAudioStage)
+
+class StageMissingNameProperty(AudioProcessingStage):
+    @property
+    def name(self):
+        return None
+
+    @property
+    def input_type(self): return DATA_TYPE_TEXT
+    @property
+    def output_type(self): return DATA_TYPE_TEXT
+    def process(self, data, temp_dir_path: str, params: dict = None, context: dict = None): return data
 
 
-def test_execute_stage_chain_success(registered_mock_stages):
-    initial_file = "/path/to/input.wav"
-    context_dict = {"project_id": 123, "user": "test_user"}
+class StageEmptyNameValue(AudioProcessingStage):
+    @property
+    def name(self):
+        return ""
 
-    chain_def = [
-        {"stage_name": "mock_stage_a", "params": {"param_a": 100}},  # Override default
-        {"stage_name": "mock_stage_b"},  # Use default param_b
-        {
-            "stage_name": "mock_stage_c",
-            "params": {"output_filename": "final_output.wav"},
-        },
-    ]
+    @property
+    def input_type(self): return DATA_TYPE_FILE_PATH
+    @property
+    def output_type(self): return DATA_TYPE_FILE_PATH
+    def process(self, data, temp_dir_path: str, params: dict = None, context: dict = None): return data
 
-    final_output = execute_stage_chain(
-        initial_data=initial_file,
-        initial_data_type=DATA_TYPE_FILE_PATH,
-        chain_definition=chain_def,
-        context=context_dict,
-    )
+def test_register_stage_name_is_none(clear_stage_registry):
+    with pytest.raises(AttributeError, match="Stage class must have a valid 'name' property \\(non-empty string\\)\\."):
+        register_stage(StageMissingNameProperty)
 
-    assert final_output == "/tmp/mock_output/final_output.wav"
-
-    # Check Stage A call
-    assert len(MockStageA_FilePathToBuffer.call_log) == 1
-    stage_a_call = MockStageA_FilePathToBuffer.call_log[0]
-    assert stage_a_call["data"] == initial_file
-    assert stage_a_call["params"] == {"param_a": 100}  # Merged
-    assert stage_a_call["context"] == context_dict
-
-    # Check Stage B call
-    assert len(MockStageB_BufferToBuffer.call_log) == 1
-    stage_b_call = MockStageB_BufferToBuffer.call_log[0]
-    assert stage_b_call["data"] == [0.1, 0.2, 0.3]  # Output from A
-    assert stage_b_call["params"] == {"param_b": "hello"}  # Default from B
-    assert stage_b_call["context"] == context_dict
-
-    # Check Stage C call
-    assert len(MockStageC_BufferToFilePath.call_log) == 1
-    stage_c_call = MockStageC_BufferToFilePath.call_log[0]
-    assert stage_c_call["data"] == [0.2, 0.4, 0.6]  # Output from B
-    assert stage_c_call["params"] == {"output_filename": "final_output.wav"}  # Merged
-    assert stage_c_call["context"] == context_dict
+def test_register_stage_empty_name_value(clear_stage_registry):
+    with pytest.raises(AttributeError, match="Stage class must have a valid 'name' property \\(non-empty string\\)\\."):
+        register_stage(StageEmptyNameValue)
 
 
-def test_execute_stage_chain_type_mismatch(registered_mock_stages):
-    chain_def = [
-        {"stage_name": "mock_stage_a"},  # Outputs AudioBufferMono
-        {"stage_name": "mock_stage_c"},
-        # Expects AudioBufferMono, this is fine
-    ]
-    # Now, let's make Stage C expect FilePath to force a mismatch
-    MockStageC_BufferToFilePath._input_type = DATA_TYPE_FILE_PATH
-    # Need to re-register if input_type change matters to registry (it doesn't for current STAGE_REGISTRY)
-    # but the instance created by execute_stage_chain will have this modified
-    # input_type.
+# --- Helper class for inspecting instance behavior in execute_stage_chain ---
+class InspectableMockSuccessStage(MockSuccessStage):
+    last_instance_called_flag = False
+    last_instance_received_params = None
+    last_instance_received_context = None
 
-    with pytest.raises(
-        TypeError,
-        match="Stage expects input type 'file_path', but received 'audio_buffer_mono'",
-    ):
-        execute_stage_chain("/input.wav", DATA_TYPE_FILE_PATH, chain_def, {})
+    @property
+    def name(self):
+        return "inspectable_mock_success_stage"
 
-    # Reset for other tests
-    MockStageC_BufferToFilePath._input_type = DATA_TYPE_AUDIO_BUFFER_MONO
+    def process(self, data, temp_dir_path: str, params: dict = None, context: dict = None):
+        super().process(data, temp_dir_path, params, context)
+        InspectableMockSuccessStage.last_instance_called_flag = self.called
+        InspectableMockSuccessStage.last_instance_received_params = self.received_params_in_process
+        InspectableMockSuccessStage.last_instance_received_context = self.received_context_in_process
+        return f"processed_inspectable_{data}"
 
+    @classmethod
+    def reset_class_inspection_vars(cls):
+        cls.last_instance_called_flag = False
+        cls.last_instance_received_params = None
+        cls.last_instance_received_context = None
 
-def test_execute_stage_chain_initial_type_mismatch(registered_mock_stages):
-    chain_def = [{"stage_name": "mock_stage_a"}]  # Expects FilePath
-    with pytest.raises(
-        TypeError,
-        match="Stage expects input type 'file_path', but received 'audio_buffer_mono'",
-    ):
-        execute_stage_chain([0.1, 0.2], DATA_TYPE_AUDIO_BUFFER_MONO, chain_def, {})
+# --- Tests for execute_stage_chain basic execution ---
 
-
-def test_execute_stage_chain_stage_not_found():
-    chain_def = [{"stage_name": "non_existent_stage"}]
-    with pytest.raises(
-        ValueError, match="Stage 'non_existent_stage' .* not found in STAGE_REGISTRY"
-    ):
-        execute_stage_chain("data", DATA_TYPE_FILE_PATH, chain_def, {})
-
-
-def test_execute_stage_chain_empty_chain():
-    initial_data = "my_initial_data"
-    result = execute_stage_chain(initial_data, DATA_TYPE_FILE_PATH, [], {})
+def test_execute_empty_chain(clear_stage_registry):
+    initial_data = "initial_data"
+    initial_data_type = DATA_TYPE_FILE_PATH
+    chain_definition = []
+    result, final_data_type = execute_stage_chain(initial_data, initial_data_type, chain_definition, {}, "dummy_temp_dir")
     assert result == initial_data
+    assert final_data_type == initial_data_type
 
+def test_execute_single_stage_chain_success(clear_stage_registry):
+    register_stage(InspectableMockSuccessStage)
+    InspectableMockSuccessStage.reset_class_inspection_vars()
+    initial_data = "test_file.txt"
+    initial_data_type = DATA_TYPE_FILE_PATH
+    chain_definition = [{"stage_name": InspectableMockSuccessStage.name}]
+    result, final_data_type = execute_stage_chain(initial_data, initial_data_type, chain_definition, {}, "dummy_temp_dir")
+    assert result == f"processed_inspectable_{initial_data}"
+    assert final_data_type == InspectableMockSuccessStage.output_type
+    assert InspectableMockSuccessStage.last_instance_called_flag is True
+    InspectableMockSuccessStage.reset_class_inspection_vars()
 
-def test_execute_stage_chain_stage_process_error(registered_mock_stages):
-    chain_def = [{"stage_name": "mock_stage_a"}]
-
-    # Make Stage A's process method raise an error
-    original_process = MockStageA_FilePathToBuffer.process
-    MockStageA_FilePathToBuffer.process = MagicMock(
-        side_effect=RuntimeError("Processing failed in A")
-    )
-
-    with pytest.raises(
-        Exception,
-        match="Processing failed in stage 'mock_stage_a'.*Original error: Processing failed in A",
-    ):
-        execute_stage_chain("/input.wav", DATA_TYPE_FILE_PATH, chain_def, {})
-
-    # Restore original process method
-    MockStageA_FilePathToBuffer.process = original_process
-
-
-def test_execute_stage_chain_missing_stage_name_in_def():
-    chain_def = [{"params": {}}]  # Missing 'stage_name'
-    with pytest.raises(
-        ValueError, match="Missing 'stage_name' in chain definition at index 0"
-    ):
-        execute_stage_chain("data", DATA_TYPE_FILE_PATH, chain_def, {})
-
-
-def test_execute_stage_chain_default_param_usage(registered_mock_stages):
-    # Stage B has default {"param_b": "hello"}
-    # Stage A has default {"param_a": 1}
-    chain_def = [
-        {"stage_name": "mock_stage_a"},  # Uses default param_a
-        {"stage_name": "mock_stage_b"},  # Uses default param_b
+def test_execute_multiple_stages_chain_success(clear_stage_registry):
+    register_stage(MockTypeAtoBStage)
+    register_stage(MockTypeBtoCStage)
+    initial_data = "input.wav"
+    initial_data_type = DATA_TYPE_FILE_PATH
+    chain_definition = [
+        {"stage_name": MockTypeAtoBStage.name},
+        {"stage_name": MockTypeBtoCStage.name}
     ]
-    execute_stage_chain("/input.wav", DATA_TYPE_FILE_PATH, chain_def, {})
+    result, final_data_type = execute_stage_chain(initial_data, initial_data_type, chain_definition, {}, "dummy_temp_dir")
+    assert result == "transcribed text from audio"
+    assert final_data_type == MockTypeBtoCStage.output_type
 
-    assert MockStageA_FilePathToBuffer.call_log[0]["params"] == {"param_a": 1}
-    assert MockStageB_BufferToBuffer.call_log[0]["params"] == {"param_b": "hello"}
+def test_execute_chain_with_context(clear_stage_registry):
+    register_stage(InspectableMockSuccessStage)
+    InspectableMockSuccessStage.reset_class_inspection_vars()
+    initial_data = "context_test.txt"
+    initial_data_type = DATA_TYPE_FILE_PATH
+    context_to_pass = {"project_id": 123, "user_id": "test_user"}
+    chain_definition = [{"stage_name": InspectableMockSuccessStage.name}]
+    execute_stage_chain(initial_data, initial_data_type, chain_definition, context_to_pass, "dummy_temp_dir")
+    assert InspectableMockSuccessStage.last_instance_received_context is not None
+    assert InspectableMockSuccessStage.last_instance_received_context["project_id"] == 123
+    assert InspectableMockSuccessStage.last_instance_received_context["user_id"] == "test_user"
+    InspectableMockSuccessStage.reset_class_inspection_vars()
+
+def test_execute_chain_parameter_merging(clear_stage_registry):
+    register_stage(InspectableMockSuccessStage)
+    InspectableMockSuccessStage.reset_class_inspection_vars()
+    initial_data = "params_test.txt"
+    initial_data_type = DATA_TYPE_FILE_PATH
+    user_params_override = {
+        "default_param_key": "overridden_value",
+        "user_specific_param": "user_value"
+    }
+    chain_def_override = [{
+        "stage_name": InspectableMockSuccessStage.name,
+        "params": user_params_override
+    }]
+    execute_stage_chain(initial_data, initial_data_type, chain_def_override, {}, "dummy_temp_dir")
+    expected_merged_params_override = InspectableMockSuccessStage.default_params.copy()
+    expected_merged_params_override.update(user_params_override)
+    assert InspectableMockSuccessStage.last_instance_received_params is not None
+    assert InspectableMockSuccessStage.last_instance_received_params == expected_merged_params_override
+    InspectableMockSuccessStage.reset_class_inspection_vars()
+    chain_def_default = [{"stage_name": InspectableMockSuccessStage.name}]
+    execute_stage_chain(initial_data, initial_data_type, chain_def_default, {}, "dummy_temp_dir")
+    assert InspectableMockSuccessStage.last_instance_received_params is not None
+    assert InspectableMockSuccessStage.last_instance_received_params == InspectableMockSuccessStage.default_params
+    InspectableMockSuccessStage.reset_class_inspection_vars()
+
+# --- Tests for execute_stage_chain error handling and edge cases ---
+
+def test_execute_chain_unregistered_stage(clear_stage_registry):
+    """Test chain execution with an unregistered stage name."""
+    chain_definition = [{"stage_name": "UnregisteredStageName"}]
+    with pytest.raises(ValueError, match="Stage 'UnregisteredStageName' not found in STAGE_REGISTRY."):
+        execute_stage_chain("data", DATA_TYPE_FILE_PATH, chain_definition, {}, "dummy_temp_dir")
+
+def test_execute_chain_missing_stage_name_key(clear_stage_registry):
+    """Test chain execution with a malformed stage definition (missing 'stage_name')."""
+    chain_definition = [{"params": {"some_param": "value"}}] # Missing 'stage_name'
+    with pytest.raises(ValueError, match="Missing 'stage_name' in stage definition:"):
+        execute_stage_chain("data", DATA_TYPE_FILE_PATH, chain_definition, {}, "dummy_temp_dir")
+
+def test_execute_chain_initial_type_mismatch(clear_stage_registry):
+    """Test chain execution where initial data type mismatches first stage's input type."""
+    register_stage(MockTypeAtoBStage) # Expects DATA_TYPE_FILE_PATH
+    chain_definition = [{"stage_name": MockTypeAtoBStage.name}]
+    initial_data_type = DATA_TYPE_TEXT # Mismatch
+    with pytest.raises(TypeError, match=f"Type mismatch: Stage {MockTypeAtoBStage.name} expected {MockTypeAtoBStage.input_type}, but got {initial_data_type}"):
+        execute_stage_chain("data", initial_data_type, chain_definition, {}, "dummy_temp_dir")
+
+def test_execute_chain_intermediate_type_mismatch(clear_stage_registry):
+    """Test chain execution where output type of one stage mismatches input type of the next."""
+    register_stage(MockTypeAtoBStage) # Outputs: DATA_TYPE_AUDIO_BUFFER_MONO
+    register_stage(MockTypeCtoDStage) # Expects: DATA_TYPE_TEXT
+
+    chain_definition = [
+        {"stage_name": MockTypeAtoBStage.name},
+        {"stage_name": MockTypeCtoDStage.name}
+    ]
+    expected_error_msg = (f"Type mismatch: Stage {MockTypeCtoDStage.name} expected {MockTypeCtoDStage.input_type}, "
+                          f"but got {MockTypeAtoBStage.output_type} from previous stage {MockTypeAtoBStage.name}")
+
+    with pytest.raises(TypeError, match=expected_error_msg):
+        execute_stage_chain("data", DATA_TYPE_FILE_PATH, chain_definition, {}, "dummy_temp_dir")
+
+def test_execute_chain_stage_instantiation_error(clear_stage_registry):
+    """Test chain execution where a stage fails to instantiate."""
+    register_stage(MockStageWithInitError)
+    chain_definition = [{"stage_name": MockStageWithInitError.name}]
+
+    with pytest.raises(RuntimeError, match=f"Could not instantiate stage {MockStageWithInitError.name}") as excinfo:
+        execute_stage_chain("data", DATA_TYPE_FILE_PATH, chain_definition, {}, "dummy_temp_dir")
+    assert isinstance(excinfo.value.__cause__, RuntimeError)
+    assert "Init failed for MockStageWithInitError" in str(excinfo.value.__cause__)
 
 
-def test_execute_stage_chain_no_context_provided(registered_mock_stages):
-    chain_def = [{"stage_name": "mock_stage_a"}]
-    execute_stage_chain("/input.wav", DATA_TYPE_FILE_PATH, chain_def)  # context=None
-    assert (
-        MockStageA_FilePathToBuffer.call_log[0]["context"] == {}
-    )  # Should default to empty dict
+def test_execute_chain_stage_processing_error(clear_stage_registry):
+    """Test chain execution where a stage's process method raises an error."""
+    register_stage(MockErrorStage) # process() raises ValueError
+    chain_definition = [{"stage_name": MockErrorStage.name}]
+
+    with pytest.raises(Exception, match=f"Processing failed in stage {MockErrorStage.name}") as excinfo:
+        execute_stage_chain("data", DATA_TYPE_FILE_PATH, chain_definition, {}, "dummy_temp_dir")
+
+    assert isinstance(excinfo.value.__cause__, ValueError)
+    assert "Mock error in processing stage" in str(excinfo.value.__cause__)
+
+
+# --- Tests for execute_stage_chain Logging ---
+
+def test_execute_stage_chain_logging_basic_flow(clear_stage_registry, caplog):
+    """Test INFO logging for basic successful stage chain execution."""
+    register_stage(MockSuccessStage)
+    chain_definition = [{"stage_name": MockSuccessStage.name, "description": "Test Description"}]
+    initial_data = "start_data"
+    initial_data_type = DATA_TYPE_FILE_PATH
+
+    with caplog.at_level(logging.INFO):
+        execute_stage_chain(initial_data, initial_data_type, chain_definition, {}, "dummy_temp_dir")
+
+    assert len(caplog.records) >= 4 # Start chain, Executing stage, Stage completed, Chain completed
+
+    # Check specific log messages (order and exact count might vary if other INFO logs exist)
+    # For src.core.stage_runner logger only
+    runner_logs = [r for r in caplog.records if r.name == "src.core.stage_runner"]
+
+    assert runner_logs[0].levelname == "INFO"
+    assert "Starting stage chain execution with 1 stages." in runner_logs[0].message
+
+    assert runner_logs[1].levelname == "INFO"
+    assert f"Executing stage 1/1: '{MockSuccessStage.name}' (Test Description)" in runner_logs[1].message
+
+    assert runner_logs[2].levelname == "INFO"
+    assert f"Stage '{MockSuccessStage.name}' (index 0) completed. Output type: '{MockSuccessStage.output_type}'" in runner_logs[2].message
+
+    assert runner_logs[3].levelname == "INFO"
+    assert "Stage chain execution completed successfully." in runner_logs[3].message
+
+    # Test empty chain logging
+    caplog.clear()
+    with caplog.at_level(logging.INFO):
+        execute_stage_chain(initial_data, initial_data_type, [], {}, "dummy_temp_dir")
+
+    assert len(caplog.records) == 1
+    assert caplog.records[0].name == "src.core.stage_runner"
+    assert caplog.records[0].levelname == "INFO"
+    assert "Stage chain definition is empty. Returning initial data." in caplog.records[0].message
+
+
+def test_execute_stage_chain_logging_parameter_merging_debug(clear_stage_registry, caplog):
+    """Test DEBUG logging for parameter merging."""
+    register_stage(MockSuccessStage) # Has default_params
+    user_params = {"user_key": "user_val", "default_param_key": "user_override"}
+    chain_definition = [{
+        "stage_name": MockSuccessStage.name,
+        "params": user_params
+    }]
+
+    # Temporarily set logger level for this test
+    logger = logging.getLogger("src.core.stage_runner")
+    original_level = logger.level
+    logger.setLevel(logging.DEBUG)
+
+    with caplog.at_level(logging.DEBUG): # caplog needs to be at DEBUG too
+        execute_stage_chain("data", DATA_TYPE_FILE_PATH, chain_definition, {}, "dummy_temp_dir")
+
+    logger.setLevel(original_level) # Restore original level
+
+    # Expected merged params: default updated with user
+    expected_merged = MockSuccessStage.default_params.copy()
+    expected_merged.update(user_params)
+
+    found_debug_log = False
+    for record in caplog.records:
+        if record.name == "src.core.stage_runner" and record.levelname == "DEBUG":
+            if f"Stage '{MockSuccessStage.name}' (index 0) - Default params: {MockSuccessStage.default_params}, User params: {user_params}, Merged params: {expected_merged}" in record.message:
+                found_debug_log = True
+                break
+    assert found_debug_log, "DEBUG log for parameter merging not found or incorrect."
+
+
+def test_execute_stage_chain_logging_errors(clear_stage_registry, caplog):
+    """Test ERROR logging for various failure scenarios in chain execution."""
+
+    # 1. Type Mismatch (Initial)
+    register_stage(MockTypeAtoBStage) # Expects DATA_TYPE_FILE_PATH
+    chain_def_type_mismatch = [{"stage_name": MockTypeAtoBStage.name}]
+    initial_data_type_mismatch = DATA_TYPE_TEXT
+
+    caplog.clear()
+    with caplog.at_level(logging.ERROR):
+        with pytest.raises(TypeError): # We expect it to fail
+             execute_stage_chain("data", initial_data_type_mismatch, chain_def_type_mismatch, {}, "dummy_temp_dir")
+
+    assert len(caplog.records) == 1
+    log_record = caplog.records[0]
+    assert log_record.name == "src.core.stage_runner"
+    assert log_record.levelname == "ERROR"
+    assert f"Type mismatch for stage {MockTypeAtoBStage.name} (index 0): Expected {MockTypeAtoBStage.input_type}, got {initial_data_type_mismatch}" in log_record.message
+
+    # 2. Stage Instantiation Error
+    register_stage(MockStageWithInitError)
+    chain_def_init_error = [{"stage_name": MockStageWithInitError.name}]
+
+    caplog.clear()
+    with caplog.at_level(logging.ERROR):
+        with pytest.raises(RuntimeError):
+            execute_stage_chain("data", DATA_TYPE_FILE_PATH, chain_def_init_error, {}, "dummy_temp_dir")
+
+    assert len(caplog.records) == 1
+    log_record = caplog.records[0]
+    assert log_record.name == "src.core.stage_runner"
+    assert log_record.levelname == "ERROR"
+    assert f"Error instantiating stage {MockStageWithInitError.name} (index 0)" in log_record.message
+    assert "Init failed for MockStageWithInitError" in log_record.message # Original error in message
+
+    # 3. Stage Processing Error
+    register_stage(MockErrorStage)
+    chain_def_proc_error = [{"stage_name": MockErrorStage.name}]
+
+    caplog.clear()
+    with caplog.at_level(logging.ERROR):
+        with pytest.raises(Exception): # General exception as it's wrapped
+            execute_stage_chain("data", DATA_TYPE_FILE_PATH, chain_def_proc_error, {}, "dummy_temp_dir")
+
+    assert len(caplog.records) == 1
+    log_record = caplog.records[0]
+    assert log_record.name == "src.core.stage_runner"
+    assert log_record.levelname == "ERROR"
+    assert f"Error during processing of stage {MockErrorStage.name} (index 0)" in log_record.message
+    assert "Mock error in processing stage" in log_record.message # Original error in message
