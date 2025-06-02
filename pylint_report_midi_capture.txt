@@ -1,0 +1,2 @@
+************* Module midi_capture
+src/core/midi_capture.py:194:21: E0001: Parsing failed: 'unterminated string literal (detected at line 194) (midi_capture, line 194)' (syntax-error)

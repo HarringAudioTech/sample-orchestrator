@@ -44,9 +44,11 @@ samples_bp = Blueprint("samples", __name__, url_prefix="/samples")
 
 
 # --- Helper Functions ---
-def model_to_dict(model_instance) -> dict | None:
-    """
-    Converts a SQLAlchemy model instance into a dictionary.
+from typing import Any, Dict, List, Optional, Union
+from flask import Response
+
+def model_to_dict(model_instance: Optional[Any]) -> Optional[Dict[str, Any]]:
+    """Converts a SQLAlchemy model instance into a dictionary.
 
     This is a generic helper to serialize model instances for JSON responses.
     It iterates over the model's table columns and retrieves their values.
@@ -57,13 +59,13 @@ def model_to_dict(model_instance) -> dict | None:
         model_instance: An instance of a SQLAlchemy model.
 
     Returns:
-        dict | None: A dictionary representation of the model instance,
-                     or None if `model_instance` is None.
+        A dictionary representation of the model instance,
+        or None if `model_instance` is None.
     """
     if model_instance is None:
         return None
 
-    d = {}
+    d: Dict[str, Any] = {}
     for column in model_instance.__table__.columns:
         d[column.name] = getattr(model_instance, column.name)
 
@@ -77,15 +79,16 @@ def model_to_dict(model_instance) -> dict | None:
 
 # --- Project Endpoints ---
 @projects_bp.route("", methods=["POST"])
-def create_project():
-    """
-    Creates a new project.
+def create_project() -> Response:
+    """Creates a new project.
+
     Expects a JSON payload with 'name' and optional 'description'.
 
     Returns:
-        JSON: The created project object (201) or an error message (400, 500).
+        A Flask Response object with the created project object (201)
+        or an error message (400, 500).
     """
-    data = request.get_json()
+    data: Optional[Dict[str, Any]] = request.get_json()
     if not data or not data.get("name"):
         return jsonify({"error": "Project name is required"}), 400
 
@@ -110,18 +113,18 @@ def create_project():
 
 
 @projects_bp.route("/<int:project_id>", methods=["GET"])
-def get_project(project_id: int):
-    """
-    Retrieves a specific project by its ID.
+def get_project(project_id: int) -> Response:
+    """Retrieves a specific project by its ID.
 
     Args:
-        project_id (int): The ID of the project to retrieve.
+        project_id: The ID of the project to retrieve.
 
     Returns:
-        JSON: The project object (200) or an error message (404).
+        A Flask Response object with the project object (200)
+        or an error message (404).
     """
     db_gen = get_db()
-    db = next(db_gen)
+    db: Session = next(db_gen)
     try:
         project = db.query(ProjectModel).filter(ProjectModel.id == project_id).first()
         if not project:
@@ -132,17 +135,16 @@ def get_project(project_id: int):
 
 
 @projects_bp.route("", methods=["GET"])
-def list_projects():
-    """
-    Lists all projects.
+def list_projects() -> Response:
+    """Lists all projects.
 
     Returns:
-        JSON: A list of project objects (200).
+        A Flask Response object with a list of project objects (200).
     """
     db_gen = get_db()
-    db = next(db_gen)
+    db: Session = next(db_gen)
     try:
-        projects = db.query(ProjectModel).all()
+        projects: List[ProjectModel] = db.query(ProjectModel).all()
         return jsonify([model_to_dict(p) for p in projects]), 200
     finally:
         next(db_gen, None)
@@ -150,16 +152,18 @@ def list_projects():
 
 # --- Recording Endpoints (scoped under a project) ---
 @projects_bp.route("/<int:project_id>/recordings", methods=["POST"])
-def add_project_recording(project_id: int):
-    """
-    Adds a new recording to a specified project by uploading an audio file.
-    Expects 'multipart/form-data' with 'file' (the audio file) and 'name' (recording name).
+def add_project_recording(project_id: int) -> Response:
+    """Adds a new recording to a specified project by uploading an audio file.
+
+    Expects 'multipart/form-data' with 'file' (the audio file) and
+    'name' (recording name).
 
     Args:
-        project_id (int): The ID of the project to add the recording to.
+        project_id: The ID of the project to add the recording to.
 
     Returns:
-        JSON: The created recording object (201) or an error message (400, 404, 500).
+        A Flask Response object with the created recording object (201)
+        or an error message (400, 404, 500).
     """
     # CoreProject manages its own session for loading the project model and adding recording.
     # No direct db session needed here for *that* part.
@@ -172,7 +176,7 @@ def add_project_recording(project_id: int):
         return jsonify({"error": "No file part in the request"}), 400
 
     file = request.files["file"]
-    recording_name = request.form.get("name")
+    recording_name: Optional[str] = request.form.get("name")
 
     if not recording_name:
         return jsonify({"error": "Recording name is required in form data"}), 400
@@ -238,15 +242,15 @@ def add_project_recording(project_id: int):
 
 
 @projects_bp.route("/<int:project_id>/recordings", methods=["GET"])
-def list_project_recordings(project_id: int):
-    """
-    Lists all recordings associated with a specific project.
+def list_project_recordings(project_id: int) -> Response:
+    """Lists all recordings associated with a specific project.
 
     Args:
-        project_id (int): The ID of the project whose recordings are to be listed.
+        project_id: The ID of the project whose recordings are to be listed.
 
     Returns:
-        JSON: A list of recording objects (200) or an error message (404).
+        A Flask Response object with a list of recording objects (200)
+        or an error message (404).
     """
     # CoreProject handles its own session for loading and listing.
     try:
@@ -254,7 +258,7 @@ def list_project_recordings(project_id: int):
     except ValueError as e:
         return jsonify({"error": str(e)}), 404
 
-    recordings = core_proj.list_recordings()
+    recordings: List[RecordingModel] = core_proj.list_recordings()
     return jsonify([model_to_dict(r) for r in recordings]), 200
 
 
@@ -262,20 +266,20 @@ def list_project_recordings(project_id: int):
 
 
 @recordings_bp.route("/<int:recording_id>", methods=["GET"])
-def get_recording_details(recording_id: int):
-    """
-    Retrieves details for a specific recording by its ID.
+def get_recording_details(recording_id: int) -> Response:
+    """Retrieves details for a specific recording by its ID.
 
     Args:
-        recording_id (int): The ID of the recording.
+        recording_id: The ID of the recording.
 
     Returns:
-        JSON: The recording object (200) or an error message (404).
+        A Flask Response object with the recording object (200)
+        or an error message (404).
     """
     db_gen = get_db()
-    db = next(db_gen)
+    db: Session = next(db_gen)
     try:
-        recording = db.query(RecordingModel).filter(RecordingModel.id == recording_id).first()
+        recording: Optional[RecordingModel] = db.query(RecordingModel).filter(RecordingModel.id == recording_id).first()
         if not recording:
             return jsonify({"error": "Recording not found"}), 404
         return jsonify(model_to_dict(recording)), 200
@@ -284,12 +288,19 @@ def get_recording_details(recording_id: int):
 
 
 @recordings_bp.route("/<int:recording_id>/process", methods=["POST"])
-def process_recording_endpoint(recording_id: int):
-    """
-    Initiates audio processing for a specific recording.
+def process_recording_endpoint(recording_id: int) -> Response:
+    """Initiates audio processing for a specific recording.
+
+    Args:
+        recording_id: The ID of the recording to process.
+
+    Returns:
+        A Flask Response object indicating the outcome of the processing request.
+        This can be a success message with details (200), or an error
+        message (400, 404, 500).
     """
     db_gen = get_db()
-    db = next(db_gen)
+    db: Session = next(db_gen)
     try:
         # --- Imports for this endpoint ---
         from src.core.stage_runner import (
@@ -301,15 +312,15 @@ def process_recording_endpoint(recording_id: int):
         import src.core.stages.slicing_stage  # noqa: F401
         import src.core.stages.noise_reduction_stage  # noqa: F401
 
-        json_data = request.get_json()
+        json_data: Optional[Dict[str, Any]] = request.get_json()
         if not json_data:
             return jsonify({"error": "Request body must be JSON."}), 400
 
-        workflow_name = json_data.get("workflow_name")
-        stages_chain = json_data.get("stages_chain")
-        output_dir_suffix = json_data.get("output_dir_suffix", "default_processing_output")
+        workflow_name: Optional[str] = json_data.get("workflow_name")
+        stages_chain: Optional[List[Dict[str, Any]]] = json_data.get("stages_chain")
+        output_dir_suffix: str = json_data.get("output_dir_suffix", "default_processing_output")
 
-        recording = db.query(RecordingModel).filter(RecordingModel.id == recording_id).first()
+        recording: Optional[RecordingModel] = db.query(RecordingModel).filter(RecordingModel.id == recording_id).first()
         if not recording:
             return jsonify({"error": "Recording not found"}), 404
         if not recording.project_id:
@@ -335,8 +346,8 @@ def process_recording_endpoint(recording_id: int):
                 500,
             )
 
-        initial_data = recording.file_path
-        initial_data_type = DATA_TYPE_FILE_PATH
+        initial_data: Optional[str] = recording.file_path
+        initial_data_type: str = DATA_TYPE_FILE_PATH
 
         if not initial_data or not os.path.exists(initial_data):
             current_app.logger.error(
@@ -373,14 +384,14 @@ def process_recording_endpoint(recording_id: int):
             "output_sample_dir": output_sample_dir_for_run,
         }
 
-        processing_result = None
-        processing_type = None
+        processing_result: Any = None
+        processing_type: Optional[str] = None
 
         if workflow_name:
             processing_type = f"workflow '{workflow_name}'"
-            WorkflowClass = WORKFLOW_REGISTRY.get(workflow_name)
+            WorkflowClass: Optional[type[BaseWorkflow]] = WORKFLOW_REGISTRY.get(workflow_name)
             if not WorkflowClass:
-                available_workflows = list(WORKFLOW_REGISTRY.keys())
+                available_workflows: List[str] = list(WORKFLOW_REGISTRY.keys())
                 return (
                     jsonify(
                         {
@@ -491,43 +502,43 @@ def process_recording_endpoint(recording_id: int):
 
 
 @recordings_bp.route("/<int:recording_id>/samples", methods=["GET"])
-def list_recording_samples(recording_id: int):
-    """
-    Lists all samples associated with a specific recording.
+def list_recording_samples(recording_id: int) -> Response:
+    """Lists all samples associated with a specific recording.
 
     Args:
-        recording_id (int): The ID of the recording whose samples are to be listed.
+        recording_id: The ID of the recording whose samples are to be listed.
 
     Returns:
-        JSON: A list of sample objects (200) or an error message (404).
+        A Flask Response object with a list of sample objects (200)
+        or an error message (404).
     """
     db_gen = get_db()
-    db = next(db_gen)
+    db: Session = next(db_gen)
     try:
-        recording = db.query(RecordingModel).filter(RecordingModel.id == recording_id).first()
+        recording: Optional[RecordingModel] = db.query(RecordingModel).filter(RecordingModel.id == recording_id).first()
         if not recording:
             return jsonify({"error": "Recording not found"}), 404
-        samples = db.query(SampleModel).filter(SampleModel.recording_id == recording_id).all()
+        samples: List[SampleModel] = db.query(SampleModel).filter(SampleModel.recording_id == recording_id).all()
         return jsonify([model_to_dict(s) for s in samples]), 200
     finally:
         next(db_gen, None)
 
 
 @samples_bp.route("/<int:sample_id>", methods=["GET"])
-def get_sample_details(sample_id: int):
-    """
-    Retrieves details for a specific sample by its ID.
+def get_sample_details(sample_id: int) -> Response:
+    """Retrieves details for a specific sample by its ID.
 
     Args:
-        sample_id (int): The ID of the sample.
+        sample_id: The ID of the sample.
 
     Returns:
-        JSON: The sample object (200) or an error message (404).
+        A Flask Response object with the sample object (200)
+        or an error message (404).
     """
     db_gen = get_db()
-    db = next(db_gen)
+    db: Session = next(db_gen)
     try:
-        sample = db.query(SampleModel).filter(SampleModel.id == sample_id).first()
+        sample: Optional[SampleModel] = db.query(SampleModel).filter(SampleModel.id == sample_id).first()
         if not sample:
             return jsonify({"error": "Sample not found"}), 404
         return jsonify(model_to_dict(sample)), 200

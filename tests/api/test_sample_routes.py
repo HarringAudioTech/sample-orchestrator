@@ -1,7 +1,12 @@
 import pytest
 import json
 from flask import Flask
-from unittest.mock import patch, MagicMock
+from flask.testing import FlaskClient # For typing the client fixture
+from unittest.mock import patch, MagicMock # Keep if used
+from sqlalchemy.orm import Session as SQLAlchemySession # For typing sessions
+from sqlalchemy.engine import Engine # For typing engine
+from typing import Generator, Dict, Any # For typing fixtures and dicts
+
 from src.app import create_app
 from src.database.utils import (
     init_db as initialize_db_utils,
@@ -18,9 +23,14 @@ from src.database.models import (
 
 # --- Test Fixtures (reuse from other API test files or define new ones) ---
 @pytest.fixture(scope="module")
-def app():
-    test_db_url = "sqlite:///:memory:"
-    flask_app = create_app()
+def app() -> Generator[Flask, None, None]:
+    """Create and configure a new app instance for each test module.
+
+    Yields:
+        The Flask application instance.
+    """
+    # test_db_url = "sqlite:///:memory:" # Not directly used
+    flask_app: Flask = create_app()
     flask_app.config.update(
         {
             "TESTING": True,
@@ -31,15 +41,13 @@ def app():
     )
 
     # Create an engine instance specifically for tests, using the test DB URL
-    engine = get_engine(flask_app.config["DATABASE_URL"])
+    engine: Engine = get_engine(flask_app.config["DATABASE_URL"])
     # Provide this engine instance to the app config so get_engine() in utils can pick it up
     flask_app.config["TEST_ENGINE_INSTANCE"] = engine
 
     with flask_app.app_context():
         # Initialize the database schema using the test-specific engine
         initialize_db_utils(engine_instance=engine)
-        # Note: The tables are created once per module.
-        # manage_database_session will handle per-test data cleaning.
 
     # Example: if SAMPLES_BASE_DIR is used by sample routes, ensure it exists
     # if "SAMPLES_BASE_DIR" in flask_app.config:
@@ -50,26 +58,33 @@ def app():
 
 
 @pytest.fixture
-def client(app: Flask):
+def client(app: Flask) -> FlaskClient:
+    """A test client for the app.
+
+    Args:
+        app: The Flask application fixture.
+
+    Returns:
+        A Flask test client.
+    """
     return app.test_client()
 
 
-@pytest.fixture(autouse=True)  # Ensures this runs for every test function
-def manage_database_session(app: Flask):
-    """
-    Ensure each test has a clean database state (empty tables).
-    Relies on the app fixture to have configured the DATABASE_URL for an
-    in-memory DB and initialized the schema once.
-    This fixture ensures data isolation between tests by clearing data.
+@pytest.fixture(autouse=True)
+def manage_database_session(app: Flask) -> Generator[None, None, None]:
+    """Ensure each test has a clean database state (empty tables).
+
+    Args:
+        app: The Flask application fixture.
+
+    Yields:
+        None.
     """
     with app.app_context():
-        # Retrieve the test-specific engine from the app fixture
-        engine = app.config["TEST_ENGINE_INSTANCE"]
-
-        # Clear all data from tables before each test
+        engine: Engine = app.config["TEST_ENGINE_INSTANCE"]
         for table in reversed(Base.metadata.sorted_tables):
-            Session = get_session_local(engine_instance=engine)  # Use test engine
-            db = Session()
+            SessionLocal = get_session_local(engine_instance=engine)
+            db: SQLAlchemySession = SessionLocal()
             try:
                 db.execute(table.delete())
                 db.commit()
@@ -80,20 +95,24 @@ def manage_database_session(app: Flask):
             finally:
                 db.close()
     yield
-    # No explicit teardown for table data needed here for in-memory DB.
 
 
 @pytest.fixture
-def sample_data(app, client):  # Added app fixture
-    """
-    Creates a sample project, recording, and samples, returning their IDs.
+def sample_data(app: Flask, client: FlaskClient) -> Dict[str, Any]:
+    """Creates a sample project, recording, and samples, returning their IDs.
+
     Uses the app context to ensure DB operations use the test database.
+
+    Args:
+        app: The Flask application fixture.
+        client: The Flask test client fixture.
+
+    Returns:
+        A dictionary containing IDs of the created project, recording, and samples.
     """
     with client.application.app_context():
-        # get_session_local() will use the engine configured for the app context (in-memory)
-        db_session = get_session_local(
-            engine_instance=app.config["TEST_ENGINE_INSTANCE"]
-        )()  # Use app.test_engine
+        SessionLocal = get_session_local(engine_instance=app.config["TEST_ENGINE_INSTANCE"])
+        db_session: SQLAlchemySession = SessionLocal()
         try:
             project = ProjectModel(name="Sample Project for Samples")
             db_session.add(project)
@@ -148,8 +167,9 @@ def sample_data(app, client):  # Added app fixture
 
 
 # GET /recordings/<recording_id>/samples
-def test_list_recording_samples_success(client, sample_data):
-    recording_id = sample_data["recording_id"]
+def test_list_recording_samples_success(client: FlaskClient, sample_data: Dict[str, Any]) -> None:
+    """Test successfully listing samples for a recording."""
+    recording_id: int = sample_data["recording_id"]
 
     response = client.get(f"/recordings/{recording_id}/samples")
     assert response.status_code == 200
@@ -160,22 +180,22 @@ def test_list_recording_samples_success(client, sample_data):
     assert sample_names == ["Test Sample 1", "Test Sample 2"]
 
 
-def test_list_recording_samples_recording_not_found(client):
-    # Assuming 7777 does not exist
-    response = client.get("/recordings/7777/samples")
+def test_list_recording_samples_recording_not_found(client: FlaskClient) -> None:
+    """Test listing samples for a non-existent recording results in 404."""
+    response = client.get("/recordings/7777/samples") # Assuming 7777 does not exist
     assert response.status_code == 404
     data = response.get_json()
     assert "error" in data
     assert "Recording not found" in data["error"]
 
 
-def test_list_recording_samples_no_samples(app, client, sample_data):  # Added app fixture
-    # Create a new recording without samples
-    project_id = sample_data["project_id"]
+def test_list_recording_samples_no_samples(app: Flask, client: FlaskClient, sample_data: Dict[str, Any]) -> None:
+    """Test listing samples for a recording that has no samples."""
+    project_id: int = sample_data["project_id"]
+    new_recording_id: int
     with client.application.app_context():
-        db_session = get_session_local(
-            engine_instance=app.config["TEST_ENGINE_INSTANCE"]
-        )()  # Use app.test_engine
+        SessionLocal = get_session_local(engine_instance=app.config["TEST_ENGINE_INSTANCE"])
+        db_session: SQLAlchemySession = SessionLocal()
         try:
             new_recording = RecordingModel(
                 project_id=project_id,
@@ -188,6 +208,7 @@ def test_list_recording_samples_no_samples(app, client, sample_data):  # Added a
             )
             db_session.add(new_recording)
             db_session.commit()
+            db_session.refresh(new_recording) # Refresh to get ID
             new_recording_id = new_recording.id
         finally:
             db_session.close()
@@ -200,8 +221,9 @@ def test_list_recording_samples_no_samples(app, client, sample_data):  # Added a
 
 
 # GET /samples/<sample_id>
-def test_get_sample_details_success(client, sample_data):
-    sample1_id = sample_data["sample1_id"]
+def test_get_sample_details_success(client: FlaskClient, sample_data: Dict[str, Any]) -> None:
+    """Test successfully retrieving details for a specific sample."""
+    sample1_id: int = sample_data["sample1_id"]
 
     response = client.get(f"/samples/{sample1_id}")
     assert response.status_code == 200
@@ -211,7 +233,8 @@ def test_get_sample_details_success(client, sample_data):
     assert data["midi_pitch"] == 60
 
 
-def test_get_sample_details_not_found(client):
+def test_get_sample_details_not_found(client: FlaskClient) -> None:
+    """Test retrieving a non-existent sample results in 404."""
     response = client.get("/samples/6666")  # Assuming 6666 does not exist
     assert response.status_code == 404
     data = response.get_json()
@@ -220,7 +243,8 @@ def test_get_sample_details_not_found(client):
 
 
 # --- Test Root Path (already in test_project_routes.py, but good for completeness if run standalone) ---
-def test_root_path_sample_routes(client):
+def test_root_path_sample_routes(client: FlaskClient) -> None:
+    """Test the root path of the API returns a welcome message (sample routes context)."""
     response = client.get("/")
     assert response.status_code == 200
     data = response.get_json()

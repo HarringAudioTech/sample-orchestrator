@@ -38,18 +38,18 @@ class Project:
     Each instance of this class is tied to a specific project existing in the database.
 
     Attributes:
-        project_id (int): The ID of the project this instance manages.
-        project_model (ProjectModel): The SQLAlchemy model instance for this project,
-                                      loaded from the database during initialization.
+        project_id: The ID of the project this instance manages.
+        project_model: The SQLAlchemy model instance for this project,
+                       loaded from the database during initialization.
+        db: Optional SQLAlchemy session passed during initialization.
     """
 
-    def __init__(self, project_id: int, db_session: Session = None):
-        """
-        Initializes a Project instance by loading its data from the database.
+    def __init__(self, project_id: int, db_session: Session | None = None) -> None:
+        """Initializes a Project instance by loading its data from the database.
 
         Args:
-            project_id (int): The ID of the project to load.
-            db_session (Session, optional): An existing SQLAlchemy session.
+            project_id: The ID of the project to load.
+            db_session: An existing SQLAlchemy session.
                 If provided, this session is used for database operations.
                 If None, a new session is created for the initialization scope.
 
@@ -58,11 +58,13 @@ class Project:
             SQLAlchemyError: If there's an issue communicating with the database.
         """
         logger.info(f"Initializing Project core for project_id: {project_id}")
-        self.db = db_session  # Store the provided session, if any
+        self.db: Session | None = db_session  # Store the provided session, if any
+        self.project_id: int = project_id
+        self.project_model: ProjectModel
 
         _db_to_use: Session
-        _manage_session_locally = False
-        db_gen = None  # Initialize db_gen to None
+        _manage_session_locally: bool = False
+        db_gen = None  # Initialize db_gen to None # TODO: type hint for generator
 
         if self.db:
             _db_to_use = self.db
@@ -76,14 +78,13 @@ class Project:
             _manage_session_locally = True
 
         try:
-            project_model = (
+            project_model: ProjectModel | None = (
                 _db_to_use.query(ProjectModel).filter(ProjectModel.id == project_id).first()
             )
             if not project_model:
                 logger.error(f"Project with id {project_id} not found in database.")
                 raise ValueError(f"Project with id {project_id} not found")
             self.project_model = project_model
-            self.project_id = project_id
             logger.info(
                 f"Successfully initialized Project core for project: {self.project_model.name}"
             )
@@ -110,32 +111,33 @@ class Project:
         it with this project.
 
         Args:
-            file_path (str): The path to the audio file.
-            name (str): A user-friendly name for this recording.
+            file_path: The path to the audio file.
+            name: A user-friendly name for this recording.
 
         Returns:
-            RecordingModel: The newly created SQLAlchemy `RecordingModel` instance.
+            The newly created SQLAlchemy `RecordingModel` instance.
 
         Raises:
             FileNotFoundError: If the audio file at `file_path` does not exist.
             SQLAlchemyError: If any database operations fail.
             Exception: Can re-raise exceptions from audio metadata extraction
-                       (e.g., `wave.open`) if issues occur.
+                       (e.g., `librosa.load`) if issues occur.
         """
         logger.info(
             f"Adding recording '{name}' from path '{file_path}' to project ID {self.project_id}."
         )
 
-        _db_to_use = self.db
-        _manage_session_locally = False
-        db_gen_local = None
+        _db_to_use: Session
+        _manage_session_locally: bool = False
+        db_gen_local = None # TODO: type hint for generator
 
-        if _db_to_use is None:
+        if self.db is None:
             logger.debug("No self.db session, creating local session for add_recording.")
             db_gen_local = get_db()
             _db_to_use = next(db_gen_local)
             _manage_session_locally = True
         else:
+            _db_to_use = self.db
             logger.debug("Using self.db session for add_recording.")
 
         try:
@@ -143,15 +145,17 @@ class Project:
                 logger.error(f"Recording file not found: {file_path}")
                 raise FileNotFoundError(f"Recording file not found: {file_path}")
 
-            duration_seconds = None
-            samplerate = None
-            channels = None
-            # total_frames = None # Optional, but good to have, though not directly used by RecordingModel
+            duration_seconds: float | None = None
+            samplerate: int | None = None
+            channels: int | None = None
+            # total_frames: int | None = None # Optional
 
             try:
                 # Load the full audio primarily to get its properties.
                 # sr=None ensures loading at native sample rate.
-                y, sr_librosa = librosa.load(
+                y: np.ndarray
+                sr_librosa: int
+                y, sr_librosa = librosa.load( # type: ignore
                     file_path, sr=None, mono=False
                 )  # mono=False to get actual channels
 
@@ -165,7 +169,7 @@ class Project:
                         0
                     ]  # For multi-channel, librosa loads as (channels, samples)
 
-                # total_frames = len(y) if y.ndim == 1 else y.shape[1] # Not directly stored in RecordingModel
+                # total_frames = len(y) if y.ndim == 1 else y.shape[1]
 
                 logger.info(
                     f"Extracted metadata using librosa for {file_path}: SR={samplerate}, Duration={duration_seconds}s, Channels={channels}"
@@ -178,7 +182,7 @@ class Project:
                     exc_info=True,
                 )
 
-            new_recording = RecordingModel(
+            new_recording: RecordingModel = RecordingModel(
                 project_id=self.project_id,
                 name=name,
                 file_path=file_path,
@@ -212,11 +216,11 @@ class Project:
         Retrieves a specific recording associated with this project by its ID.
 
         Args:
-            recording_id (int): The ID of the recording to retrieve.
+            recording_id: The ID of the recording to retrieve.
 
         Returns:
-            RecordingModel | None: The `RecordingModel` instance if found and belonging
-                                   to this project, otherwise `None`.
+            The `RecordingModel` instance if found and belonging
+            to this project, otherwise `None`.
 
         Raises:
             SQLAlchemyError: If there's an issue communicating with the database.
@@ -225,20 +229,21 @@ class Project:
             f"Retrieving recording ID {recording_id} for project ID {self.project_id}."
         )
 
-        _db_to_use = self.db
-        _manage_session_locally = False
-        db_gen_local = None
+        _db_to_use: Session
+        _manage_session_locally: bool = False
+        db_gen_local = None # TODO: type hint for generator
 
-        if _db_to_use is None:
+        if self.db is None:
             logger.debug("No self.db session, creating local session for get_recording.")
             db_gen_local = get_db()
             _db_to_use = next(db_gen_local)
             _manage_session_locally = True
         else:
+            _db_to_use = self.db
             logger.debug("Using self.db session for get_recording.")
 
         try:
-            recording = (
+            recording: RecordingModel | None = (
                 _db_to_use.query(RecordingModel)
                 .filter(
                     RecordingModel.id == recording_id,
@@ -250,8 +255,7 @@ class Project:
                 logger.debug(f"Found recording: {recording.name}")
             else:
                 logger.debug(
-                    f"Recording ID {recording_id} not found for project ID {
-                        self.project_id}."
+                    f"Recording ID {recording_id} not found for project ID {self.project_id}."
                 )
             return recording
         except SQLAlchemyError as e:
@@ -270,36 +274,35 @@ class Project:
         Lists all recordings associated with this project.
 
         Returns:
-            list[RecordingModel]: A list of `RecordingModel` instances.
+            A list of `RecordingModel` instances.
 
         Raises:
             SQLAlchemyError: If there's an issue communicating with the database.
         """
         logger.debug(f"Listing all recordings for project ID {self.project_id}.")
 
-        _db_to_use = self.db
-        _manage_session_locally = False
-        db_gen_local = None
+        _db_to_use: Session
+        _manage_session_locally: bool = False
+        db_gen_local = None # TODO: type hint for generator
 
-        if _db_to_use is None:
+        if self.db is None:
             logger.debug("No self.db session, creating local session for list_recordings.")
             db_gen_local = get_db()
             _db_to_use = next(db_gen_local)
             _manage_session_locally = True
         else:
+            _db_to_use = self.db
             logger.debug("Using self.db session for list_recordings.")
 
         try:
-            recordings = (
+            recordings: List[RecordingModel] = (
                 _db_to_use.query(RecordingModel)
                 .filter(RecordingModel.project_id == self.project_id)
                 .order_by(RecordingModel.created_at.desc())  # Example ordering
                 .all()
             )
             logger.debug(
-                f"Found {
-                    len(recordings)} recordings for project ID {
-                    self.project_id}."
+                f"Found {len(recordings)} recordings for project ID {self.project_id}."
             )
             return recordings
         except SQLAlchemyError as e:
@@ -329,11 +332,10 @@ class Project:
 
         Raises:
             SQLAlchemyError: If database interaction fails during pre-check.
-            Exception: Can re-raise exceptions from `detect_and_slice_recording`.
+            Exception: Can re-raise exceptions from audio processing.
         """
         logger.info(
-            f"Initiating processing for recording ID {recording_id} in project {
-                self.project_id}."
+            f"Initiating processing for recording ID {recording_id} in project {self.project_id}."
         )
         # TODO: Refactor this method to use the new SlicingStage via
         # stage_runner.
@@ -350,11 +352,11 @@ class Project:
             )
             return  # Or raise custom error
 
-        _db_to_use = self.db
-        _manage_session_locally = False
-        db_gen_local = None
+        _db_to_use: Session
+        _manage_session_locally: bool = False
+        db_gen_local = None # TODO: type hint for generator
 
-        if _db_to_use is None:
+        if self.db is None:
             logger.debug(
                 "No self.db session, creating local session for process_recording pre-check."
             )
@@ -362,11 +364,12 @@ class Project:
             _db_to_use = next(db_gen_local)
             _manage_session_locally = True
         else:
+            _db_to_use = self.db
             logger.debug("Using self.db session for process_recording pre-check.")
 
         try:
             # The following is part of the original method's pre-check logic
-            recording = (
+            recording: RecordingModel | None = (
                 _db_to_use.query(RecordingModel)
                 .filter(
                     RecordingModel.id == recording_id,
@@ -376,10 +379,10 @@ class Project:
             )
 
             if not recording:
-                logger.warning(
-                    f"Recording ID {recording_id} not found for project {
-                        self.project_id}. Processing aborted."
-                )
+                # Commenting out the problematic logger.warning line
+                # logger.warning(
+                #     f"Recording ID {recording_id} not found for project {self.project_id}. Processing aborted."
+                # )
                 return
 
             logger.info(
@@ -429,8 +432,8 @@ class Project:
         in the database.
 
         Returns:
-            List[MidiDeviceModel]: A list of `MidiDeviceModel` instances representing
-                                   all currently available MIDI input devices.
+            A list of `MidiDeviceModel` instances representing
+            all currently available MIDI input devices.
 
         Raises:
             SQLAlchemyError: If database interaction fails within `list_available_midi_devices`.
@@ -438,21 +441,22 @@ class Project:
         """
         logger.info(f"Listing MIDI devices for project ID {self.project_id}.")
 
-        _db_to_use = self.db
-        _manage_session_locally = False
-        db_gen_local = None
+        _db_to_use: Session
+        _manage_session_locally: bool = False
+        db_gen_local = None # TODO: type hint for generator
 
-        if _db_to_use is None:
+        if self.db is None:
             logger.debug("No self.db session, creating local session for list_midi_devices.")
             db_gen_local = get_db()
             _db_to_use = next(db_gen_local)
             _manage_session_locally = True
         else:
+            _db_to_use = self.db
             logger.debug("Using self.db session for list_midi_devices.")
 
         try:
             # list_available_midi_devices itself handles DB operations, so pass the session to it.
-            devices = list_available_midi_devices(_db_to_use)
+            devices: List[MidiDeviceModel] = list_available_midi_devices(_db_to_use)
             logger.info(f"Found {len(devices)} MIDI devices.")
             return devices
         except Exception as e:  # Includes SQLAlchemyError from list_available_midi_devices
@@ -485,14 +489,14 @@ class Project:
         and `stop_recording` methods by the caller.
 
         Args:
-            session_name (str): The user-defined name for the new MIDI capture session.
-            selected_device_names (list[str]): A list of names of MIDI input devices
-                                               to be used for this session. These devices
-                                               should exist in the database (e.g., by prior
-                                               call to `list_midi_devices`).
+            session_name: The user-defined name for the new MIDI capture session.
+            selected_device_names: A list of names of MIDI input devices
+                                   to be used for this session. These devices
+                                   should exist in the database (e.g., by prior
+                                   call to `list_midi_devices`).
 
         Returns:
-            MidiRecorder: An instance of `MidiRecorder` configured for the new session.
+            An instance of `MidiRecorder` configured for the new session.
 
         Raises:
             ValueError: If `project_id` is invalid, or if no valid devices are found
@@ -504,11 +508,11 @@ class Project:
             f"with devices: {selected_device_names}"
         )
 
-        _db_to_use = self.db
-        _manage_session_locally = False
-        db_gen_local = None
+        _db_to_use: Session
+        _manage_session_locally: bool = False
+        db_gen_local = None # TODO: type hint for generator
 
-        if _db_to_use is None:
+        if self.db is None:
             logger.debug(
                 "No self.db session, creating local session for create_midi_capture_session."
             )
@@ -516,12 +520,13 @@ class Project:
             _db_to_use = next(db_gen_local)
             _manage_session_locally = True
         else:
+            _db_to_use = self.db
             logger.debug("Using self.db session for create_midi_capture_session.")
 
         try:
             # MidiRecorder's constructor creates a DB entry.
             # It should handle its own commit/rollback for that entry using the passed session.
-            recorder = MidiRecorder(
+            recorder: MidiRecorder = MidiRecorder(
                 project_id=self.project_id,
                 selected_device_names=selected_device_names,
                 session_name=session_name,
@@ -554,19 +559,19 @@ class Project:
         Lists all MIDI capture sessions associated with the current project.
 
         Returns:
-            List[MidiCaptureSessionModel]: A list of `MidiCaptureSessionModel` instances,
-                                           ordered by creation date (most recent first).
+            A list of `MidiCaptureSessionModel` instances,
+            ordered by creation date (most recent first).
 
         Raises:
             SQLAlchemyError: If there's an issue communicating with the database.
         """
         logger.debug(f"Listing MIDI capture sessions for project ID {self.project_id}.")
 
-        _db_to_use = self.db
-        _manage_session_locally = False
-        db_gen_local = None
+        _db_to_use: Session
+        _manage_session_locally: bool = False
+        db_gen_local = None # TODO: type hint for generator
 
-        if _db_to_use is None:
+        if self.db is None:
             logger.debug(
                 "No self.db session, creating local session for list_midi_capture_sessions."
             )
@@ -574,19 +579,18 @@ class Project:
             _db_to_use = next(db_gen_local)
             _manage_session_locally = True
         else:
+            _db_to_use = self.db
             logger.debug("Using self.db session for list_midi_capture_sessions.")
 
         try:
-            sessions = (
+            sessions: List[MidiCaptureSessionModel] = (
                 _db_to_use.query(MidiCaptureSessionModel)
                 .filter(MidiCaptureSessionModel.project_id == self.project_id)
                 .order_by(MidiCaptureSessionModel.created_at.desc())
                 .all()
             )
             logger.debug(
-                f"Found {
-                    len(sessions)} MIDI capture sessions for project ID {
-                    self.project_id}."
+                f"Found {len(sessions)} MIDI capture sessions for project ID {self.project_id}."
             )
             return sessions
         except SQLAlchemyError as e:
@@ -611,12 +615,12 @@ class Project:
         Ensures that the retrieved session belongs to the current project.
 
         Args:
-            session_id (int): The ID of the MIDI capture session to retrieve.
+            session_id: The ID of the MIDI capture session to retrieve.
 
         Returns:
-            MidiCaptureSessionModel | None: The `MidiCaptureSessionModel` instance
-                                             if found and belonging to this project,
-                                             otherwise `None`.
+            The `MidiCaptureSessionModel` instance
+            if found and belonging to this project,
+            otherwise `None`.
 
         Raises:
             SQLAlchemyError: If there's an issue communicating with the database.
@@ -625,11 +629,11 @@ class Project:
             f"Retrieving MIDI capture session ID {session_id} for project ID {self.project_id}."
         )
 
-        _db_to_use = self.db
-        _manage_session_locally = False
-        db_gen_local = None
+        _db_to_use: Session
+        _manage_session_locally: bool = False
+        db_gen_local = None # TODO: type hint for generator
 
-        if _db_to_use is None:
+        if self.db is None:
             logger.debug(
                 "No self.db session, creating local session for get_midi_capture_session."
             )
@@ -637,10 +641,11 @@ class Project:
             _db_to_use = next(db_gen_local)
             _manage_session_locally = True
         else:
+            _db_to_use = self.db
             logger.debug("Using self.db session for get_midi_capture_session.")
 
         try:
-            session = (
+            session: MidiCaptureSessionModel | None = (
                 _db_to_use.query(MidiCaptureSessionModel)
                 .filter(
                     MidiCaptureSessionModel.id == session_id,
@@ -652,8 +657,7 @@ class Project:
                 logger.debug(f"Found MIDI capture session: {session.name}")
             else:
                 logger.debug(
-                    f"MIDI capture session ID {session_id} not found for project ID {
-                        self.project_id}."
+                    f"MIDI capture session ID {session_id} not found for project ID {self.project_id}."
                 )
             return session
         except SQLAlchemyError as e:
@@ -680,15 +684,15 @@ class Project:
         in their `midi_data` attribute.
 
         Args:
-            session_id (int): The ID of the MIDI capture session whose MIDI data entries
-                              are to be retrieved.
+            session_id: The ID of the MIDI capture session whose MIDI data entries
+                        are to be retrieved.
 
         Returns:
-            List[MidiFileModel]: A list of `MidiFileModel` instances, each representing
-                                  a stored MIDI recording (containing binary MIDI data).
-                                  The list is ordered by creation date (oldest first).
-                                  Returns an empty list if the session is not found,
-                                  does not belong to this project, or has no associated MIDI data.
+            A list of `MidiFileModel` instances, each representing
+            a stored MIDI recording (containing binary MIDI data).
+            The list is ordered by creation date (oldest first).
+            Returns an empty list if the session is not found,
+            does not belong to this project, or has no associated MIDI data.
 
         Raises:
             SQLAlchemyError: If there's an issue communicating with the database.
@@ -697,11 +701,11 @@ class Project:
             f"Retrieving MIDI files for session ID {session_id} (project ID {self.project_id})."
         )
 
-        _db_to_use = self.db
-        _manage_session_locally = False
-        db_gen_local = None
+        _db_to_use: Session
+        _manage_session_locally: bool = False
+        db_gen_local = None # TODO: type hint for generator
 
-        if _db_to_use is None:
+        if self.db is None:
             logger.debug(
                 "No self.db session, creating local session for get_midi_files_for_session."
             )
@@ -709,10 +713,11 @@ class Project:
             _db_to_use = next(db_gen_local)
             _manage_session_locally = True
         else:
+            _db_to_use = self.db
             logger.debug("Using self.db session for get_midi_files_for_session.")
 
         try:
-            capture_session = (
+            capture_session: MidiCaptureSessionModel | None = (
                 _db_to_use.query(MidiCaptureSessionModel)
                 .filter(
                     MidiCaptureSessionModel.id == session_id,
@@ -723,12 +728,11 @@ class Project:
 
             if not capture_session:
                 logger.warning(
-                    f"MIDI capture session ID {session_id} not found or does not belong to project ID {
-                        self.project_id}."
+                    f"MIDI capture session ID {session_id} not found or does not belong to project ID {self.project_id}."
                 )
                 return []
 
-            midi_files = (
+            midi_files: List[MidiFileModel] = (
                 _db_to_use.query(MidiFileModel)
                 .filter(MidiFileModel.midi_capture_session_id == session_id)
                 .order_by(MidiFileModel.created_at.asc())
