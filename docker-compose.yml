@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    volumes:
+      - .:/app  # Map current directory to /app for live code reloading
+      - ./data:/app/data  # Persist data in ./data directory on the host
+    # --- Device Access (Platform Dependent) ---
+    # Uncomment and adapt the following lines based on your OS and needs.
+    # This is highly dependent on your host system configuration.
+    #
+    # For Linux (Audio - ALSA):
+    # devices:
+    #   - "/dev/snd:/dev/snd"
+    #
+    # For Linux (USB MIDI - may require udev rules on host):
+    #   You might need to identify specific USB devices.
+    #   Example: find your device with `lsusb`, then map e.g. /dev/bus/usb/001/002
+    # devices:
+    #   - "/dev/bus/usb:/dev/bus/usb" # Broad access, potentially risky
+    # Or more specific (after identifying your MIDI device, e.g., using lsusb):
+    #   - "/dev/bus/usb/XXX/YYY:/dev/bus/usb/XXX/YYY" # Replace XXX/YYY
+    #
+    # For macOS:
+    # Accessing host audio/MIDI devices directly from Docker Desktop on macOS
+    # is complex. Usually, applications like Loopback are used on the host to
+    # route audio. For MIDI, macOS's Audio MIDI Setup might be used with virtual
+    # MIDI ports if the application inside Docker can connect to them (often via network MIDI).
+    # The Dockerfile already includes ALSA utilities, which are Linux-specific.
+    #
+    # For Windows:
+    # Similar complexities as macOS. WSL2 backend for Docker Desktop might offer
+    # some pass-through capabilities but can be involved to set up.
+    environment:
+      # Ensures Flask development server reloads on code changes
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1
+    # Add any other environment variables needed for development
+    # Example: - DATABASE_URL=sqlite:///./data/dev_database.db
