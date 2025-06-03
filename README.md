@@ -21,20 +21,20 @@ The core of the processing engine is built around:
 *   **REST API:** A Flask-based API allows for programmatic interaction with all features, including initiating processing with workflows or custom stage chains.
 *   **Database Backend:** Uses SQLAlchemy with SQLite for data persistence.
 *   **Unit Tests:** Comprehensive test suite using `pytest` to ensure reliability.
+*   **Docker Support:** Dockerfile and docker-compose.yml provided for easy setup and deployment.
 
 ## Project Structure
 
 ```
-├── data/                    # Data storage for uploads and generated samples (created automatically)
+├── data/                    # Data storage for uploads and generated samples (created automatically by app or volume mount)
+│   ├── database.db          # SQLite database file (if using default Docker setup, this lives in ./data on host)
 │   ├── projects/
 │   └── uploads/
 ├── src/                     # Source code
 │   ├── api/                 # Flask API routes (Blueprints)
 │   ├── core/                # Core business logic
 │   │   ├── stages/          # Implementations of AudioProcessingStage
-│   │   ├── audio_processor.py # (Now minimal, refactored into stages)
 │   │   ├── processing_stages.py # Defines AudioProcessingStage interface & data types
-│   │   ├── project.py
 │   │   ├── stage_runner.py  # Executes chains of stages
 │   │   └── workflows.py     # Defines BaseWorkflow and preset workflows
 │   ├── database/            # Database models and utility functions
@@ -46,13 +46,110 @@ The core of the processing engine is built around:
 │   ├── database/
 │   └── fixtures/            # Test fixtures, e.g., dummy audio files
 ├── .gitignore
+├── Dockerfile               # For building the Docker image
+├── docker-compose.yml       # For running the application with Docker Compose
 ├── LICENSE
 ├── poetry.lock              # Poetry lock file for deterministic builds
 ├── pyproject.toml           # Project metadata and dependencies for Poetry
 └── README.md
 ```
 
-## Setup and Installation
+## Running with Docker (Recommended)
+
+Docker is the recommended way to run this project for both development and production. It simplifies dependency management and ensures a consistent environment.
+
+**Prerequisites:**
+*   [Docker](https://docs.docker.com/get-docker/) installed.
+*   [Docker Compose](https://docs.docker.com/compose/install/) installed (usually included with Docker Desktop).
+
+### Using Docker Compose (Recommended for Development)
+
+A `docker-compose.yml` file is provided for ease of use.
+1.  **Start the application:**
+    ```bash
+    docker-compose up --build
+    ```
+    This command will:
+    *   Build the Docker image based on the `Dockerfile`.
+    *   Start a container from the image.
+    *   Map port 5000 on your host to port 5000 in the container.
+    *   Mount your current project directory (`.`) to `/app` in the container. This allows for live code reloading during development (Flask's debug mode is enabled in `docker-compose.yml`).
+    *   Mount a local `./data` directory on your host to `/app/data` in the container. This is where the SQLite database (`database.db`) and all user-generated data (uploads, project files) will be stored, ensuring data persistence.
+
+### Using Docker Manually
+
+1.  **Build the Docker image:**
+    ```bash
+    docker build -t audio-processing-api .
+    ```
+    (Replace `audio-processing-api` with your preferred image name).
+
+2.  **Run the Docker container:**
+    ```bash
+    docker run -p 5000:5000 -v ./data:/app/data --name audio-processing-container audio-processing-api
+    ```
+    *   `-p 5000:5000`: Maps port 5000 on your host to port 5000 in the container.
+    *   `-v ./data:/app/data`: Mounts a local directory named `data` (in your current working directory on the host) to `/app/data` inside the container. This is crucial for data persistence.
+    *   `--name audio-processing-container`: Assigns a name to your container for easier management.
+    *   `audio-processing-api`: The name of the image you built.
+
+### Database and Data Persistence
+
+The application uses an SQLite database (`database.db`). All user-generated data, including the database file, uploaded recordings, and processed sample files, are stored within the `/app/data` directory inside the Docker container.
+
+The provided `docker-compose.yml` and the example `docker run` command map this `/app/data` directory to a local `./data` directory on your host machine. This means:
+*   **Data persists** even if you stop or remove the Docker container.
+*   You can directly access and backup the data from your host machine in the `./data` directory.
+*   On the first run, if the `./data` directory (and `database.db` within it) doesn't exist on your host, the application will create it.
+
+### Accessing the Application
+
+Once the application is running in Docker, it should be accessible at:
+`http://localhost:5000`
+
+### USB MIDI and Audio Device Access
+
+Accessing host hardware like audio interfaces and MIDI devices from within a Docker container can be complex and platform-dependent.
+
+*   **General Linux:**
+    *   **Audio:** To give the container access to your host's audio system (ALSA), you can map the sound device:
+        ```bash
+        # In docker run command:
+        docker run --device=/dev/snd ... your-app-name
+
+        # In docker-compose.yml:
+        # services:
+        #   app:
+        #     devices:
+        #       - "/dev/snd:/dev/snd"
+        ```
+    *   **USB MIDI:** For USB MIDI devices, you might need to map the specific USB device or the entire USB bus. This often requires `udev` rules on the host for correct permissions and persistent device identification.
+        1.  Identify your device using `lsusb`. Example output: `Bus 001 Device 005: ID 1234:5678 Some MIDI Device`.
+        2.  Map the specific device path (e.g., `/dev/bus/usb/001/005`):
+            ```bash
+            # In docker run command:
+            docker run --device=/dev/bus/usb/001/005 ... your-app-name
+
+            # In docker-compose.yml:
+            # services:
+            #   app:
+            #     devices:
+            #       - "/dev/bus/usb/001/005:/dev/bus/usb/001/005" # Adjust path
+            ```
+        Mapping the entire USB bus (`--device=/dev/bus/usb`) is possible but grants broad access and might be a security concern.
+
+*   **macOS and Loopback:**
+    *   Direct hardware access for audio/MIDI devices from Docker containers on macOS is limited by Docker Desktop's architecture.
+    *   **Audio INPUT into the container:** Use an application like [Loopback by Rogue Amoeba](https://rogueamoeba.com/loopback/) on your Mac to create a virtual audio device. You can route audio from microphones or other applications into this virtual device. Then, if the application running *inside the Docker container* supports selecting its audio input device, you would configure it to use the audio input that corresponds to the virtual device fed by Loopback (this often appears as a standard system input).
+    *   **Audio OUTPUT from the container:** If the application in Docker plays audio, it will typically play through Docker Desktop's audio output, which then uses your Mac's standard audio output. Loopback can be used on the host to capture this audio if needed.
+    *   **MIDI on macOS:** macOS's built-in 'Audio MIDI Setup' utility allows creating virtual MIDI ports. An application inside the Docker container might be able to connect to these if it supports network MIDI (e.g., via `rtpmidi`) or if a tool on the Mac can bridge these virtual ports to a network MIDI service that Docker can access. Direct USB MIDI device pass-through is generally not straightforward.
+
+*   **Windows:**
+    *   Similar to macOS, direct hardware access can be complex. The WSL2 backend for Docker Desktop might offer some pass-through capabilities for USB devices, but setup can be involved. For audio, software solutions on the host are typically used to manage audio routing.
+
+## Setup and Installation (Manual / Native)
+
+**Note:** While manual setup is possible, using Docker (see 'Running with Docker' section above) is the recommended method for both development and deployment as it handles all dependencies and configurations.
 
 This project uses [Poetry](https://python-poetry.org/) for dependency management and packaging.
 
@@ -67,35 +164,41 @@ This project uses [Poetry](https://python-poetry.org/) for dependency management
     ```bash
     poetry install
     ```
-    This will create a virtual environment and install all necessary packages, including `Flask`, `SQLAlchemy`, `numpy`, etc.
+    This will create a virtual environment and install all necessary packages.
 
-3.  **System Dependencies (Example for some libraries):**
-    Some Python libraries might have system-level dependencies (e.g., `libsndfile` for certain audio operations if you were using a library that required it directly, or `ffmpeg` for broader audio/video processing). If `poetry install` succeeds but you encounter runtime errors related to missing shared libraries, you might need to install them manually. For example, on Debian/Ubuntu for common audio libraries:
+3.  **System Dependencies (for native audio processing):**
+    If running natively and using Python libraries that interface with system audio (like `sounddevice` or `pyaudio` which might be used by stages not yet implemented), you may need to install development libraries for PortAudio and potentially others.
+    For example, on Debian/Ubuntu:
     ```bash
     sudo apt-get update
-    sudo apt-get install libsndfile1 ffmpeg
+    sudo apt-get install portaudio19-dev libasound2-dev libsndfile1 ffmpeg
     ```
-    Always refer to the documentation of the specific Python library causing issues for accurate system dependency information.
+    The `Dockerfile` installs these for the containerized environment. Always refer to the documentation of the specific Python library causing issues for accurate system dependency information if you encounter them in a native setup.
 
-4.  **Database Initialization:**
-    The SQLite database (`database.db` in the project root) and its tables are automatically initialized when the Flask application first runs (specifically, when `create_app()` in `src/app.py` is called). No separate command is strictly needed for setup.
+4.  **Database Initialization (Native Setup):**
+    When running natively, the SQLite database (`./data/database.db`) and its tables are initialized by the application when it first starts. The `src.app` module ensures the `data` directory (and subdirectories like `uploads`, `projects`) are created if they don't exist.
 
-    The application will also create the `data/uploads` and `data/projects` directories if they don't exist upon startup.
+    You can also initialize the database manually (e.g., for scripting or before running the app for the first time without Docker):
+    ```bash
+    poetry shell
+    python -m src.database.utils
+    ```
+    This script will create `database.db` in the project root if it's not configured to be in `./data` by the environment. **Note:** The application is now configured to use `./data/database.db`. Ensure your manual initialization aligns with this or that the application correctly creates it in `./data` on first run. When using Docker with the volume mount, the database will be at `./data/database.db` on your host.
 
-## Running the Application
+## Running the Application Natively (Alternative to Docker)
 
-To start the Flask development server:
+If you prefer to run the application directly on your host machine without Docker:
 
-1.  **Activate the Poetry virtual environment:**
+1.  **Ensure you have completed the manual setup steps.**
+2.  **Activate the Poetry virtual environment:**
     ```bash
     poetry shell
     ```
-
-2.  **Run the application:**
+3.  **Run the application:**
     ```bash
     python -m src.app
     ```
-    The server will typically start on `http://0.0.0.0:5000/`. You will see log messages indicating the server is running and the database initialization status.
+    The server will typically start on `http://0.0.0.0:5000/`. The application will create and use `./data/database.db` and store other data in `./data/uploads` and `./data/projects`.
 
 ## Audio Processing Pipeline
 
@@ -233,8 +336,9 @@ This endpoint now accepts a JSON request body to specify the processing steps:
 **Note:** You should provide *either* `workflow_name` *or* `stages_chain`. If both are provided, `workflow_name` takes precedence.
 
 **Example API Interactions using `curl`:**
+(Assuming the application is running on `http://localhost:5000` via Docker or natively)
 
-1.  **Create a new project (as before):**
+1.  **Create a new project:**
     ```bash
     curl -X POST -H "Content-Type: application/json" \
          -d '{"name": "My Audio Experiments", "description": "Processing tests"}' \
@@ -242,7 +346,7 @@ This endpoint now accepts a JSON request body to specify the processing steps:
     ```
     *(Assume this returns project ID 1)*
 
-2.  **Upload a recording to project 1 (as before):**
+2.  **Upload a recording to project 1:**
     ```bash
     curl -X POST -F "name=Test Audio for Processing" \
          -F "file=@/path/to/your/test_audio.wav" \
@@ -258,19 +362,6 @@ This endpoint now accepts a JSON request body to specify the processing steps:
                "output_dir_suffix": "sliced_with_workflow_v1"
              }' \
          http://localhost:5000/recordings/1/process
-    ```
-    *Expected Response (example structure):*
-    ```json
-    {
-      "message": "Processing via workflow 'example_slicing_workflow' completed for recording 1.",
-      "recording_status": "slicing_completed", // Status updated by the SlicingStage
-      "output_location": "data/projects/project_1/recording_1/sliced_with_workflow_v1",
-      "result_summary": "Output type: list, items: 2", // Example if 2 samples were created
-      "result": [
-        {"id": 1, "file_path": "...", "name": "...", ...},
-        {"id": 2, "file_path": "...", "name": "...", ...}
-      ]
-    }
     ```
 
 4.  **Process recording 1 using an ad-hoc stage chain:**
@@ -291,38 +382,31 @@ This endpoint now accepts a JSON request body to specify the processing steps:
              }' \
          http://localhost:5000/recordings/1/process
     ```
-    *Expected Response (example structure, depends on the actual output of the last stage):*
-    ```json
-    {
-      "message": "Processing via ad-hoc stage chain completed for recording 1.",
-      "recording_status": "slicing_completed", // If 'slicing' was the last stage that sets status
-      "output_location": "data/projects/project_1/recording_1/adhoc_nr_then_slice",
-      "result_summary": "Output type: list, items: 2", // Example
-      "result": [ /* ... list of created sample data from SlicingStage ... */ ]
-    }
-    ```
 
 ## Running Tests
 
 The project uses `pytest` for unit and integration testing.
 
-1.  **Activate the Poetry virtual environment (if not already active):**
+1.  **Activate the Poetry virtual environment (if not already active and not using Docker):**
     ```bash
     poetry shell
     ```
 
-2.  **Run tests:**
+2.  **Run tests (natively):**
     ```bash
     pytest
     ```
-    This command will discover and run all tests in the `tests/` directory. You should see output indicating the status of each test.
+    This command will discover and run all tests in the `tests/` directory.
 
-## Contributing
-(Placeholder for contribution guidelines if this were an open project)
-
-## License
-This project is licensed under the MIT License - see the LICENSE file for details.
-```
+    **Running tests with Docker:**
+    If you want to run tests within the Docker environment to ensure consistency:
+    ```bash
+    docker-compose exec app poetry run pytest
+    ```
+    Or, if you are not using Docker Compose:
+    ```bash
+    docker exec -it your-app-container poetry run pytest
+    ```
 
 ## Pre-commit Hooks
 
@@ -348,3 +432,10 @@ This project uses pre-commit hooks to ensure code quality and consistency. The h
 ### Usage
 
 Once installed, the pre-commit hooks will run automatically before each commit. If Black reformats any files, you will need to stage the changes again. If Flake8 finds any errors that it cannot fix, the commit will be blocked. You will need to fix the errors manually before you can commit.
+
+## Contributing
+(Placeholder for contribution guidelines if this were an open project)
+
+## License
+This project is licensed under the MIT License - see the LICENSE file for details.
+```

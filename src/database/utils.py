@@ -6,7 +6,7 @@ from .models import Base
 from typing import Optional, Iterator
 
 # Default DATABASE_URL for the main application
-DATABASE_URL: str = "sqlite:///./database.db"
+DATABASE_URL: str = "sqlite:///./data/database.db"
 _engine: Optional[Engine] = None
 # _SessionLocal = None # Removed global session factory cache
 
