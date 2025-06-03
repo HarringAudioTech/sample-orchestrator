@@ -32,7 +32,7 @@ class DecentSamplerPresetGenerator:
     def __init__(
         self, project: Project, instrument_data: InstrumentData, output_base_dir: str
     ) -> None:
-        """Initializes the DecentSamplerPresetGenerator.
+        """Initializes the DecentSamplerPresetGenerator with project data and output directory.
 
         Args:
             project: The `Project` object containing the sample data and structure.
@@ -45,28 +45,52 @@ class DecentSamplerPresetGenerator:
         self.output_base_dir: str = output_base_dir
 
     def _sanitize_filename(self, name: str) -> str:
-        """Sanitizes a string to be suitable for use as a filename or directory name.
+        """Sanitizes a string for use as a filename or directory name.
 
-        Replaces spaces with underscores and converts to lowercase.
+        This method performs the following operations:
+        1. Replaces all occurrences of spaces (" ") with underscores ("_").
+        2. Converts the entire string to lowercase.
 
         Args:
-            name: The string to sanitize.
+            name (str): The input string to be sanitized.
 
         Returns:
-            The sanitized string.
+            str: The sanitized string, suitable for file or directory names.
         """
         return name.replace(" ", "_").lower()
 
     def generate_preset(self) -> None:
-        """Generates the complete Decent Sampler instrument.
+        """Generates the complete Decent Sampler instrument preset and file structure.
 
-        This method orchestrates the creation of the instrument directory,
-        subdirectories for Samples and Artwork, copies the necessary files
-        (samples, UI background), and generates the .dspreset XML file.
+        This method orchestrates the entire process of creating a Decent Sampler
+        instrument. It performs the following steps:
+        1. Sanitizes the instrument name to create a filesystem-friendly name.
+        2. Creates the main instrument directory and subdirectories for 'Samples'
+           and 'Artwork'.
+        3. Copies the UI background image (if specified and found) into the
+           'Artwork' directory.
+        4. Generates the .dspreset XML file by:
+            - Creating the root <DecentSampler> element.
+            - Creating and appending the <ui> element (including background image).
+            - Creating and appending the <groups> element (which involves copying
+              sample files into the 'Samples' directory and creating <sample> tags).
+            - Creating and appending an empty <effects> element.
+        5. Writes the generated XML structure to a .dspreset file in the main
+           instrument directory.
 
-        Prints status messages and warnings to stdout.
-        Possible OSErrors during directory or file operations will be caught and
-        reported, potentially halting parts of the generation.
+        Prints informational messages, warnings, and error messages to standard
+        output during the generation process. File operations (directory creation,
+        file copying, file writing) are susceptible to `OSError` exceptions, which
+        are caught and reported. An error in creating base directories will halt
+        the process. Errors in copying artwork or individual samples, or writing
+        the final preset file, will be reported but the process may attempt to
+        continue with other parts if feasible.
+
+        Args:
+            None.
+
+        Returns:
+            None.
         """
         instrument_name_fs: str = self._sanitize_filename(self.instrument_data.name)
         instrument_dir: str = os.path.join(self.output_base_dir, instrument_name_fs)
@@ -133,13 +157,20 @@ class DecentSamplerPresetGenerator:
             print(f"ERROR: Could not write .dspreset file: {e}")
 
     def _create_root_element(self) -> ET.Element:
-        """Creates the root <DecentSampler> XML element.
+        """Creates the root <DecentSampler> XML element for the preset.
 
-        The root element includes the `minVersion` attribute.
-        It can optionally include a `version` attribute based on `instrument_data`.
+        This element serves as the top-level container for the entire preset
+        definition. It includes a mandatory `minVersion` attribute indicating
+        the minimum version of Decent Sampler required to interpret the preset.
+        Optionally, if a version is specified in the `instrument_data`, a
+        `version` attribute is also added to the root element.
+
+        Args:
+            None.
 
         Returns:
-            The `ET.Element` for the root of the DecentSampler preset.
+            xml.etree.ElementTree.Element: The configured root <DecentSampler>
+            XML element.
         """
         root: ET.Element = ET.Element("DecentSampler")
         root.set("minVersion", "1.0.0")
@@ -153,16 +184,27 @@ class DecentSamplerPresetGenerator:
         return root
 
     def _create_ui_element(self, artwork_output_dir: Optional[str] = None, artwork_successfully_copied: bool = False) -> ET.Element:
-        """Creates the <ui> XML element, including background image if specified.
+        """Creates the <ui> XML element for the Decent Sampler preset.
+
+        This element defines the user interface of the instrument. If a UI
+        background image is specified in `instrument_data` and was successfully
+        copied to the 'Artwork' directory, a <tab> element named "main" is
+        created with a <background> sub-element pointing to this image.
+        The image path in the XML is relative to the .dspreset file.
 
         Args:
-            artwork_output_dir: The absolute path to the 'Artwork' directory where UI
-                                 elements are stored. Currently unused, but kept for potential future use.
-            artwork_successfully_copied: Boolean indicating if the artwork was copied.
-
+            artwork_output_dir (Optional[str]): The absolute path to the 'Artwork'
+                directory. Currently, this argument is noted for potential future
+                use but does not directly affect the image path written to the XML,
+                as the XML path is relative. Defaults to None.
+            artwork_successfully_copied (bool): A flag indicating whether the
+                artwork file was successfully copied. If False, or if no
+                UI background image path is set in `instrument_data`, the
+                background image tag will not be added. Defaults to False.
 
         Returns:
-            The `ET.Element` for the <ui> section.
+            xml.etree.ElementTree.Element: The configured <ui> XML element,
+            potentially including a background image definition.
         """
         ui_element: ET.Element = ET.Element("ui")
         if self.instrument_data.ui_background_image_path and artwork_successfully_copied:
@@ -178,19 +220,34 @@ class DecentSamplerPresetGenerator:
         return ui_element
 
     def _create_groups_element(self, samples_output_dir: str) -> ET.Element:
-        """Creates the <groups> XML element, populating it with <group> and <sample> tags.
+        """Creates the <groups> XML element and populates it with sample data.
 
-        This method iterates through recordings and their associated samples from the
-        project model. For each sample, it attempts to copy the audio file to the
-        `Samples` directory and then creates a corresponding `<sample>` XML element
-        with attributes for path, root note, key range, and velocity range.
+        This method constructs the <groups> section of the .dspreset file.
+        It iterates through each recording in the project. For each recording,
+        a <group> XML element is created. Within each group, it processes every
+        associated sample:
+        1. The sample's audio file is copied from its source location to the
+           instrument's 'Samples' subdirectory (created within `samples_output_dir`).
+           If copying fails or the source file doesn't exist, a warning is printed
+           and the sample is skipped.
+        2. A <sample> XML element is created with attributes:
+            - `path`: Relative path to the copied sample file (e.g., "Samples/sample_name.wav").
+            - `rootNote`: MIDI note number of the sample's root pitch. Defaults to 60 (C3)
+              if not specified in the sample model.
+            - `loKey`, `hiKey`: MIDI note numbers defining the keyboard range for this
+              sample. Derived from `sample_mapping_items` if available, otherwise
+              defaults to the `rootNote`.
+            - `loVel`, `hiVel`: Velocity range (0-127) for this sample. Defaults to
+              the full range (0-127).
+        If no recordings are found in the project, an empty <groups> element is returned.
 
         Args:
-            samples_output_dir: The absolute path to the 'Samples' directory where
-                                audio files will be copied.
+            samples_output_dir (str): The absolute path to the 'Samples' directory
+                where sample audio files will be copied and referenced from.
 
         Returns:
-            The `ET.Element` for the <groups> section.
+            xml.etree.ElementTree.Element: The configured <groups> XML element,
+            containing all <group> and <sample> sub-elements.
         """
         groups_element: ET.Element = ET.Element("groups")
 
@@ -281,13 +338,20 @@ class DecentSamplerPresetGenerator:
         return groups_element
 
     def _create_effects_element(self) -> ET.Element:
-        """Creates the <effects> XML element.
+        """Creates the <effects> XML element for the Decent Sampler preset.
 
-        Currently, this is a placeholder and returns an empty <effects> tag,
-        as effects definition is not yet implemented.
+        This method is responsible for defining any built-in effects (like
+        reverb, delay, etc.) for the instrument. Currently, it serves as a
+        placeholder and returns an empty <effects> tag, as the definition
+        and inclusion of specific effects are not yet implemented.
+        Future enhancements could involve parsing effect configurations from
+        `instrument_data` or other sources to populate this section.
+
+        Args:
+            None.
 
         Returns:
-            The `ET.Element` for the <effects> section.
+            xml.etree.ElementTree.Element: An empty <effects> XML element.
         """
         effects_element: ET.Element = ET.Element("effects")
         # Example: ET.SubElement(effects_element, "effect", type="reverb", wetLevel="0.5")

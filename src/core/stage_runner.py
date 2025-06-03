@@ -26,21 +26,29 @@ and values are the stage classes themselves.
 
 
 def register_stage(stage_class: Type[AudioProcessingStage]) -> None:
-    """
-    Registers an audio processing stage class in the global STAGE_REGISTRY.
+    """Registers an audio processing stage class in the global `STAGE_REGISTRY`.
 
-    The stage class must inherit from `AudioProcessingStage` and, when instantiated,
-    must have a unique, non-empty `name` property.
-    If a stage with the same name is already registered, a warning will be logged,
-    and the existing stage will be overwritten.
+    To be registered, the `stage_class` must meet several criteria:
+    1. It must be a subclass of `AudioProcessingStage`.
+    2. It must be instantiable (e.g., all abstract methods implemented if any).
+    3. An instance of the class must have a `name` property that returns a
+       non-empty string. This name is used as the key in the `STAGE_REGISTRY`.
+
+    If a stage with the same name (obtained from `stage_class().name`) already
+    exists in the registry, a warning is logged, and the existing entry is
+    overwritten with the new `stage_class`.
 
     Args:
-        stage_class: The audio processing stage class to register.
+        stage_class (Type[AudioProcessingStage]): The audio processing stage
+            class to be registered. This is the class itself, not an instance.
 
     Raises:
-        TypeError: If the provided class is not a subclass of AudioProcessingStage,
-                   if it cannot be instantiated, or if its `name` property is
-                   missing, not a string, or returns an empty value.
+        TypeError:
+            - If `stage_class` is not a subclass of `AudioProcessingStage`.
+            - If `stage_class` cannot be instantiated (e.g., due to missing
+              implementation of abstract methods or errors in its `__init__`).
+            - If the `name` property of an instance of `stage_class` is missing,
+              not a string, or returns an empty string or `None`.
     """
     if not issubclass(stage_class, AudioProcessingStage):
         raise TypeError(f"Stage class '{stage_class.__name__}' must inherit from AudioProcessingStage.")
@@ -77,19 +85,48 @@ def execute_stage_chain(
     chain_definition: List[Dict[str, Any]],
     context: Optional[Dict[str, Any]] = None,
 ) -> Any:
-    """Executes a chain of audio processing stages sequentially.
+    """Executes a defined chain of audio processing stages sequentially.
 
-    The output of each stage becomes the input for the next stage in the chain.
-    Data types are validated between stages to ensure compatibility.
+    This function iterates through a `chain_definition`, where each element
+    specifies a stage to be executed. The output of one stage serves as the
+    input for the subsequent stage. Data type compatibility between stages is
+    enforced based on each stage's `input_type` and `output_type` properties.
+
+    Each stage in the chain is defined by a dictionary containing:
+    - `stage_name` (str): The name of the stage, which must be registered in
+      `STAGE_REGISTRY`.
+    - `params` (Optional[Dict[str, Any]]): A dictionary of parameters to
+      override the stage's `default_params`.
+
+    An optional `context` dictionary can be provided, which is passed to each
+    stage's `process` method, allowing stages to share resources or state.
 
     Args:
-        initial_data: The starting data for the first stage in the chain.
-        initial_data_type: The data type of `initial_data`.
-        chain_definition: A list of dictionaries defining the stages.
-        context: Optional shared resources for stages.
+        initial_data (Any): The data to be fed into the first stage of the chain.
+        initial_data_type (str): A string identifier for the type of `initial_data`
+            (e.g., "file_path", "audio_buffer_mono"). This must match the
+            `input_type` of the first stage.
+        chain_definition (List[Dict[str, Any]]): A list of dictionaries, each
+            defining a stage to be executed. Each dictionary must contain
+            'stage_name' and optionally 'params'.
+        context (Optional[Dict[str, Any]]): A dictionary of shared resources or
+            state to be passed to each stage. Defaults to an empty dictionary if None.
 
     Returns:
-        The output data from the final stage in the chain.
+        Any: The data returned by the `process` method of the final stage in
+             the chain. If the `chain_definition` is empty, `initial_data` is
+             returned directly.
+
+    Raises:
+        ValueError:
+            - If a stage definition in `chain_definition` is missing 'stage_name'.
+            - If a specified 'stage_name' is not found in `STAGE_REGISTRY`.
+        TypeError:
+            - If there's a data type mismatch between the output of one stage
+              (or `initial_data_type`) and the expected `input_type` of the next.
+        RuntimeError: If a registered stage class cannot be instantiated.
+        Exception: Propagates exceptions raised during the `process` method of
+                   any stage, prefixing them with information about the failing stage.
     """
     if not chain_definition:
         logger.info("Stage chain definition is empty. Returning initial data.")
