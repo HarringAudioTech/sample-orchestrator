@@ -25,20 +25,30 @@ from typing import Tuple
 from werkzeug.exceptions import HTTPException
 
 def create_app() -> Flask:
-    """Creates and configures an instance of the Flask application.
+    """Creates, configures, and returns an instance of the Flask application.
 
-    This factory function:
-    1. Initializes the Flask app.
-    2. Sets up application configuration (e.g., paths for uploads, samples).
-    3. Initializes the database and creates tables if they don't exist (on first run).
-       Note: In a production environment, database initialization might be handled
-       by a separate script or migration tool (e.g., Alembic).
-    4. Registers API blueprints for different parts of the application.
-    5. Defines global error handlers for common HTTP errors (404, 500).
-    6. Creates a simple root route for basic API health check/welcome message.
+    This function serves as the application factory. Its responsibilities include:
+    1.  Initializing the core Flask application object.
+    2.  Setting up application-level configuration parameters. This includes
+        defining paths for data storage such as upload folders and sample
+        directories. These paths are constructed relative to the project root.
+    3.  Registering various API blueprints that define the application's routes
+        and endpoints. This includes blueprints for project management,
+        recordings, samples, and user interface components.
+    4.  Defining global error handlers for common HTTP error codes like 404 (Not Found)
+        and 500 (Internal Server Error). These handlers ensure that such errors
+        are returned as JSON responses.
+    5.  Establishing a simple root ("/") route that provides a basic welcome
+        message, useful for health checks or initial API interaction.
+
+    Database initialization (`init_db`) is *not* performed automatically within
+    this function upon app creation. It is expected to be handled manually or
+    through a separate process, such as a CLI command or a migration tool,
+    especially in production environments.
 
     Returns:
-        The configured Flask application instance.
+        Flask: The fully configured Flask application instance, ready to be run
+               by a WSGI server or the Flask development server.
     """
     app: Flask = Flask(__name__)
 
@@ -105,13 +115,24 @@ def create_app() -> Flask:
     # --- Basic Error Handling ---
     @app.errorhandler(404)
     def not_found_error(error: HTTPException) -> Tuple[Flask.response_class, int]:
-        """Handles 404 Not Found errors with a JSON response.
+        """Global error handler for 404 Not Found errors.
+
+        This function is registered with Flask to handle all occurrences of
+        HTTP 404 errors throughout the application. It ensures that 404 errors
+        are returned to the client as a JSON response, conforming to a common
+        API error structure. It also logs the occurrence of the 404 error,
+        including the path that was not found.
 
         Args:
-            error: The HTTPException object for the 404 error.
+            error (HTTPException): The exception object raised by Flask or Werkzeug
+                                   for the 404 error. This argument is provided
+                                   by Flask when the error handler is invoked.
 
         Returns:
-            A tuple containing a Flask JSON response and the 404 status code.
+            Tuple[Flask.response_class, int]: A tuple containing a Flask JSON
+                response object and the HTTP status code 404. The JSON response
+                includes an "error" key set to "Not Found" and a "message" key
+                with a user-friendly explanation.
         """
         app.logger.warning(f"404 Not Found: {request.path} (Error: {error})")
         return (
@@ -126,13 +147,27 @@ def create_app() -> Flask:
 
     @app.errorhandler(500)
     def internal_server_error(error: HTTPException) -> Tuple[Flask.response_class, int]:
-        """Handles 500 Internal Server Error with a JSON response.
+        """Global error handler for 500 Internal Server Error.
+
+        This function is registered with Flask to handle all unhandled exceptions
+        that result in an HTTP 500 error. It standardizes the error response
+        format to JSON, providing a consistent experience for API clients.
+        Crucially, it logs the error details, including the request path and
+        a full traceback (`exc_info=True`), which is essential for debugging
+        server-side issues.
 
         Args:
-            error: The HTTPException object for the 500 error.
+            error (HTTPException): The exception object that led to the 500 error.
+                                   This argument is provided by Flask. While often
+                                   a generic `HTTPException` for 500, it can be
+                                   the original unhandled exception.
 
         Returns:
-            A tuple containing a Flask JSON response and the 500 status code.
+            Tuple[Flask.response_class, int]: A tuple containing a Flask JSON
+                response object and the HTTP status code 500. The JSON response
+                includes an "error" key set to "Internal Server Error" and a
+                "message" key with a generic explanation, avoiding exposure of
+                sensitive error details to the client.
         """
         app.logger.error(
             f"500 Internal Server Error: {
@@ -151,10 +186,18 @@ def create_app() -> Flask:
 
     @app.route("/")
     def index() -> Flask.response_class:
-        """A simple root route to indicate the API is running.
+        """Provides a simple root endpoint for the API.
+
+        This route serves as a basic health check or welcome point for the API.
+        Accessing the root URL ("/") of the application will return a JSON
+        response indicating that the API is running and welcoming the user.
+
+        Args:
+            None.
 
         Returns:
-            A Flask JSON response with a welcome message.
+            Flask.response_class: A Flask response object containing a JSON payload.
+                The JSON object has a single key "message" with a welcome string.
         """
         return jsonify(
             {"message": "Welcome to the Audio Processing and Sample Management API!"}

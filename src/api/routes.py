@@ -82,11 +82,20 @@ def model_to_dict(model_instance: Optional[Any]) -> Optional[Dict[str, Any]]:
 def create_project() -> Response:
     """Creates a new project.
 
-    Expects a JSON payload with 'name' and optional 'description'.
+    Receives project information as JSON and saves it to the database.
+
+    Args:
+        None: Reads 'name' and 'description' (optional) from the JSON
+              payload of the request.
+              Example: {"name": "My First Project", "description": "A test project"}
 
     Returns:
-        A Flask Response object with the created project object (201)
-        or an error message (400, 500).
+        flask.Response: JSON response containing the created project object and
+                        HTTP status 201 if successful.
+                        JSON response with an error message and HTTP status 400
+                        if the 'name' is missing in the payload.
+                        JSON response with an error message and HTTP status 500
+                        if an internal server error occurs.
     """
     data: Optional[Dict[str, Any]] = request.get_json()
     if not data or not data.get("name"):
@@ -116,12 +125,16 @@ def create_project() -> Response:
 def get_project(project_id: int) -> Response:
     """Retrieves a specific project by its ID.
 
+    Fetches a project from the database based on the provided project ID.
+
     Args:
-        project_id: The ID of the project to retrieve.
+        project_id (int): The unique identifier of the project to retrieve.
 
     Returns:
-        A Flask Response object with the project object (200)
-        or an error message (404).
+        flask.Response: JSON response containing the project object and HTTP
+                        status 200 if found.
+                        JSON response with an error message and HTTP status 404
+                        if the project is not found.
     """
     db_gen = get_db()
     db: Session = next(db_gen)
@@ -138,8 +151,14 @@ def get_project(project_id: int) -> Response:
 def list_projects() -> Response:
     """Lists all projects.
 
+    Retrieves all projects from the database.
+
+    Args:
+        None.
+
     Returns:
-        A Flask Response object with a list of project objects (200).
+        flask.Response: JSON response containing a list of all project
+                        objects and HTTP status 200.
     """
     db_gen = get_db()
     db: Session = next(db_gen)
@@ -158,12 +177,26 @@ def add_project_recording(project_id: int) -> Response:
     Expects 'multipart/form-data' with 'file' (the audio file) and
     'name' (recording name).
 
+    The uploaded file is saved to a designated upload folder, and metadata
+    about the recording is stored in the database.
+
     Args:
-        project_id: The ID of the project to add the recording to.
+        project_id (int): The unique identifier of the project to which the
+                          recording will be added.
+                          Reads 'file' (werkzeug.datastructures.FileStorage) and
+                          'name' (str) from the multipart/form-data request.
 
     Returns:
-        A Flask Response object with the created recording object (201)
-        or an error message (400, 404, 500).
+        flask.Response: JSON response containing the created recording object
+                        and HTTP status 201 if successful.
+                        JSON response with an error message and HTTP status 400
+                        if 'file' or 'name' is missing, or if the file has no
+                        filename.
+                        JSON response with an error message and HTTP status 404
+                        if the specified project is not found.
+                        JSON response with an error message and HTTP status 500
+                        if an internal server error occurs during file saving
+                        or database interaction.
     """
     # CoreProject manages its own session for loading the project model and adding recording.
     # No direct db session needed here for *that* part.
@@ -245,12 +278,17 @@ def add_project_recording(project_id: int) -> Response:
 def list_project_recordings(project_id: int) -> Response:
     """Lists all recordings associated with a specific project.
 
+    Retrieves metadata for all recordings linked to the given project ID.
+
     Args:
-        project_id: The ID of the project whose recordings are to be listed.
+        project_id (int): The unique identifier of the project whose
+                          recordings are to be listed.
 
     Returns:
-        A Flask Response object with a list of recording objects (200)
-        or an error message (404).
+        flask.Response: JSON response containing a list of recording objects
+                        and HTTP status 200 if the project is found.
+                        JSON response with an error message and HTTP status 404
+                        if the project is not found.
     """
     # CoreProject handles its own session for loading and listing.
     try:
@@ -269,12 +307,16 @@ def list_project_recordings(project_id: int) -> Response:
 def get_recording_details(recording_id: int) -> Response:
     """Retrieves details for a specific recording by its ID.
 
+    Fetches a recording from the database based on its unique identifier.
+
     Args:
-        recording_id: The ID of the recording.
+        recording_id (int): The unique identifier of the recording to retrieve.
 
     Returns:
-        A Flask Response object with the recording object (200)
-        or an error message (404).
+        flask.Response: JSON response containing the recording object and HTTP
+                        status 200 if found.
+                        JSON response with an error message and HTTP status 404
+                        if the recording is not found.
     """
     db_gen = get_db()
     db: Session = next(db_gen)
@@ -291,13 +333,35 @@ def get_recording_details(recording_id: int) -> Response:
 def process_recording_endpoint(recording_id: int) -> Response:
     """Initiates audio processing for a specific recording.
 
+    This endpoint allows processing of a recording using either a predefined
+    workflow or an ad-hoc chain of processing stages. The request body
+    must be JSON and specify either 'workflow_name' or 'stages_chain'.
+
     Args:
-        recording_id: The ID of the recording to process.
+        recording_id (int): The unique identifier of the recording to be processed.
+            The JSON payload can contain:
+            - workflow_name (str, optional): Name of a registered workflow to run.
+            - stages_chain (List[Dict[str, Any]], optional): A list of stage
+              definitions for ad-hoc processing.
+            - output_dir_suffix (str, optional): Suffix for the output directory
+              where generated samples will be stored. Defaults to
+              "default_processing_output".
+            Example for workflow:
+            `{"workflow_name": "my_slicing_workflow"}`
+            Example for ad-hoc chain:
+            `{"stages_chain": [{"name": "slicer", "params": {"threshold": -40}}]}`
 
     Returns:
-        A Flask Response object indicating the outcome of the processing request.
-        This can be a success message with details (200), or an error
-        message (400, 404, 500).
+        flask.Response: JSON response with a success message, recording status,
+                        output location, and processing results (HTTP 200).
+                        JSON response with an error message (HTTP 400) for
+                        invalid request (e.g., missing JSON, bad parameters,
+                        workflow/stage not found, file issues).
+                        JSON response with an error message (HTTP 404) if the
+                        recording or its associated project is not found.
+                        JSON response with an error message (HTTP 500) for
+                        internal server errors during processing or file system
+                        operations.
     """
     db_gen = get_db()
     db: Session = next(db_gen)
@@ -505,12 +569,17 @@ def process_recording_endpoint(recording_id: int) -> Response:
 def list_recording_samples(recording_id: int) -> Response:
     """Lists all samples associated with a specific recording.
 
+    Retrieves metadata for all samples linked to the given recording ID.
+
     Args:
-        recording_id: The ID of the recording whose samples are to be listed.
+        recording_id (int): The unique identifier of the recording whose
+                          samples are to be listed.
 
     Returns:
-        A Flask Response object with a list of sample objects (200)
-        or an error message (404).
+        flask.Response: JSON response containing a list of sample objects and
+                        HTTP status 200 if the recording is found.
+                        JSON response with an error message and HTTP status 404
+                        if the recording is not found.
     """
     db_gen = get_db()
     db: Session = next(db_gen)
@@ -528,12 +597,16 @@ def list_recording_samples(recording_id: int) -> Response:
 def get_sample_details(sample_id: int) -> Response:
     """Retrieves details for a specific sample by its ID.
 
+    Fetches a sample from the database based on its unique identifier.
+
     Args:
-        sample_id: The ID of the sample.
+        sample_id (int): The unique identifier of the sample to retrieve.
 
     Returns:
-        A Flask Response object with the sample object (200)
-        or an error message (404).
+        flask.Response: JSON response containing the sample object and HTTP
+                        status 200 if found.
+                        JSON response with an error message and HTTP status 404
+                        if the sample is not found.
     """
     db_gen = get_db()
     db: Session = next(db_gen)

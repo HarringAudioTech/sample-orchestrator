@@ -12,18 +12,32 @@ _engine: Optional[Engine] = None
 
 
 def get_engine(database_url: Optional[str] = None) -> Engine:
-    """Retrieves or creates a SQLAlchemy engine.
+    """Retrieves or creates a SQLAlchemy engine based on a priority order.
 
-    Prioritizes TEST_ENGINE_INSTANCE from app config if in TESTING mode.
-    Then checks for an explicit database_url.
-    Then checks for DATABASE_URL in Flask app config.
-    Finally, falls back to a global default engine.
+    This function determines the appropriate SQLAlchemy engine to use by
+    checking the following sources in order:
+    1. If the Flask `current_app` is in "TESTING" mode and has a
+       `TEST_ENGINE_INSTANCE` in its config, that engine instance is returned.
+       This is primarily for testing scenarios where a pre-configured in-memory
+       or test-specific database engine is used.
+    2. If an explicit `database_url` argument is provided to this function,
+       a new engine is created using this URL.
+    3. If the Flask `current_app` is available and has a "DATABASE_URL"
+       key in its config, a new engine is created using that URL. This allows
+       the main application to define its database connection.
+    4. If none of the above conditions are met (e.g., running in a non-Flask
+       context or a script without app config), it falls back to a globally
+       cached `_engine`. If this global `_engine` is not yet created, it's
+       initialized using the module-level `DATABASE_URL` constant.
 
     Args:
-        database_url: An optional database URL string.
+        database_url (Optional[str]): An optional database URL string. If provided,
+            it overrides other configurations except for a testing-specific engine.
+            Defaults to None.
 
     Returns:
-        A SQLAlchemy Engine instance.
+        Engine: A SQLAlchemy Engine instance configured according to the
+                determined database URL or pre-existing test engine.
     """
     global _engine
 
@@ -50,18 +64,33 @@ def get_engine(database_url: Optional[str] = None) -> Engine:
 
 
 def get_session_local(engine_instance: Optional[Engine] = None) -> sessionmaker[SQLAlchemySession]:
-    """Creates a SQLAlchemy sessionmaker (a factory for sessions).
+    """Creates and returns a SQLAlchemy sessionmaker (a factory for sessions).
 
-    If `engine_instance` is provided, it's used directly.
-    Otherwise, `get_engine()` is called to determine the appropriate engine
-    (which will correctly pick up the test engine if in a testing context).
+    This function is responsible for generating a `sessionmaker` instance,
+    which is then used to create individual database `Session` objects.
+    The `sessionmaker` is configured with `autocommit=False` and `autoflush=False`
+    by default.
+
+    The binding engine for the `sessionmaker` is determined as follows:
+    - If an `engine_instance` is explicitly provided to this function, that
+      engine is used.
+    - If `engine_instance` is `None`, `get_engine()` is called. `get_engine()`
+      has its own logic to determine the correct engine (e.g., using a test
+      engine if in a testing context, or the application's configured engine).
+
+    A new `sessionmaker` instance is created on each call to ensure that it is
+    bound to the correct engine, especially in contexts where the engine might
+    change (like testing).
 
     Args:
-        engine_instance: An existing SQLAlchemy engine.
-            If None, `get_engine()` is used. Defaults to None.
+        engine_instance (Optional[Engine]): An existing SQLAlchemy engine to which
+            the sessionmaker should be bound. If `None`, `get_engine()` will be
+            used to resolve the engine. Defaults to None.
 
     Returns:
-        A new sessionmaker instance bound to the determined engine.
+        sessionmaker[SQLAlchemySession]: A SQLAlchemy `sessionmaker` instance,
+            configured and bound to the appropriate database engine. This
+            factory can be called to produce new `SQLAlchemySession` objects.
     """
     effective_engine: Engine = engine_instance or get_engine()
 
@@ -70,11 +99,25 @@ def get_session_local(engine_instance: Optional[Engine] = None) -> sessionmaker[
 
 
 def init_db(engine_instance: Optional[Engine] = None) -> None:
-    """Initializes the database by creating all tables defined in `models.Base`.
+    """Initializes the database by creating all defined tables.
+
+    This function uses SQLAlchemy's metadata capabilities to issue "CREATE TABLE"
+    statements to the database for all tables that are defined as subclasses of
+    `src.database.models.Base` and do not already exist in the database.
+
+    The database engine to which the tables are created is determined as follows:
+    - If an `engine_instance` is explicitly provided, that engine is used.
+    - If `engine_instance` is `None`, `get_engine()` is called to resolve the
+      appropriate engine (which could be the application's default engine,
+      a test engine, or an engine based on a specific DATABASE_URL).
+
+    Logging is performed to indicate the engine URL being used and the tables
+    known to `Base.metadata` before and after the creation process.
 
     Args:
-        engine_instance: An optional SQLAlchemy engine instance. If not provided,
-                         `get_engine()` will be used to get or create one.
+        engine_instance (Optional[Engine]): An existing SQLAlchemy engine instance
+            where the tables should be created. If `None`, `get_engine()` is used
+            to determine the engine. Defaults to None.
     """
     current_engine: Engine = engine_instance or get_engine()
     import logging # Keep import local to function if only used here
@@ -91,18 +134,34 @@ def init_db(engine_instance: Optional[Engine] = None) -> None:
 
 
 def get_db(engine_instance: Optional[Engine] = None) -> Iterator[SQLAlchemySession]:
-    """Provides a database session context that is managed for request handling or general use.
+    """Provides a database session within a managed context, ensuring closure.
 
-    This function is a generator that yields a SQLAlchemy `Session` object.
-    It ensures that the session is closed after its use.
+    This function is a generator designed to be used as a context manager
+    (e.g., in a `with` statement or as a FastAPI dependency). It yields a
+    SQLAlchemy `Session` object that can be used for database operations.
+    Crucially, it ensures that the session is closed after its use, whether
+    the operations within the context were successful or raised an exception.
+
+    The session is created using a `sessionmaker` that is bound to an engine
+    determined as follows:
+    - If `engine_instance` is provided, the sessionmaker (and thus the session)
+      is bound to this specific engine.
+    - If `engine_instance` is `None`, `get_session_local()` is called without an
+      explicit engine. `get_session_local()` will then use `get_engine()` to
+      resolve the appropriate engine (e.g., application default, test engine).
+
+    This pattern is essential for proper session management, preventing session
+    leaks and ensuring that database connections are returned to the pool.
 
     Args:
-        engine_instance: An existing SQLAlchemy engine
-            to bind the session to. If None, the default engine resolution via
-            `get_session_local` (and thus `get_engine`) is used. Defaults to None.
+        engine_instance (Optional[Engine]): An existing SQLAlchemy engine to which
+            the session should be bound. If `None`, the engine is resolved via
+            `get_session_local()` (ultimately by `get_engine()`). Defaults to None.
 
     Yields:
-        A new database session.
+        Iterator[SQLAlchemySession]: A generator that yields a single
+            `SQLAlchemySession` object. This session is ready for database
+            interactions.
     """
     # Create a factory using the potentially overridden engine
     current_session_local_factory: sessionmaker[SQLAlchemySession] = get_session_local(engine_instance)

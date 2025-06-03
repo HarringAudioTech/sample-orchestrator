@@ -26,17 +26,20 @@ logger = logging.getLogger(__name__)
 
 
 def sanitize_filename(name: str) -> str:
-    """
-    Sanitizes a string to be used as a filename or directory name.
+    """Sanitizes a string for use as a filename or directory name.
 
-    Replaces spaces with underscores and removes characters that are generally
-    problematic for filesystems (keeps alphanumeric, underscore, dot, hyphen).
+    This function performs two main operations to make a string safe for
+    filesystem usage:
+    1. Replaces all occurrences of space characters (' ') with underscores ('_').
+    2. Removes any characters that are not alphanumeric (letters, numbers),
+       underscores ('_'), dots ('.'), or hyphens ('-').
 
     Args:
-        name (str): The input string to sanitize.
+        name (str): The input string to be sanitized.
 
     Returns:
-        str: The sanitized string suitable for use as a filename.
+        str: The sanitized string, which is more suitable for use as a part
+             of a filename or directory name.
     """
     name = name.replace(" ", "_")
     name = re.sub(r"[^\w\.-]", "", name)
@@ -44,23 +47,31 @@ def sanitize_filename(name: str) -> str:
 
 
 def list_available_midi_devices(db: Session) -> list[MidiDevice]:
-    """
-    Lists available MIDI input devices detected by `mido`.
+    """Lists available MIDI input devices and synchronizes them with the database.
 
-    Synchronizes these devices with the database. If a detected device
-    is not in the database, it's added. If it exists, its `updated_at`
-    timestamp is modified.
+    This function retrieves the names of all MIDI input devices currently
+    recognized by the `mido` library. It then iterates through these names,
+    checking if each device already exists in the `MidiDevice` table in the
+    database.
+    - If a device is found, its `updated_at` timestamp is refreshed.
+    - If a device is not found, a new `MidiDevice` record is created and added
+      to the database.
+    All changes are committed to the database session provided.
 
     Args:
-        db: The SQLAlchemy database session.
+        db (Session): The SQLAlchemy database session to use for querying and
+                      updating `MidiDevice` records.
 
     Returns:
-        A list of `MidiDevice` SQLAlchemy model instances,
-        reflecting all currently available MIDI input devices.
+        list[MidiDevice]: A list of `MidiDevice` SQLAlchemy model instances. This
+                          list includes all devices found by `mido`, whether they
+                          were newly added or existing ones that were updated.
 
     Raises:
-        SQLAlchemyError: If there's an issue committing changes to the database.
-        Exception: If `mido.get_input_names()` or other operations fail.
+        SQLAlchemyError: If any database operation (query, add, commit) fails.
+        Exception: If `mido.get_input_names()` fails or any other unexpected
+                   error occurs during the process. Errors from `mido` are
+                   logged and re-raised.
     """
     logger.info("Listing available MIDI devices.")
     try:
@@ -103,19 +114,26 @@ def list_available_midi_devices(db: Session) -> list[MidiDevice]:
 
 
 def get_midi_device_by_name(db: Session, name: str) -> MidiDevice | None:
-    """
-    Retrieves a `MidiDevice` from the database by its name.
+    """Retrieves a MIDI device from the database by its unique name.
+
+    This function queries the `MidiDevice` table for an entry where the `name`
+    column matches the provided `name` argument.
 
     Args:
-        db: The SQLAlchemy database session.
-        name: The name of the MIDI device to retrieve.
+        db (Session): The SQLAlchemy database session to use for the query.
+        name (str): The name of the MIDI device to search for. This is expected
+                    to be the unique identifier as recognized by `mido` and
+                    stored in the database.
 
     Returns:
-        The `MidiDevice` SQLAlchemy model instance if found,
-        otherwise `None`.
+        Optional[MidiDevice]: The `MidiDevice` SQLAlchemy model instance if a
+                              device with the specified name is found in the
+                              database. Returns `None` if no such device exists.
 
     Raises:
-        SQLAlchemyError: If a database query error occurs.
+        SQLAlchemyError: If an error occurs during the database query operation.
+        Exception: If any other unexpected error occurs. These are logged and
+                   re-raised.
     """
     logger.debug(f"Querying for MIDI device by name: '{name}'")
     try:
@@ -156,22 +174,42 @@ class MidiRecorder:
         session_name: str,
         db: Session,
     ) -> None:
-        """Initializes the MidiRecorder.
+        """Initializes a MidiRecorder instance for a given project and MIDI devices.
 
-        Sets up a new MIDI capture session in the database and resolves the
-        selected MIDI devices.
+        This constructor sets up the necessary state for a MIDI recording session.
+        It performs the following key actions:
+        1. Validates that the specified `project_id` corresponds to an existing
+           project in the database.
+        2. Creates a new `MidiCaptureSession` record in the database with a
+           status of "pending" and associates it with the project.
+        3. Resolves the `selected_device_names` against the `MidiDevice` table
+           in the database. Only devices found in the database are considered valid
+           target devices for recording.
+        4. Stores the resolved target devices and other session information as
+           instance attributes.
 
         Args:
-            project_id: The ID of the project for this capture session.
-            selected_device_names: A list of MIDI device names to record from.
-            session_name: A descriptive name for this capture session.
-            db: The SQLAlchemy database session to use for initialization.
+            project_id (int): The unique identifier of the `ProjectModel` to which
+                              this MIDI capture session will belong.
+            selected_device_names (list[str]): A list of strings, where each string
+                                               is the name of a MIDI device to be
+                                               used for recording.
+            session_name (str): A user-defined, descriptive name for this MIDI
+                                capture session (e.g., "Piano Take 1").
+            db (Session): The SQLAlchemy database session to be used for all
+                          database operations during initialization (e.g.,
+                          querying projects, creating the capture session,
+                          resolving devices).
 
         Raises:
-            ValueError: If the specified `project_id` is not found, or if no valid
-                        MIDI devices are found from `selected_device_names`, or if
-                        `selected_device_names` is empty.
-            SQLAlchemyError: If there's an error during database operations.
+            ValueError:
+                - If the `project_id` does not correspond to an existing project.
+                - If `selected_device_names` is empty.
+                - If none of the names in `selected_device_names` correspond to
+                  known `MidiDevice` records in the database.
+            SQLAlchemyError: If any database operation (query, add, commit, flush)
+                             fails during the initialization process.
+            Exception: For any other unexpected errors, which are logged and re-raised.
         """
         self.project_id: int = project_id
         self.selected_device_names: list[str] = selected_device_names
@@ -248,19 +286,30 @@ class MidiRecorder:
             raise
 
     def _get_output_directory(self) -> str:
-        """
-        Determines and creates a base output directory for the current capture session.
+        """Determines and creates the base output directory for the current capture session.
 
-        The directory structure is `data/projects/<project_id>/midi_captures/<session_name_or_id>/`.
-        Note: This directory is not used for storing MIDI files themselves (as they are stored
-        as blobs in the database), but can be used for other session-related files or metadata if needed.
+        This method constructs a directory path based on the project ID and the
+        current MIDI capture session's name (or ID as a fallback). The structure
+        is: `data/projects/<project_id>/midi_captures/<sanitized_session_name_or_id>/`.
+
+        The directory is created if it doesn't already exist. While MIDI files
+        themselves are stored as BLOBs in the database, this directory can be
+        utilized for storing auxiliary files or metadata related to the capture
+        session if needed in the future.
+
+        Args:
+            None. Relies on `self.capture_session`.
 
         Returns:
-            The absolute path to the base output directory for the session.
+            str: The absolute path to the ensured base output directory for this
+                 capture session.
 
         Raises:
-            ValueError: If the capture session is not initialized or has no ID.
-            OSError: If directory creation fails.
+            ValueError: If `self.capture_session` is not initialized or if
+                        `self.capture_session.id` is None, as these are crucial
+                        for path construction.
+            OSError: If an error occurs during directory creation (e.g., due to
+                     permissions issues).
         """
         if not self.capture_session or self.capture_session.id is None:
             logger.error(
@@ -291,21 +340,41 @@ class MidiRecorder:
         return path
 
     def _get_midi_filepath(self, device_name: str, channel: int) -> str:
-        """
-        Determines and creates the path for a specific MIDI file.
+        """Constructs and ensures the directory path for a specific MIDI file.
 
-        The path is `<output_directory>/<sanitized_device_name>/channel_<channel>.mid`.
-        A subdirectory for the device is created if it doesn't exist.
+        This method generates a file path intended for a MIDI file associated with
+        a particular device and channel within the current capture session.
+        The structure of the path is:
+        `<session_output_directory>/<sanitized_device_name>/channel_<channel_or_sys>.mid`.
+
+        It first calls `_get_output_directory()` to get the base directory for
+        the session, then creates a subdirectory within it named after the
+        sanitized `device_name`. The filename itself indicates the channel
+        (e.g., "channel_1.mid", "channel_sys.mid" for system messages).
+        The device-specific subdirectory is created if it doesn't already exist.
+
+        Note: While this method generates a filepath, the primary storage for
+        MIDI data in this class is as BLOBs in the database. This filepath
+        generation might be used for temporary storage or if future requirements
+        involve saving physical .mid files alongside database entries.
 
         Args:
-            device_name: The name of the MIDI device.
-            channel: The MIDI channel number.
+            device_name (str): The name of the MIDI device. This will be sanitized
+                               for use in the directory structure.
+            channel (int): The MIDI channel number. If less than 0 (e.g., -1),
+                           it's treated as a system channel and represented as 'sys'
+                           in the filename.
 
         Returns:
-            The absolute path for the MIDI file.
+            str: The absolute path for the MIDI file. This path includes the
+                 session's output directory, a device-specific subdirectory,
+                 and the channel-specific filename.
 
         Raises:
-            OSError: If subdirectory creation fails.
+            ValueError: If `_get_output_directory()` raises it (e.g., session not
+                        initialized).
+            OSError: If creation of the device-specific subdirectory fails (e.g.,
+                     due to permissions).
         """
         output_dir: str = self._get_output_directory()
         sanitized_device_name: str = sanitize_filename(device_name)
@@ -324,18 +393,39 @@ class MidiRecorder:
         return os.path.join(device_specific_dir, filename)
 
     def start_recording(self, db: Session) -> None:
-        """Starts the MIDI recording process.
+        """Starts the MIDI recording process for the configured devices.
 
-        Opens MIDI input ports for the selected devices and sets their callbacks
-        to `_midi_callback`. Updates the capture session status to 'recording'.
+        This method initiates the MIDI recording by:
+        1. Checking if recording is already active or if the recorder is properly
+           initialized (has a capture session and target devices).
+        2. Iterating through the `self.target_devices` (resolved `MidiDevice` models).
+           For each device, it attempts to open a MIDI input port using `mido.open_input()`.
+           The `_midi_callback` method is set as the callback for incoming messages.
+        3. If any ports are successfully opened:
+           - Updates the associated `MidiCaptureSession` record in the database:
+             - Sets `start_time` to the current UTC datetime.
+             - Sets `status` to "recording".
+           - Sets `self.active` to `True`.
+        4. If no MIDI input ports can be opened (e.g., devices disconnected or
+           `mido` errors), the session status is set to "failed", and the method
+           returns without starting active recording.
+
+        Error handling includes logging issues with opening specific ports and
+        rolling back database changes if necessary.
 
         Args:
-            db: The SQLAlchemy database session.
+            db (Session): The SQLAlchemy database session used to update the
+                          `MidiCaptureSession` record.
 
         Raises:
-            ValueError: If the recorder is not properly initialized.
-            SQLAlchemyError: If there's an error updating the session status in the database.
-            Exception: Can re-raise errors from `mido.open_input`.
+            ValueError: If the `MidiRecorder` instance is not properly initialized
+                        (e.g., `self.capture_session` is `None`).
+            SQLAlchemyError: If a database error occurs while updating the
+                             `MidiCaptureSession` (e.g., during `db.commit()`).
+            Exception: Re-raises exceptions from `mido.open_input()` if they occur
+                       and are not handled internally (though many `mido` errors
+                       are caught per-device). Also re-raises other unexpected
+                       exceptions.
         """
         if self.active:
             logger.warning("Start recording called but recording is already active.")
@@ -414,15 +504,32 @@ class MidiRecorder:
             raise
 
     def _midi_callback(self, msg: mido.Message, device_name: str) -> None:
-        """Callback function to handle incoming MIDI messages.
+        """Handles incoming MIDI messages from `mido` input ports.
 
-        This method is called by `mido` for each MIDI message received from
-        an open input port. It appends the message to the appropriate
-        `mido.MidiFile` object in `self.midi_files`.
+        This method serves as the callback function passed to `mido.open_input()`.
+        It is invoked by `mido` whenever a new MIDI message is received on one
+        of the monitored ports.
+
+        The method performs the following actions:
+        1. Checks if recording is `self.active`. If not, the message is ignored.
+        2. Determines the MIDI channel of the message. Messages without a channel
+           (e.g., system exclusive) are assigned a nominal channel of -1.
+        3. Creates a unique key based on the `device_name` and `channel`.
+        4. If a `mido.MidiFile` object does not already exist in `self.midi_files`
+           for this key, a new one is created with a single track. The track is
+           named using the sanitized device name and channel.
+        5. Appends the received `mido.Message` (`msg`) to the appropriate track
+           within the corresponding `mido.MidiFile` object.
+
+        Any exceptions encountered during this process are logged, but typically
+        do not halt the recording process for other messages or devices.
 
         Args:
-            msg: The MIDI message received.
-            device_name: The name of the MIDI device that sent the message.
+            msg (mido.Message): The MIDI message object received from the
+                                `mido` library.
+            device_name (str): The name of the MIDI device from which this
+                               message originated. This is passed by the `lambda`
+                               wrapper in `start_recording`.
         """
         if not self.active:
             return
@@ -454,20 +561,45 @@ class MidiRecorder:
             )
 
     def stop_recording(self, db: Session) -> None:
-        """Stops the MIDI recording process.
+        """Stops the MIDI recording, finalizes data, and updates the database.
 
-        Closes all open MIDI input ports, serializes the captured MIDI data for each
-        device and channel, and stores this data as blobs in `MidiFile` records
-        in the database. Updates the capture session status to 'completed' or
-        'completed_empty'.
+        This method orchestrates the end of a MIDI recording session:
+        1. Checks if recording is active and the recorder is initialized.
+        2. Closes all open MIDI input ports that were managed by `mido`.
+        3. Iterates through the `self.midi_files` dictionary, which contains
+           the captured MIDI messages organized by device and channel.
+           For each `mido.MidiFile` object:
+             a. If the track contains no messages, it's skipped.
+             b. The `mido.MidiFile` object is serialized into binary MIDI data
+                (a `bytes` object) using an in-memory `io.BytesIO` buffer.
+             c. A new `MidiFile` SQLAlchemy record is created, storing this
+                binary data as a BLOB, along with references to the
+                `MidiCaptureSession` and the source `MidiDevice`, and the
+                channel number. This record is added to the database session.
+        4. Updates the associated `MidiCaptureSession` record in the database:
+           - Sets `end_time` to the current UTC datetime.
+           - Sets `status` to "completed" if any MIDI files were saved, or
+             "completed_empty" if no MIDI data was recorded or saved.
+        5. Sets `self.active` to `False`.
+        6. Clears the in-memory `self.midi_files` cache.
+
+        All database changes are committed. Errors during port closing, data
+        serialization, or database operations are logged.
 
         Args:
-            db: The SQLAlchemy database session.
+            db (Session): The SQLAlchemy database session used for all database
+                          updates (creating `MidiFile` records, updating the
+                          `MidiCaptureSession`).
 
         Raises:
-            ValueError: If the recorder is not properly initialized.
-            SQLAlchemyError: If there's an error during database operations.
-            Exception: Can re-raise errors from `mido_file_obj.save()`.
+            ValueError: If the `MidiRecorder` instance is not properly initialized
+                        (e.g., `self.capture_session` is `None`).
+            SQLAlchemyError: If a database error occurs during the saving of
+                             `MidiFile` records or the update of the
+                             `MidiCaptureSession` (e.g., during `db.commit()`).
+            Exception: Re-raises exceptions that might occur during MIDI data
+                       serialization (e.g., from `mido_file_obj.save()`) or
+                       other unexpected critical errors.
         """
         if not self.active:
             logger.warning("Stop recording called but recording is not currently active.")

@@ -45,17 +45,28 @@ class Project:
     """
 
     def __init__(self, project_id: int, db_session: Session | None = None) -> None:
-        """Initializes a Project instance by loading its data from the database.
+        """Initializes a Project instance, establishing a context for project-specific operations.
+
+        This constructor fetches the project's metadata from the database using
+        the provided `project_id`. It allows for an optional existing SQLAlchemy
+        `db_session` to be passed; if none is provided, it will create and manage
+        a new session for the duration of its own execution. The loaded
+        `ProjectModel` instance is stored as `self.project_model`.
 
         Args:
-            project_id: The ID of the project to load.
-            db_session: An existing SQLAlchemy session.
-                If provided, this session is used for database operations.
-                If None, a new session is created for the initialization scope.
+            project_id (int): The unique identifier for the project to be loaded
+                              and managed by this instance.
+            db_session (Optional[Session]): An existing SQLAlchemy database session.
+                If provided, this session will be used for database operations
+                performed during initialization. If `None`, a new session will be
+                obtained from `get_db()` and used locally, then closed upon
+                completion of this method.
 
         Raises:
-            ValueError: If no project with the given `project_id` is found.
-            SQLAlchemyError: If there's an issue communicating with the database.
+            ValueError: If no project exists in the database with the specified
+                        `project_id`.
+            SQLAlchemyError: If any error occurs during database communication
+                             (e.g., while querying for the project).
         """
         logger.info(f"Initializing Project core for project_id: {project_id}")
         self.db: Session | None = db_session  # Store the provided session, if any
@@ -103,25 +114,38 @@ class Project:
                     pass
 
     def add_recording(self, file_path: str, name: str) -> RecordingModel:
-        """
-        Adds a new audio recording to the current project.
+        """Adds a new audio recording to this project.
 
-        Extracts metadata (duration, samplerate, channels) from the audio file,
-        creates a new `RecordingModel` entry in the database, and associates
-        it with this project.
+        This method processes a new audio file, extracts its metadata (duration,
+        sample rate, channels) using `librosa`, and then creates a corresponding
+        `RecordingModel` entry in the database, associating it with the current
+        project.
+
+        If `self.db` (the instance's database session) is `None`, a new session
+        is created for this operation and closed upon completion. Otherwise, the
+        existing `self.db` session is used.
 
         Args:
-            file_path: The path to the audio file.
-            name: A user-friendly name for this recording.
+            file_path (str): The absolute or relative path to the audio file
+                             (e.g., ".wav", ".mp3").
+            name (str): A user-friendly name to assign to this recording within
+                        the project (e.g., "Vocal Take 1").
 
         Returns:
-            The newly created SQLAlchemy `RecordingModel` instance.
+            RecordingModel: The SQLAlchemy `RecordingModel` instance representing
+                            the newly added recording, including its generated ID
+                            and extracted metadata.
 
         Raises:
-            FileNotFoundError: If the audio file at `file_path` does not exist.
-            SQLAlchemyError: If any database operations fail.
-            Exception: Can re-raise exceptions from audio metadata extraction
-                       (e.g., `librosa.load`) if issues occur.
+            FileNotFoundError: If the audio file specified by `file_path` does
+                               not exist or is not accessible.
+            SQLAlchemyError: If any error occurs during database operations (e.g.,
+                             adding the new recording, committing the session).
+            Exception: Propagates exceptions from `librosa` if audio metadata
+                       extraction fails (e.g., due to an unsupported file format
+                       or corrupted file). Errors during metadata extraction are
+                       logged, and the recording may still be added with minimal
+                       or no metadata.
         """
         logger.info(
             f"Adding recording '{name}' from path '{file_path}' to project ID {self.project_id}."
@@ -212,18 +236,26 @@ class Project:
                     pass
 
     def get_recording(self, recording_id: int) -> RecordingModel | None:
-        """
-        Retrieves a specific recording associated with this project by its ID.
+        """Retrieves a specific recording by its ID, ensuring it belongs to this project.
+
+        This method queries the database for a `RecordingModel` that matches both
+        the provided `recording_id` and the `self.project_id` of this `Project`
+        instance.
+
+        If `self.db` (the instance's database session) is `None`, a new session
+        is created for this operation and closed upon completion. Otherwise, the
+        existing `self.db` session is used.
 
         Args:
-            recording_id: The ID of the recording to retrieve.
+            recording_id (int): The unique identifier of the recording to retrieve.
 
         Returns:
-            The `RecordingModel` instance if found and belonging
-            to this project, otherwise `None`.
+            Optional[RecordingModel]: The `RecordingModel` instance if a recording
+                                      with the specified ID is found and is part of
+                                      the current project. Returns `None` otherwise.
 
         Raises:
-            SQLAlchemyError: If there's an issue communicating with the database.
+            SQLAlchemyError: If an error occurs during database communication.
         """
         logger.debug(
             f"Retrieving recording ID {recording_id} for project ID {self.project_id}."
@@ -270,14 +302,26 @@ class Project:
                     pass
 
     def list_recordings(self) -> list[RecordingModel]:
-        """
-        Lists all recordings associated with this project.
+        """Lists all audio recordings associated with the current project.
+
+        This method queries the database for all `RecordingModel` entries that
+        are linked to `self.project_id`. The results are ordered by their
+        creation timestamp in descending order (newest first).
+
+        If `self.db` (the instance's database session) is `None`, a new session
+        is created for this operation and closed upon completion. Otherwise, the
+        existing `self.db` session is used.
+
+        Args:
+            None.
 
         Returns:
-            A list of `RecordingModel` instances.
+            list[RecordingModel]: A list of `RecordingModel` SQLAlchemy instances.
+                                  If no recordings are found for the project, an
+                                  empty list is returned.
 
         Raises:
-            SQLAlchemyError: If there's an issue communicating with the database.
+            SQLAlchemyError: If an error occurs during database communication.
         """
         logger.debug(f"Listing all recordings for project ID {self.project_id}.")
 
@@ -319,20 +363,29 @@ class Project:
                     pass
 
     def process_recording(self, recording_id: int, output_sample_dir: str):
-        """
-        Initiates audio processing for a specific recording.
+        """Initiates audio processing for a specific recording (currently not implemented).
 
-        Uses `detect_and_slice_recording` from `audio_processor.py`. Ensures the
-        output directory exists. The processing function handles DB updates for
-        samples and recording status.
+        This method is intended to handle the processing of an audio recording,
+        such as slicing it into samples. However, it currently raises a
+        `NotImplementedError` as it needs to be refactored to use the
+        new `SlicingStage` via the stage runner system.
+
+        The original implementation involved ensuring the `output_sample_dir`
+        exists and then calling a (now deprecated) processing function.
+        A pre-check was performed to ensure the recording belonged to the project.
 
         Args:
             recording_id (int): The ID of the recording to process.
-            output_sample_dir (str): Path where sliced samples should be saved.
+            output_sample_dir (str): The path where processed samples (e.g., slices)
+                                     were intended to be saved.
 
         Raises:
-            SQLAlchemyError: If database interaction fails during pre-check.
-            Exception: Can re-raise exceptions from audio processing.
+            NotImplementedError: This method always raises this error, indicating
+                                 it requires an update.
+            SQLAlchemyError: (Historical) Would have been raised if database
+                             interaction failed during the pre-check.
+            Exception: (Historical) Could have re-raised exceptions from audio
+                       processing.
         """
         logger.info(
             f"Initiating processing for recording ID {recording_id} in project {self.project_id}."
@@ -424,20 +477,34 @@ class Project:
     # --- MIDI Capture Related Methods ---
 
     def list_midi_devices(self) -> List[MidiDeviceModel]:
-        """
-        Lists available MIDI input devices and syncs them with the database.
+        """Lists available MIDI input devices and synchronizes them with the database.
 
-        This method utilizes `list_available_midi_devices` from `midi_capture.py`,
-        which handles the discovery of devices via `mido` and their persistence
-        in the database.
+        This method acts as a wrapper around `midi_capture.list_available_midi_devices`.
+        It facilitates the discovery of MIDI input devices connected to the system
+        (using the `mido` library) and ensures that these devices are represented
+        in the database. If a device is newly discovered, it's added; if it
+        already exists, its record might be updated (e.g., timestamp).
+
+        If `self.db` (the instance's database session) is `None`, a new session
+        is created for this operation and passed to the underlying function, then
+        closed upon completion. Otherwise, the existing `self.db` session is used.
+
+        Args:
+            None.
 
         Returns:
-            A list of `MidiDeviceModel` instances representing
-            all currently available MIDI input devices.
+            List[MidiDeviceModel]: A list of `MidiDeviceModel` SQLAlchemy
+                                   instances, representing all MIDI input devices
+                                   currently detected and synchronized with the
+                                   database.
 
         Raises:
-            SQLAlchemyError: If database interaction fails within `list_available_midi_devices`.
-            Exception: If `mido` backend calls fail within `list_available_midi_devices`.
+            SQLAlchemyError: If any database operations fail within the underlying
+                             `list_available_midi_devices` function (e.g., during
+                             querying, adding, or committing device records).
+            Exception: If `mido` library calls to get input device names fail, or
+                       for other unexpected errors propagated from the underlying
+                       function.
         """
         logger.info(f"Listing MIDI devices for project ID {self.project_id}.")
 
@@ -479,29 +546,46 @@ class Project:
     def create_midi_capture_session(
         self, session_name: str, selected_device_names: list[str]
     ) -> MidiRecorder:
-        """
-        Initializes a `MidiRecorder` for a new MIDI capture session.
+        """Initializes and returns a `MidiRecorder` for a new MIDI capture session.
 
-        A `MidiCaptureSessionModel` entry is created in the database via the
-        `MidiRecorder`'s constructor. The database session used for this
-        initialization is then closed. The returned `MidiRecorder` instance
-        requires a new database session to be passed to its `start_recording`
-        and `stop_recording` methods by the caller.
+        This method facilitates the creation of a new MIDI capture session.
+        It instantiates a `MidiRecorder` object, which in turn creates a
+        `MidiCaptureSessionModel` entry in the database.
+
+        If `self.db` (the instance's database session) is `None`, a new session
+        is created and passed to the `MidiRecorder` constructor for its
+        initialization, and then this session is closed. If `self.db` is an
+        existing session, it is used by the `MidiRecorder`. The `MidiRecorder`
+        is expected to handle its own database commit/rollback for the session
+        creation within its constructor.
+
+        Note: The returned `MidiRecorder` instance is now ready to be used for
+        recording (via its `start_recording` and `stop_recording` methods).
+        The caller will need to manage database sessions for those subsequent
+        operations on the `MidiRecorder` if `self.db` was not provided here.
 
         Args:
-            session_name: The user-defined name for the new MIDI capture session.
-            selected_device_names: A list of names of MIDI input devices
-                                   to be used for this session. These devices
-                                   should exist in the database (e.g., by prior
-                                   call to `list_midi_devices`).
+            session_name (str): A user-defined, descriptive name for the new
+                                MIDI capture session (e.g., "Keyboard Part").
+            selected_device_names (list[str]): A list of names of the MIDI input
+                devices to be used for this capture session. These device names
+                should correspond to existing `MidiDeviceModel` entries in the
+                database, typically discovered via `list_midi_devices()`.
 
         Returns:
-            An instance of `MidiRecorder` configured for the new session.
+            MidiRecorder: An instance of the `MidiRecorder` class, configured and
+                          ready for this new capture session. The associated
+                          `MidiCaptureSessionModel` has been created in the database.
 
         Raises:
-            ValueError: If `project_id` is invalid, or if no valid devices are found
-                        based on `selected_device_names` (raised by `MidiRecorder`).
-            SQLAlchemyError: If database operations fail during `MidiRecorder` initialization.
+            ValueError: Propagated from `MidiRecorder.__init__` if the current
+                        project ID (`self.project_id`) is invalid, if
+                        `selected_device_names` is empty, or if no valid MIDI
+                        devices are found in the database matching the provided names.
+            SQLAlchemyError: Propagated from `MidiRecorder.__init__` if database
+                             operations fail during the creation of the
+                             `MidiCaptureSessionModel`.
+            Exception: For other unexpected errors during `MidiRecorder` instantiation.
         """
         logger.info(
             f"Creating MIDI capture session '{session_name}' for project ID {self.project_id} "
@@ -555,15 +639,27 @@ class Project:
                     pass
 
     def list_midi_capture_sessions(self) -> List[MidiCaptureSessionModel]:
-        """
-        Lists all MIDI capture sessions associated with the current project.
+        """Lists all MIDI capture sessions associated with the current project.
+
+        This method queries the database for all `MidiCaptureSessionModel`
+        entries that are linked to the `self.project_id` of this `Project`
+        instance. The results are ordered by their creation timestamp in
+        descending order, meaning the most recently created sessions appear first.
+
+        If `self.db` (the instance's database session) is `None`, a new session
+        is created for this operation and closed upon completion. Otherwise, the
+        existing `self.db` session is used.
+
+        Args:
+            None.
 
         Returns:
-            A list of `MidiCaptureSessionModel` instances,
-            ordered by creation date (most recent first).
+            List[MidiCaptureSessionModel]: A list of `MidiCaptureSessionModel`
+                SQLAlchemy instances. If no MIDI capture sessions are found for
+                the project, an empty list is returned.
 
         Raises:
-            SQLAlchemyError: If there's an issue communicating with the database.
+            SQLAlchemyError: If an error occurs during database communication.
         """
         logger.debug(f"Listing MIDI capture sessions for project ID {self.project_id}.")
 
@@ -609,21 +705,27 @@ class Project:
                     pass
 
     def get_midi_capture_session(self, session_id: int) -> MidiCaptureSessionModel | None:
-        """
-        Retrieves a specific MIDI capture session by its ID.
+        """Retrieves a specific MIDI capture session by ID, ensuring it belongs to this project.
 
-        Ensures that the retrieved session belongs to the current project.
+        This method queries the database for a `MidiCaptureSessionModel` that
+        matches both the provided `session_id` and the `self.project_id` of this
+        `Project` instance.
+
+        If `self.db` (the instance's database session) is `None`, a new session
+        is created for this operation and closed upon completion. Otherwise, the
+        existing `self.db` session is used.
 
         Args:
-            session_id: The ID of the MIDI capture session to retrieve.
+            session_id (int): The unique identifier of the MIDI capture session
+                              to retrieve.
 
         Returns:
-            The `MidiCaptureSessionModel` instance
-            if found and belonging to this project,
-            otherwise `None`.
+            Optional[MidiCaptureSessionModel]: The `MidiCaptureSessionModel`
+                SQLAlchemy instance if a session with the specified ID is found
+                and is part of the current project. Returns `None` otherwise.
 
         Raises:
-            SQLAlchemyError: If there's an issue communicating with the database.
+            SQLAlchemyError: If an error occurs during database communication.
         """
         logger.debug(
             f"Retrieving MIDI capture session ID {session_id} for project ID {self.project_id}."
@@ -676,26 +778,37 @@ class Project:
                     pass
 
     def get_midi_files_for_session(self, session_id: int) -> List[MidiFileModel]:
-        """
-        Retrieves all MIDI data entries associated with a specific MIDI capture session.
+        """Retrieves all MIDI data files associated with a specific MIDI capture session.
 
-        This method first verifies that the session belongs to the current project.
-        The returned `MidiFileModel` instances will contain the raw MIDI data
-        in their `midi_data` attribute.
+        This method performs two main database queries:
+        1. It first retrieves the `MidiCaptureSessionModel` for the given `session_id`,
+           ensuring that this session belongs to the current project (`self.project_id`).
+           If the session is not found or does not belong to this project, an
+           empty list is returned.
+        2. If the session is validated, it then queries for all `MidiFileModel`
+           entries that are linked to this `session_id`. These are ordered by
+           their creation timestamp in ascending order (oldest first).
+
+        Each returned `MidiFileModel` instance contains the actual MIDI data as a
+        binary blob in its `midi_data` attribute.
+
+        If `self.db` (the instance's database session) is `None`, a new session
+        is created for these operations and closed upon completion. Otherwise, the
+        existing `self.db` session is used.
 
         Args:
-            session_id: The ID of the MIDI capture session whose MIDI data entries
-                        are to be retrieved.
+            session_id (int): The unique identifier of the MIDI capture session
+                              for which to retrieve associated MIDI files.
 
         Returns:
-            A list of `MidiFileModel` instances, each representing
-            a stored MIDI recording (containing binary MIDI data).
-            The list is ordered by creation date (oldest first).
-            Returns an empty list if the session is not found,
-            does not belong to this project, or has no associated MIDI data.
+            List[MidiFileModel]: A list of `MidiFileModel` SQLAlchemy instances.
+                Each instance corresponds to a MIDI file recorded during the
+                specified session and contains the binary MIDI data. Returns an
+                empty list if the session is invalid (not found or not part of
+                this project) or if the session has no MIDI files associated with it.
 
         Raises:
-            SQLAlchemyError: If there's an issue communicating with the database.
+            SQLAlchemyError: If an error occurs during database communication.
         """
         logger.debug(
             f"Retrieving MIDI files for session ID {session_id} (project ID {self.project_id})."

@@ -31,13 +31,23 @@ and values are the workflow classes themselves.
 
 
 def _camel_to_snake(name: str) -> str:
-    """Converts a CamelCase string to snake_case.
+    """Converts a string from CamelCase to snake_case.
+
+    This utility function is primarily used to generate a default snake_case
+    registry key from a workflow's class name (which is typically CamelCase).
+    The conversion involves:
+    1. Inserting an underscore before any uppercase letter that is preceded by
+       a letter or digit and followed by a lowercase letter (e.g., "CamelCase" -> "Camel_Case").
+    2. Inserting an underscore before any uppercase letter that is preceded by
+       a lowercase letter or digit (e.g., "Camel_Case" -> "Camel_Case", "SimpleHTTP" -> "Simple_HTTP").
+    3. Replacing multiple consecutive underscores with a single underscore.
+    4. Converting the entire string to lowercase.
 
     Args:
-        name: The CamelCase string.
+        name (str): The input string, typically in CamelCase format.
 
     Returns:
-        The snake_case version of the string.
+        str: The converted string in snake_case format.
     """
     s1: str = re.sub(r"([A-Za-z0-9])([A-Z][a-z]+)", r"\1_\2", name)
     s2: str = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", s1)
@@ -46,20 +56,29 @@ def _camel_to_snake(name: str) -> str:
 
 
 def register_workflow(workflow_class: Type["BaseWorkflow"]) -> None:
-    """Registers a workflow class in the global WORKFLOW_REGISTRY.
+    """Registers a workflow class in the global `WORKFLOW_REGISTRY`.
 
-    The workflow class must inherit from `BaseWorkflow`.
-    The registry key is derived by converting the workflow class's __name__
-    to snake_case.
-    If a workflow with the same key is already registered, a warning will be logged,
-    and the existing workflow will be overwritten.
+    This function adds a given `workflow_class` to a central registry, making
+    it discoverable and executable by name. The key used for registration in
+    the `WORKFLOW_REGISTRY` is automatically derived by converting the
+    `workflow_class.__name__` (which is typically in CamelCase) to snake_case
+    using the `_camel_to_snake` utility function.
+
+    The provided `workflow_class` must be a subclass of `BaseWorkflow`.
+    If a workflow with the same derived snake_case key is already registered,
+    a warning message is logged, and the existing entry in the registry is
+    overwritten with the new `workflow_class`.
 
     Args:
-        workflow_class: The workflow class to register.
+        workflow_class (Type[BaseWorkflow]): The workflow class to be registered.
+            This should be the class itself, not an instance of the class.
 
     Raises:
-        TypeError: If the provided class is not a subclass of BaseWorkflow.
-        ValueError: If a registry key cannot be derived from the class name.
+        TypeError: If the `workflow_class` is not a direct or indirect subclass
+                   of `BaseWorkflow`.
+        ValueError: If a valid snake_case registry key cannot be derived from
+                    the `workflow_class.__name__` (e.g., if the name is empty
+                    after sanitization, though this is unlikely for valid class names).
     """
     if not issubclass(workflow_class, BaseWorkflow):
         raise TypeError(
@@ -116,13 +135,37 @@ class BaseWorkflow(ABC):
     ) -> Any:
         """Executes the workflow's defined chain of processing stages.
 
+        This method takes the initial data and its type, and then invokes
+        `execute_stage_chain` from `src.core.stage_runner` using the workflow's
+        specific `stages_definition`.
+
+        It also enriches the `context` dictionary by adding a
+        `current_workflow_name` key, allowing stages within the chain to be
+        aware of the workflow they are part of. If the provided `context` is
+        `None`, a new dictionary is created for this purpose.
+
         Args:
-            initial_data: The starting data for the first stage.
-            initial_data_type: The data type of `initial_data`.
-            context: Optional shared resources for stages.
+            initial_data (Any): The input data to be fed into the first stage
+                                of the workflow's processing chain.
+            initial_data_type (str): A string identifier for the type of
+                                     `initial_data` (e.g., "file_path",
+                                     "audio_buffer_mono"). This must be
+                                     compatible with the expected input type of
+                                     the first stage in the `stages_definition`.
+            context (Optional[Dict[str, Any]]): An optional dictionary of shared
+                resources or state to be passed through to each stage in the
+                chain. If `None`, an empty context is initialized. The workflow
+                name is added to this context. Defaults to None.
 
         Returns:
-            The output data from the final stage in the workflow.
+            Any: The data returned by the final stage in the workflow's
+                 `stages_definition`. The type of this data depends on the
+                 `output_type` of the last stage.
+
+        Raises:
+            Propagates any exceptions raised by `execute_stage_chain`, which
+            can include `ValueError` (e.g., for missing or unregistered stages)
+            or `TypeError` (for data type mismatches between stages).
         """
         logger.info(f"Running workflow: '{self.name}' ({self.description}).")
         logger.debug(
