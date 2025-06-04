@@ -131,3 +131,20 @@ def project_progress(project_id: str) -> str:
     return render_template(
         "project_progress.html", title=f"Project {project_id}", project_id=project_id
     )
+
+
+@ui_bp.route("/projects/<string:project_id>/import_audio", methods=["GET"])
+def import_audio_page(project_id: str) -> str:
+    """Renders the audio import and processing page for a specific project.
+
+    Args:
+        project_id (str): The unique identifier of the project for which
+                          to import audio.
+
+    Returns:
+        str: The rendered HTML content of the audio import page.
+    """
+    # You might want to add logic here to verify project_id exists
+    # or fetch project details if needed by the template's base or other elements.
+    # For now, just pass it to the new template.
+    return render_template("import_audio.html", title=f"Import Audio for Project {project_id}", project_id=project_id)

@@ -221,6 +221,48 @@ except Exception as e:
     logger.critical(f"Failed to register ExampleSlicingWorkflow: {e}", exc_info=True)
 
 
+# --- Audio Import Workflow Implementation ---
+class AudioImportWorkflow(BaseWorkflow):
+    """
+    Standard workflow for importing and processing new audio files.
+    Includes noise reduction, slicing, and pitch labeling.
+    """
+
+    @property
+    def name(self) -> str:
+        return "audio_import_workflow"
+
+    @property
+    def description(self) -> str:
+        return "Standard workflow for importing and processing new audio files."
+
+    @property
+    def stages_definition(self) -> List[Dict[str, Any]]:
+        return [
+            {
+                "stage_name": "noise_reduction",
+                "params": {"method": "rnnoise", "options": {"aggressiveness": 0.8}},
+                # Example: Assuming 'rnnoise' is a method within 'noise_reduction' stage
+                # Actual parameters depend on the specific stage implementation.
+            },
+            {
+                "stage_name": "slicing",
+                "params": {"method": "energy_based", "min_silence_len": 500, "silence_thresh": -40},
+                # Example: Assuming these are valid params for the 'slicing' stage
+            },
+            {
+                "stage_name": "pitch_labeling",
+                "params": {"method": "pyin", "fmin": 60, "fmax": 2000},
+                # Example: Assuming these are valid params for the 'pitch_labeling' stage
+            },
+        ]
+
+try:
+    register_workflow(AudioImportWorkflow)
+except Exception as e:
+    logger.critical(f"Failed to register AudioImportWorkflow: {e}", exc_info=True)
+
+
 if __name__ == "__main__":
     logging.basicConfig(
         level=logging.INFO,

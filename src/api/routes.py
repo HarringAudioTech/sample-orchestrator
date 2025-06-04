@@ -35,6 +35,16 @@ recordings_bp = Blueprint("recordings", __name__, url_prefix="/recordings")
 samples_bp = Blueprint("samples", __name__, url_prefix="/samples")
 
 
+# --- Mock Task Progress Simulation Data ---
+# In a real app, this state would be in a database or a proper task queue system.
+mock_task_progress_db: Dict[str, Dict[str, Any]] = {}
+WORKFLOW_STAGES_SIMULATION: List[Dict[str, Any]] = [
+    {"id": "noise_reduction", "name": "Noise Reduction", "duration_estimate": 2},
+    {"id": "slicing", "name": "Slicing", "duration_estimate": 3},
+    {"id": "pitch_labeling", "name": "Pitch & Labeling", "duration_estimate": 2.5}
+]
+
+
 # --- Database Session Management ---
 # The get_db_session() helper is removed. Routes will use get_db() directly.
 
@@ -168,6 +178,254 @@ def list_projects() -> Response:
         return jsonify([model_to_dict(p) for p in projects]), 200
     finally:
         next(db_gen, None)
+
+
+@projects_bp.route("/<int:project_id>/upload_audio", methods=["POST"])
+def upload_audio_and_process(project_id: int) -> Response:
+    """
+    Handles audio file upload for a specific project, adds it as a recording,
+    and initiates a (placeholder) processing workflow.
+    """
+    db: Optional[Session] = None
+    full_file_path: Optional[str] = None  # To track if file was saved for cleanup
+
+    try:
+        db_gen = get_db()
+        db = next(db_gen)
+
+        # 1. Verify project existence
+        project = db.query(ProjectModel).filter(ProjectModel.id == project_id).first()
+        if not project:
+            current_app.logger.warning(f"Upload attempt for non-existent project ID: {project_id}")
+            return jsonify({"error": "Project not found"}), 404
+
+        # 2. Handle file upload
+        if "file" not in request.files:
+            return jsonify({"error": "No file part in the request"}), 400
+
+        file = request.files["file"]
+        if file.filename == "":
+            return jsonify({"error": "No selected file (filename is empty)"}), 400
+
+        original_filename = file.filename
+        # HTML form does not have a 'name' field, so this defaults to original_filename
+        recording_name = request.form.get("name", original_filename)
+
+        # Ensure filename is not None before processing
+        if not original_filename:
+             return jsonify({"error": "Invalid file name"}), 400
+
+        # Path construction
+        upload_folder_base = current_app.config.get("UPLOAD_FOLDER", DEFAULT_UPLOAD_BASE_DIR)
+        project_upload_dir = os.path.join(upload_folder_base, f"project_{project_id}")
+
+        if not os.path.exists(project_upload_dir):
+            try:
+                os.makedirs(project_upload_dir)
+                current_app.logger.info(f"Created upload directory: {project_upload_dir}")
+            except OSError as e:
+                current_app.logger.error(
+                    f"Error creating upload directory {project_upload_dir}: {e}",
+                    exc_info=True,
+                )
+                return jsonify({"error": f"Could not create upload directory: {e.strerror}"}), 500
+
+        filename_secure = secure_filename(original_filename)
+        full_file_path = os.path.join(project_upload_dir, filename_secure)
+
+        try:
+            file.save(full_file_path)
+            current_app.logger.info(f"File saved to {full_file_path} for project {project_id}")
+        except Exception as e:
+            current_app.logger.error(
+                f"Error saving uploaded file to {full_file_path}: {e}", exc_info=True
+            )
+            # full_file_path might not be set if secure_filename failed, though unlikely.
+            # If it was set and save failed, the file might be partially written or not at all.
+            # No specific cleanup needed here for the file itself if save fails.
+            return jsonify({"error": f"Could not save uploaded file: {str(e)}"}), 500
+
+        # 3. Add recording to database
+        # CoreProject might use its own session, but for consistency and to ensure
+        # we use the same session as project validation, we use the one from get_db().
+        # However, CoreProject is designed to fetch its own project model.
+        # For this specific endpoint, we directly use the db session.
+
+        core_proj = CoreProject(project_id=project_id, db_session=db) # Pass session to CoreProject
+
+        try:
+            # Assuming add_recording can now use the passed db_session
+            new_recording = core_proj.add_recording(
+                file_path=full_file_path,
+                name=recording_name
+            )
+            # No explicit commit needed here if CoreProject.add_recording handles it
+            # and uses the passed session. If not, db.commit() would be needed.
+            # For now, assuming CoreProject handles its session unit of work.
+            # If CoreProject.add_recording uses db.add and db.commit internally with the passed session,
+            # then we need to refresh here if we want to use the ID immediately.
+            # Let's assume add_recording returns a committed & refreshed object or we don't need immediate refresh for the response.
+            # For safety, let's assume add_recording handles its own commit with the provided session.
+            # db.refresh(new_recording) # Potentially needed if add_recording doesn't refresh
+
+            current_app.logger.info(
+                f"Recording '{new_recording.name}' (ID: {new_recording.id}) "
+                f"added to project {project_id} in database."
+            )
+        except Exception as e:
+            current_app.logger.error(
+                f"Error adding recording to database for project {project_id}, file {full_file_path}: {e}",
+                exc_info=True,
+            )
+            # Attempt to clean up the saved file if DB operation fails
+            if full_file_path and os.path.exists(full_file_path):
+                try:
+                    os.remove(full_file_path)
+                    current_app.logger.info(f"Cleaned up orphaned file: {full_file_path}")
+                except OSError as rm_e:
+                    current_app.logger.error(
+                        f"Error cleaning up orphaned file {full_file_path}: {rm_e}",
+                        exc_info=True,
+                    )
+            return jsonify({"error": "Could not add recording to database"}), 500
+
+        # 4. Initiate workflow (placeholder)
+        task_id = f"task_for_recording_{new_recording.id}"
+        current_app.logger.info(
+            f"Placeholder: Workflow initiation for recording ID {new_recording.id} "
+            f"in project {project_id} with task_id {task_id}. "
+            f"File: {new_recording.file_path}"
+        )
+        # In a real scenario, this would likely involve:
+        # - Creating a task entry in a database.
+        # - Enqueuing a job in a task queue (e.g., Celery, RQ).
+        # - The task would then run the actual audio processing pipeline.
+
+        # 5. Return JSON response
+        return jsonify({
+            "message": "File uploaded successfully and processing initiated.",
+            "recording_id": new_recording.id,
+            "recording_name": new_recording.name,
+            "file_path": new_recording.file_path,
+            "task_id": task_id,
+            "status_url": f"/projects/{project_id}/tasks/{task_id}/status" # Placeholder URL
+        }), 201
+
+    except Exception as e:
+        # Catch-all for unexpected errors
+        current_app.logger.error(
+            f"Unexpected error in upload_audio_and_process for project {project_id}: {e}",
+            exc_info=True,
+        )
+        # Attempt to clean up if file was saved before the error
+        if full_file_path and os.path.exists(full_file_path):
+            # This check is more crucial here if an error occurred *after* file save
+            # but *before* or *during* DB operation where specific cleanup isn't hit.
+            # However, the specific cleanup after DB failure is more targeted.
+            # This is a general safety net.
+            # Consider if this general cleanup is redundant with the one after DB failure.
+            # For now, it is harmless.
+            pass # Cleanup handled in specific db error block
+        return jsonify({"error": "An unexpected server error occurred"}), 500
+    finally:
+        if db:
+            next(db_gen, None) # Close the session
+
+
+@projects_bp.route("/<int:project_id>/tasks/<string:task_id>/status", methods=["GET"])
+def get_task_status(project_id: int, task_id: str) -> Response:
+    """
+    Simulates fetching the status of a processing task.
+    project_id is included for URL consistency but not used in this mock.
+    """
+    # project_id is not used in this mock version but would be in a real system
+    # to scope tasks to projects.
+    # current_app.logger.info(f"Request for task status: {task_id} for project {project_id}")
+
+    if task_id not in mock_task_progress_db:
+        # Initialize task if first time seeing it
+        mock_task_progress_db[task_id] = {
+            "current_stage_idx": 0,
+            "overall_status": "Pending", # Initial status
+            "stages_status": [
+                {"name": stage["name"], "status": "Pending"} for stage in WORKFLOW_STAGES_SIMULATION
+            ]
+        }
+        # current_app.logger.info(f"Initialized task {task_id} in mock_task_progress_db.")
+
+    task_state = mock_task_progress_db[task_id]
+
+    # Simulate progress: Advance one step if not completed or failed
+    if task_state["overall_status"] not in ["Completed", "Failed"]:
+        if task_state["overall_status"] == "Pending":
+            task_state["overall_status"] = "Processing"
+            # current_app.logger.info(f"Task {task_id} changed from Pending to Processing.")
+
+        current_stage_idx = task_state["current_stage_idx"]
+
+        if current_stage_idx < len(WORKFLOW_STAGES_SIMULATION):
+            current_stage_name_for_log = WORKFLOW_STAGES_SIMULATION[current_stage_idx]["name"]
+            if task_state["stages_status"][current_stage_idx]["status"] == "Pending":
+                task_state["stages_status"][current_stage_idx]["status"] = "In Progress"
+                # current_app.logger.info(f"Stage '{current_stage_name_for_log}' for task {task_id} changed to In Progress.")
+            else: # If it was "In Progress", now mark it "Completed" and try to move to next
+                task_state["stages_status"][current_stage_idx]["status"] = "Completed"
+                # current_app.logger.info(f"Stage '{current_stage_name_for_log}' for task {task_id} changed to Completed.")
+                task_state["current_stage_idx"] += 1
+
+                if task_state["current_stage_idx"] < len(WORKFLOW_STAGES_SIMULATION):
+                    next_stage_name_for_log = WORKFLOW_STAGES_SIMULATION[task_state["current_stage_idx"]]["name"]
+                    task_state["stages_status"][task_state["current_stage_idx"]]["status"] = "In Progress"
+                    # current_app.logger.info(f"Stage '{next_stage_name_for_log}' for task {task_id} changed to In Progress (as next stage).")
+                else:
+                    task_state["overall_status"] = "Completed"
+                    # current_app.logger.info(f"Task {task_id} changed to Completed (all stages done).")
+        else: # Should already be caught by the previous block setting overall_status to "Completed"
+             task_state["overall_status"] = "Completed"
+             # current_app.logger.info(f"Task {task_id} confirmed Completed (current_stage_idx was already past end).")
+
+    # Calculate overall progress percentage
+    total_duration_all_stages = sum(s["duration_estimate"] for s in WORKFLOW_STAGES_SIMULATION)
+    current_progress_units = 0.0 # Use float for more precision with half steps
+    active_stage_progress_contribution = 0.0
+
+    for i, stage_stat in enumerate(task_state["stages_status"]):
+        if stage_stat["status"] == "Completed":
+            current_progress_units += WORKFLOW_STAGES_SIMULATION[i]["duration_estimate"]
+        elif stage_stat["status"] == "In Progress":
+            active_stage_progress_contribution = WORKFLOW_STAGES_SIMULATION[i]["duration_estimate"] / 2.0
+
+    current_progress_units += active_stage_progress_contribution
+
+    progress_percent = (current_progress_units / total_duration_all_stages) * 100 if total_duration_all_stages > 0 else 0
+
+    if task_state["overall_status"] == "Completed":
+        progress_percent = 100.0
+    elif task_state["overall_status"] == "Pending": # Should show 0 if pending, before any stage is "In Progress"
+        progress_percent = 0.0
+
+    current_stage_display_name = "N/A"
+    if task_state["overall_status"] == "Processing":
+        if task_state["current_stage_idx"] < len(WORKFLOW_STAGES_SIMULATION):
+             current_stage_display_name = WORKFLOW_STAGES_SIMULATION[task_state["current_stage_idx"]]["name"]
+        else: # This case implies it just completed, but overall_status hasn't flipped to Completed yet in this logic flow
+             current_stage_display_name = WORKFLOW_STAGES_SIMULATION[-1]["name"] # Show last stage name
+    elif task_state["overall_status"] == "Completed":
+        current_stage_display_name = "All Completed"
+    elif task_state["overall_status"] == "Pending":
+        current_stage_display_name = "Queued"
+
+
+    # current_app.logger.info(f"Task {task_id} status: {task_state['overall_status']}, current stage: {current_stage_display_name}, progress: {progress_percent}%")
+
+    return jsonify({
+        "task_id": task_id,
+        "overall_status": task_state["overall_status"],
+        "current_stage": current_stage_display_name,
+        "progress_percent": round(progress_percent),
+        "stages": task_state["stages_status"],
+        "results": {"url": f"/projects/{project_id}/results/{task_id}"} if task_state["overall_status"] == "Completed" else None
+    }), 200
 
 
 # --- Recording Endpoints (scoped under a project) ---

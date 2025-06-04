@@ -5,5 +5,23 @@
 {% block content %}
 <h2>Dashboard</h2>
 <p>Welcome to the orchestrator dashboard. This page will provide an overview of your sampling projects and their statuses.</p>
-<p><em>(Content to be added in future tasks)</em></p>
+
+{# Placeholder for dynamic project listing and links #}
+<div class="mt-4">
+    <h4>Project Actions (Example)</h4>
+    <p>
+        This section will eventually list your projects. For now, here's an example link to the audio import page for a sample project:
+    </p>
+    <ul>
+        <li>
+            <a href="{{ url_for('ui_bp.import_audio_page', project_id='sample-project-123') }}">Import Audio for Project 'sample-project-123'</a>
+        </li>
+        <li>
+            <a href="{{ url_for('ui_bp.create_project_form') }}">Create a New Project</a>
+        </li>
+        {# Add other general actions or a list of projects here later #}
+    </ul>
+</div>
+
+<p><em>(Further content to be added in future tasks)</em></p>
 {% endblock %}
