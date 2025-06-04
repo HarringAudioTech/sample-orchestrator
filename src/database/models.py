@@ -53,7 +53,8 @@ class Recording(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
     project_id: Mapped[int] = mapped_column(Integer, ForeignKey("projects.id"), nullable=False)
     name: Mapped[str] = mapped_column(String, nullable=False)
-    file_path: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    original_file_path: Mapped[Optional[str]] = mapped_column(String, nullable=True, unique=False)
+    audio_data: Mapped[Optional[bytes]] = mapped_column(LargeBinary, nullable=True)
     duration_seconds: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     samplerate: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     channels: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
@@ -80,9 +81,10 @@ class Sample(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
     recording_id: Mapped[int] = mapped_column(Integer, ForeignKey("recordings.id"), nullable=False)
     name: Mapped[str] = mapped_column(String, nullable=False)  # Often derived from recording name, pitch, etc.
-    file_path: Mapped[str] = mapped_column(
-        String, nullable=False, unique=True
+    derived_from_file_path: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True, unique=False
     )  # Path to the individual sample's audio file
+    audio_data: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
     start_time_seconds: Mapped[float] = mapped_column(Float, nullable=False)
     end_time_seconds: Mapped[float] = mapped_column(Float, nullable=False)
     sample_type: Mapped[Optional[str]] = mapped_column(String, nullable=True) # E.g., "one-shot", "loop", "multi-sample_region"

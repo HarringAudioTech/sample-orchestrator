@@ -33,6 +33,9 @@ to a sample and contains its metadata (e.g., start time, end time, pitch)
 and potentially its audio data (e.g., as an audio buffer or file path).
 """
 
+DATA_TYPE_RECORDING_ID = "recording_id"
+"""Represents an integer ID for a recording in the database."""
+
 # --- Abstract Base Class for Processing Stages ---
 
 

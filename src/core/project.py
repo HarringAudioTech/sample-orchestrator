@@ -206,10 +206,20 @@ class Project:
                     exc_info=True,
                 )
 
+            audio_file_data: bytes | None = None
+            try:
+                with open(file_path, "rb") as f:
+                    audio_file_data = f.read()
+                logger.info(f"Successfully read audio data from {file_path}.")
+            except Exception as e:
+                logger.error(f"Error reading audio file {file_path} directly: {e}", exc_info=True)
+                # Recording will proceed with audio_data as None if reading fails
+
             new_recording: RecordingModel = RecordingModel(
                 project_id=self.project_id,
                 name=name,
-                file_path=file_path,
+                original_file_path=file_path,
+                audio_data=audio_file_data,
                 duration_seconds=duration_seconds,
                 samplerate=samplerate,
                 channels=channels,

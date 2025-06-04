@@ -67,7 +67,8 @@ def model_to_dict(model_instance: Optional[Any]) -> Optional[Dict[str, Any]]:
 
     d: Dict[str, Any] = {}
     for column in model_instance.__table__.columns:
-        d[column.name] = getattr(model_instance, column.name)
+        if column.name not in ("audio_data", "midi_data"):  # Add this condition
+            d[column.name] = getattr(model_instance, column.name)
 
     # Example of how relationships could be handled (currently commented out):
     # if hasattr(model_instance, 'recordings'):
@@ -372,7 +373,7 @@ def process_recording_endpoint(recording_id: int) -> Response:
             STAGE_REGISTRY,
         )
         from src.core.workflows import WORKFLOW_REGISTRY, BaseWorkflow
-        from src.core.processing_stages import DATA_TYPE_FILE_PATH
+        from src.core.processing_stages import DATA_TYPE_FILE_PATH, DATA_TYPE_RECORDING_ID # Added DATA_TYPE_RECORDING_ID
         import src.core.stages.slicing_stage  # noqa: F401
         import src.core.stages.noise_reduction_stage  # noqa: F401
 
@@ -410,19 +411,25 @@ def process_recording_endpoint(recording_id: int) -> Response:
                 500,
             )
 
-        initial_data: Optional[str] = recording.file_path
-        initial_data_type: str = DATA_TYPE_FILE_PATH
+        # initial_data is now the recording ID, not a file path.
+        # The type hint changes from Optional[str] to int.
+        initial_data: int = recording.id # Changed from recording.file_path
+        initial_data_type: str = DATA_TYPE_RECORDING_ID # Changed from DATA_TYPE_FILE_PATH
 
-        if not initial_data or not os.path.exists(initial_data):
-            current_app.logger.error(
-                f"Recording file path '{initial_data}' for recording {recording_id} not found or is invalid."
-            )
-            return (
-                jsonify(
-                    {"error": f"Recording file path not found or invalid: {initial_data}"}
-                ),
-                400,
-            )
+        # The file existence check is removed.
+        # Stages consuming DATA_TYPE_RECORDING_ID will fetch RecordingModel.audio_data.
+        # If audio_data is None, the stage should handle it (e.g., raise error or skip).
+        # SlicingStage, for example, now checks for recording.audio_data.
+        # if not initial_data or not os.path.exists(initial_data):
+        #     current_app.logger.error(
+        #         f"Recording file path '{initial_data}' for recording {recording_id} not found or is invalid."
+        #     )
+        #     return (
+        #         jsonify(
+        #             {"error": f"Recording file path not found or invalid: {initial_data}"}
+        #         ),
+        #         400,
+        #     )
 
         samples_base_dir = current_app.config.get("SAMPLES_BASE_DIR", DEFAULT_SAMPLES_BASE_DIR)
         project_samples_dir = os.path.join(samples_base_dir, f"project_{recording.project_id}")
