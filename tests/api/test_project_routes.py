@@ -215,3 +215,116 @@ def test_root_path(client: FlaskClient) -> None:
     data = response.get_json()
     assert "message" in data
     assert "Welcome to the Audio" in data["message"]
+
+
+# --- Upload Audio and Workflow Trigger Test ---
+
+import io # For BytesIO
+from unittest.mock import MagicMock, patch # Already imported patch, adding MagicMock
+from src.core.processing_stages import DATA_TYPE_FILE_PATH # For checking call args
+# ProjectModel is already imported
+
+# Helper function to create a project directly in the DB for test setup
+def _create_project_in_db(db_session: SQLAlchemySession, name: str = "Test Project") -> ProjectModel:
+    project = ProjectModel(name=name, description="Test project created by helper")
+    db_session.add(project)
+    db_session.commit()
+    db_session.refresh(project)
+    return project
+
+@patch('src.api.routes.os.makedirs') # Mock os.makedirs to avoid actual directory creation
+@patch('src.api.routes.WORKFLOW_REGISTRY.get')
+def test_upload_audio_and_trigger_workflow(
+    mock_workflow_registry_get: MagicMock, # Pytest injects mocks from bottom up
+    mock_os_makedirs: MagicMock,
+    client: FlaskClient,
+    app: Flask # For accessing app.config and db engine
+) -> None:
+    """Test audio upload successfully triggers the ExampleSlicingWorkflow."""
+
+    # Setup mock workflow
+    mock_workflow_instance = MagicMock()
+    mock_workflow_instance.name = "mocked_slicing_workflow"
+    mock_workflow_instance.run.return_value = {"status": "mock_workflow_completed", "output_files": []}
+
+    # Configure WORKFLOW_REGISTRY.get to return a class that instantiates to mock_workflow_instance
+    MockWorkflowClass = MagicMock(return_value=mock_workflow_instance)
+    mock_workflow_registry_get.return_value = MockWorkflowClass
+
+    # Get a database session for this test
+    engine: Engine = app.config["TEST_ENGINE_INSTANCE"]
+    SessionLocal = get_session_local(engine_instance=engine)
+    db: SQLAlchemySession = SessionLocal()
+
+    project_id: Optional[int] = None
+    try:
+        # Create a project directly in the database
+        project = _create_project_in_db(db, name="TestProjectForWorkflowUpload")
+        project_id = project.id
+
+        # Simulate file upload
+        file_data = {'file': (io.BytesIO(b"fake audio content for test"), 'test_audio_sample.wav')}
+        response = client.post(
+            f'/projects/{project_id}/upload_audio',
+            content_type='multipart/form-data',
+            data=file_data
+        )
+        # print("Response data:", response.data) # For debugging if needed
+        assert response.status_code == 201
+        json_response = response.get_json()
+
+        assert "task_id" in json_response
+        assert "recording_id" in json_response
+        recording_id = json_response["recording_id"]
+        assert json_response["message"] == "File uploaded successfully and processing initiated."
+
+        # Assert workflow registry was called to get the workflow class
+        mock_workflow_registry_get.assert_called_once_with("example_slicing_workflow")
+
+        # Assert the MockWorkflowClass (returned by the registry) was instantiated
+        MockWorkflowClass.assert_called_once_with() # No args to constructor
+
+        # Assert workflow's run method was called
+        mock_workflow_instance.run.assert_called_once()
+
+        # Inspect arguments to the workflow's run method
+        args, kwargs = mock_workflow_instance.run.call_args
+        # initial_data is the first positional arg if not passed by keyword,
+        # but the run signature is (self, initial_data, initial_data_type, context)
+        # and execute_stage_chain calls it with keywords.
+        # The `workflow_instance.run` in `upload_audio_and_process` calls with keywords.
+
+        assert "initial_data" in kwargs
+        uploaded_file_path_arg = kwargs['initial_data']
+        assert isinstance(uploaded_file_path_arg, str)
+        assert uploaded_file_path_arg.endswith('test_audio_sample.wav')
+        # Check it's within the expected upload folder structure
+        assert f"project_{project_id}" in uploaded_file_path_arg
+        assert app.config.get("UPLOAD_FOLDER", "data/uploads") in uploaded_file_path_arg
+
+
+        assert kwargs['initial_data_type'] == DATA_TYPE_FILE_PATH
+
+        assert "context" in kwargs
+        context_arg = kwargs['context']
+        assert context_arg['project_id'] == project_id
+        assert context_arg['recording_id'] == recording_id
+        assert 'db_session' in context_arg # Check db_session is passed
+        assert context_arg['db_session'] is db # Check it's the same session instance (or configured similarly)
+                                             # This check might be too strict if session proxying occurs.
+                                             # More robust: check type or if it's a Session.
+
+        expected_output_dir_fragment = os.path.join(
+            f"project_{project_id}",
+            f"recording_{recording_id}",
+            "example_slicing_workflow_output"
+        )
+        assert context_arg['output_sample_dir'].startswith(app.config.get("SAMPLES_BASE_DIR", "data/projects"))
+        assert context_arg['output_sample_dir'].endswith(expected_output_dir_fragment)
+
+        # Assert os.makedirs was called for the output directory
+        # The call is os.makedirs(output_sample_dir, exist_ok=True)
+        mock_os_makedirs.assert_called_once_with(context_arg['output_sample_dir'], exist_ok=True)
+
+    finally:
+        db.close()

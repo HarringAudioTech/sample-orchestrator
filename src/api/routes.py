@@ -17,6 +17,8 @@ from src.database.models import (
     Sample as SampleModel,
 )
 from src.core.project import Project as CoreProject
+from src.core.workflows import WORKFLOW_REGISTRY # For workflow execution
+from src.core.processing_stages import DATA_TYPE_FILE_PATH # For workflow execution
 
 # --- Configuration ---
 # Default paths for uploads and generated samples if not set in app config.
@@ -40,8 +42,7 @@ samples_bp = Blueprint("samples", __name__, url_prefix="/samples")
 mock_task_progress_db: Dict[str, Dict[str, Any]] = {}
 WORKFLOW_STAGES_SIMULATION: List[Dict[str, Any]] = [
     {"id": "noise_reduction", "name": "Noise Reduction", "duration_estimate": 2},
-    {"id": "slicing", "name": "Slicing", "duration_estimate": 3},
-    {"id": "pitch_labeling", "name": "Pitch & Labeling", "duration_estimate": 2.5}
+    {"id": "slicing", "name": "Slicing", "duration_estimate": 3}
 ]
 
 
@@ -289,26 +290,70 @@ def upload_audio_and_process(project_id: int) -> Response:
                     )
             return jsonify({"error": "Could not add recording to database"}), 500
 
-        # 4. Initiate workflow (placeholder)
-        task_id = f"task_for_recording_{new_recording.id}"
-        current_app.logger.info(
-            f"Placeholder: Workflow initiation for recording ID {new_recording.id} "
-            f"in project {project_id} with task_id {task_id}. "
-            f"File: {new_recording.file_path}"
-        )
-        # In a real scenario, this would likely involve:
-        # - Creating a task entry in a database.
-        # - Enqueuing a job in a task queue (e.g., Celery, RQ).
-        # - The task would then run the actual audio processing pipeline.
+        # 4. Initiate workflow
+        task_id = f"task_for_recording_{new_recording.id}" # Task ID for client polling
 
-        # 5. Return JSON response
+        WorkflowClass = WORKFLOW_REGISTRY.get("example_slicing_workflow")
+        if not WorkflowClass:
+            current_app.logger.error(f"Workflow 'example_slicing_workflow' not found in registry.")
+            # Potentially update recording status to 'failed' here or handle error differently
+            # For now, we still return 201 as upload succeeded, but log error.
+        else:
+            try:
+                workflow_instance = WorkflowClass()
+
+                # Prepare context for the workflow run
+                samples_base_dir = current_app.config.get("SAMPLES_BASE_DIR", DEFAULT_SAMPLES_BASE_DIR)
+                output_sample_dir = os.path.join(
+                    samples_base_dir,
+                    f"project_{project_id}",
+                    f"recording_{new_recording.id}",
+                    "example_slicing_workflow_output" # Workflow-specific output subfolder
+                )
+                os.makedirs(output_sample_dir, exist_ok=True)
+                current_app.logger.info(f"Created output directory for workflow: {output_sample_dir}")
+
+                context_for_workflow = {
+                    "db_session": db, # Pass the current database session
+                    "project_id": project_id,
+                    "recording_id": new_recording.id,
+                    "output_sample_dir": output_sample_dir,
+                }
+
+                current_app.logger.info(
+                    f"Executing workflow '{workflow_instance.name}' for recording ID {new_recording.id} (Task ID: {task_id}). "
+                    f"Input file: {full_file_path}. Output dir: {output_sample_dir}"
+                )
+
+                # Note: This is a synchronous call. For long-running tasks,
+                # this should be offloaded to a background worker.
+                workflow_result = workflow_instance.run(
+                    initial_data=full_file_path,
+                    initial_data_type=DATA_TYPE_FILE_PATH,
+                    context=context_for_workflow
+                )
+                current_app.logger.info(f"Workflow '{workflow_instance.name}' completed for recording {new_recording.id}. Result summary: {type(workflow_result)}")
+
+            except Exception as e:
+                current_app.logger.error(
+                    f"Error executing workflow 'example_slicing_workflow' for recording {new_recording.id}: {e}",
+                    exc_info=True
+                )
+                # Optionally update recording status in DB to 'processing_failed'
+                # Example:
+                # recording_model_to_update = db.query(RecordingModel).filter(RecordingModel.id == new_recording.id).first()
+                # if recording_model_to_update:
+                #     recording_model_to_update.status = "processing_failed"
+                #     db.commit()
+
+        # 5. Return JSON response (remains the same, client polls for actual status)
         return jsonify({
             "message": "File uploaded successfully and processing initiated.",
             "recording_id": new_recording.id,
             "recording_name": new_recording.name,
             "file_path": new_recording.file_path,
             "task_id": task_id,
-            "status_url": f"/projects/{project_id}/tasks/{task_id}/status" # Placeholder URL
+            "status_url": f"/projects/{project_id}/tasks/{task_id}/status"
         }), 201
 
     except Exception as e:
