@@ -47,6 +47,7 @@ samples_bp = Blueprint("samples", __name__, url_prefix="/samples")
 from typing import Any, Dict, List, Optional, Union
 from flask import Response
 
+
 def model_to_dict(model_instance: Optional[Any]) -> Optional[Dict[str, Any]]:
     """Converts a SQLAlchemy model instance into a dictionary.
 
@@ -321,7 +322,9 @@ def get_recording_details(recording_id: int) -> Response:
     db_gen = get_db()
     db: Session = next(db_gen)
     try:
-        recording: Optional[RecordingModel] = db.query(RecordingModel).filter(RecordingModel.id == recording_id).first()
+        recording: Optional[RecordingModel] = (
+            db.query(RecordingModel).filter(RecordingModel.id == recording_id).first()
+        )
         if not recording:
             return jsonify({"error": "Recording not found"}), 404
         return jsonify(model_to_dict(recording)), 200
@@ -382,9 +385,13 @@ def process_recording_endpoint(recording_id: int) -> Response:
 
         workflow_name: Optional[str] = json_data.get("workflow_name")
         stages_chain: Optional[List[Dict[str, Any]]] = json_data.get("stages_chain")
-        output_dir_suffix: str = json_data.get("output_dir_suffix", "default_processing_output")
+        output_dir_suffix: str = json_data.get(
+            "output_dir_suffix", "default_processing_output"
+        )
 
-        recording: Optional[RecordingModel] = db.query(RecordingModel).filter(RecordingModel.id == recording_id).first()
+        recording: Optional[RecordingModel] = (
+            db.query(RecordingModel).filter(RecordingModel.id == recording_id).first()
+        )
         if not recording:
             return jsonify({"error": "Recording not found"}), 404
         if not recording.project_id:
@@ -584,10 +591,14 @@ def list_recording_samples(recording_id: int) -> Response:
     db_gen = get_db()
     db: Session = next(db_gen)
     try:
-        recording: Optional[RecordingModel] = db.query(RecordingModel).filter(RecordingModel.id == recording_id).first()
+        recording: Optional[RecordingModel] = (
+            db.query(RecordingModel).filter(RecordingModel.id == recording_id).first()
+        )
         if not recording:
             return jsonify({"error": "Recording not found"}), 404
-        samples: List[SampleModel] = db.query(SampleModel).filter(SampleModel.recording_id == recording_id).all()
+        samples: List[SampleModel] = (
+            db.query(SampleModel).filter(SampleModel.recording_id == recording_id).all()
+        )
         return jsonify([model_to_dict(s) for s in samples]), 200
     finally:
         next(db_gen, None)
@@ -611,7 +622,9 @@ def get_sample_details(sample_id: int) -> Response:
     db_gen = get_db()
     db: Session = next(db_gen)
     try:
-        sample: Optional[SampleModel] = db.query(SampleModel).filter(SampleModel.id == sample_id).first()
+        sample: Optional[SampleModel] = (
+            db.query(SampleModel).filter(SampleModel.id == sample_id).first()
+        )
         if not sample:
             return jsonify({"error": "Sample not found"}), 404
         return jsonify(model_to_dict(sample)), 200

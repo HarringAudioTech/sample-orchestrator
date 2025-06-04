@@ -6,7 +6,7 @@ import pytest
 import numpy as np
 import logging
 from typing import Dict, Any, List, cast
-from _pytest.logging import LogCaptureFixture # For caplog fixture type
+from _pytest.logging import LogCaptureFixture  # For caplog fixture type
 
 from src.core.processing_stages import DATA_TYPE_AUDIO_BUFFER_MONO
 from src.core.stages.noise_reduction_stage import NoiseReductionStage
@@ -79,13 +79,16 @@ def test_noise_reduction_stage_process_logs_parameters(caplog: LogCaptureFixture
     stage = NoiseReductionStage()
     dummy_input_data: np.ndarray = np.array([0.1, 0.2], dtype=np.float32)
     params: Dict[str, Any] = {"amount": 0.7, "aggressiveness": 4}
-    context: Dict[str, Any] = {} # Empty context for this test
+    context: Dict[str, Any] = {}  # Empty context for this test
 
     with caplog.at_level(logging.INFO):
         stage.process(dummy_input_data, params, context)
 
     assert f"[{stage.name}] Applying noise reduction (placeholder)..." in caplog.text
-    assert f"Parameters: amount={params['amount']}, aggressiveness={params['aggressiveness']}" in caplog.text
+    assert (
+        f"Parameters: amount={params['amount']}, aggressiveness={params['aggressiveness']}"
+        in caplog.text
+    )
     assert f"Input data shape: {dummy_input_data.shape}" in caplog.text
 
 

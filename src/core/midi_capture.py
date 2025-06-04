@@ -84,7 +84,9 @@ def list_available_midi_devices(db: Session) -> list[MidiDevice]:
 
     try:
         for name in device_names:
-            device: MidiDevice | None = db.query(MidiDevice).filter(MidiDevice.name == name).first()
+            device: MidiDevice | None = (
+                db.query(MidiDevice).filter(MidiDevice.name == name).first()
+            )
             if device:
                 logger.debug(f"MIDI device '{name}' found in database. Updating timestamp.")
                 device.updated_at = datetime.datetime.utcnow()
@@ -137,7 +139,9 @@ def get_midi_device_by_name(db: Session, name: str) -> MidiDevice | None:
     """
     logger.debug(f"Querying for MIDI device by name: '{name}'")
     try:
-        device: MidiDevice | None = db.query(MidiDevice).filter(MidiDevice.name == name).first()
+        device: MidiDevice | None = (
+            db.query(MidiDevice).filter(MidiDevice.name == name).first()
+        )
         return device
     except SQLAlchemyError as e:
         logger.error(f"Database error querying for MIDI device '{name}': {e}")
@@ -225,12 +229,12 @@ class MidiRecorder:
         )
 
         try:
-            project: ProjectModel | None = db.query(ProjectModel).filter(ProjectModel.id == self.project_id).first()
+            project: ProjectModel | None = (
+                db.query(ProjectModel).filter(ProjectModel.id == self.project_id).first()
+            )
             if not project:
                 logger.error(f"Project with ID {self.project_id} not found.")
-                raise ValueError(
-                    f"Project with ID {self.project_id} not found."
-                )
+                raise ValueError(f"Project with ID {self.project_id} not found.")
 
             self.capture_session = MidiCaptureSession(
                 project_id=self.project_id,
@@ -439,9 +443,7 @@ class MidiRecorder:
             logger.warning("No target devices configured for recording. Cannot start.")
             return
 
-        logger.info(
-            f"Starting MIDI recording for session ID: {self.capture_session.id}"
-        )
+        logger.info(f"Starting MIDI recording for session ID: {self.capture_session.id}")
         opened_ports_count: int = 0
         try:
             for device_model in self.target_devices:
@@ -454,24 +456,22 @@ class MidiRecorder:
                     )
                     self.midi_inputs[device_model.name] = port
                     opened_ports_count += 1
-                    logger.info(
-                        f"Successfully opened MIDI input: {device_model.name}"
-                    )
+                    logger.info(f"Successfully opened MIDI input: {device_model.name}")
                 except Exception as e:
                     logger.error(
                         f"Error opening MIDI device {device_model.name}: {e}. This device will be skipped."
                     )
 
             if opened_ports_count == 0:
-                self.capture_session.status = "failed" # type: ignore
-                self.capture_session.updated_at = datetime.datetime.utcnow() # type: ignore
+                self.capture_session.status = "failed"  # type: ignore
+                self.capture_session.updated_at = datetime.datetime.utcnow()  # type: ignore
                 db.add(self.capture_session)
                 db.commit()
                 logger.error("No MIDI input ports could be opened. Recording cannot start.")
                 return
 
-            self.capture_session.start_time = datetime.datetime.utcnow() # type: ignore
-            self.capture_session.status = "recording" # type: ignore
+            self.capture_session.start_time = datetime.datetime.utcnow()  # type: ignore
+            self.capture_session.status = "recording"  # type: ignore
             self.active = True
             db.add(self.capture_session)
             db.commit()
@@ -490,8 +490,8 @@ class MidiRecorder:
         except Exception as e:
             logger.error(f"Generic error in start_recording: {e}", exc_info=True)
             if self.capture_session and self.capture_session.status != "failed":
-                self.capture_session.status = "failed" # type: ignore
-                self.capture_session.updated_at = datetime.datetime.utcnow() # type: ignore
+                self.capture_session.status = "failed"  # type: ignore
+                self.capture_session.updated_at = datetime.datetime.utcnow()  # type: ignore
                 try:
                     db.add(self.capture_session)
                     db.commit()
@@ -545,7 +545,9 @@ class MidiRecorder:
 
             if file_key not in self.midi_files:
                 mido_file: mido.MidiFile = mido.MidiFile(type=1)
-                track_name: str = f"{sanitize_filename(device_name)}_ch{channel if channel >= 0 else 'sys'}"
+                track_name: str = (
+                    f"{sanitize_filename(device_name)}_ch{channel if channel >= 0 else 'sys'}"
+                )
                 mido_file.add_track(name=track_name)
                 self.midi_files[file_key] = mido_file
                 logger.debug(
@@ -610,9 +612,7 @@ class MidiRecorder:
             )
             raise ValueError("MidiRecorder not properly initialized (no capture session).")
 
-        logger.info(
-            f"Stopping MIDI recording for session ID: {self.capture_session.id}"
-        )
+        logger.info(f"Stopping MIDI recording for session ID: {self.capture_session.id}")
         try:
             for device_name, port in self.midi_inputs.items():
                 try:
@@ -655,7 +655,7 @@ class MidiRecorder:
                     )
 
                     new_midi_file_record: MidiFile = MidiFile(
-                        midi_capture_session_id=self.capture_session.id, # type: ignore
+                        midi_capture_session_id=self.capture_session.id,  # type: ignore
                         midi_device_id=device_model.id,
                         channel_number=channel,
                         midi_data=binary_midi_data,
@@ -668,9 +668,9 @@ class MidiRecorder:
                         exc_info=True,
                     )
 
-            self.capture_session.end_time = datetime.datetime.utcnow() # type: ignore
+            self.capture_session.end_time = datetime.datetime.utcnow()  # type: ignore
             if saved_file_count == 0:
-                self.capture_session.status = "completed_empty" # type: ignore
+                self.capture_session.status = "completed_empty"  # type: ignore
                 if not self.midi_files:
                     logger.info(
                         "Session completed empty: No MIDI messages were received to initiate any tracks."
@@ -680,7 +680,7 @@ class MidiRecorder:
                         "Session completed empty: No actual MIDI data was saved, though messages might have been processed."
                     )
             else:
-                self.capture_session.status = "completed" # type: ignore
+                self.capture_session.status = "completed"  # type: ignore
             self.active = False
 
             db.add(self.capture_session)
@@ -696,8 +696,8 @@ class MidiRecorder:
         except Exception as e:
             logger.error(f"Generic error in stop_recording: {e}", exc_info=True)
             if self.capture_session:
-                self.capture_session.status = "failed" # type: ignore
-                self.capture_session.updated_at = datetime.datetime.utcnow() # type: ignore
+                self.capture_session.status = "failed"  # type: ignore
+                self.capture_session.updated_at = datetime.datetime.utcnow()  # type: ignore
                 try:
                     db.add(self.capture_session)
                     db.commit()

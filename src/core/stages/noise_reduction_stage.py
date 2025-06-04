@@ -46,7 +46,12 @@ class NoiseReductionStage(AudioProcessingStage):
             "aggressiveness": 3,  # 1 to 5, how aggressively to target noise
         }
 
-    def process(self, data: np.ndarray, params: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> np.ndarray:
+    def process(
+        self,
+        data: np.ndarray,
+        params: Dict[str, Any],
+        context: Optional[Dict[str, Any]] = None,
+    ) -> np.ndarray:
         """Applies a placeholder noise reduction effect to the audio data.
 
         Args:

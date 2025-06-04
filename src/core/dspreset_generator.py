@@ -9,7 +9,7 @@ from src.database.models import (
     # SampleMapping as SampleMappingModel, # Not directly used in this file
     SampleMappingItem as SampleMappingItemModel,
 )
-from typing import List, Optional # For type hinting
+from typing import List, Optional  # For type hinting
 
 
 class DecentSamplerPresetGenerator:
@@ -109,7 +109,7 @@ class DecentSamplerPresetGenerator:
             return  # Stop if base directories can't be made
 
         # Copy Artwork
-        artwork_copied_successfully = False # Initialize flag
+        artwork_copied_successfully = False  # Initialize flag
         if self.instrument_data.ui_background_image_path:
             source_artwork_path: str = self.instrument_data.ui_background_image_path
             artwork_filename: str = os.path.basename(source_artwork_path)
@@ -120,7 +120,7 @@ class DecentSamplerPresetGenerator:
                     print(
                         f"INFO: Copied artwork: {source_artwork_path} to {dest_artwork_path}"
                     )
-                    artwork_copied_successfully = True # Set flag on success
+                    artwork_copied_successfully = True  # Set flag on success
                 except IOError as e:
                     print(f"ERROR: Could not copy artwork file {artwork_filename}: {e}")
                     # artwork_copied_successfully remains False
@@ -134,7 +134,7 @@ class DecentSamplerPresetGenerator:
         root_element: ET.Element = self._create_root_element()
         ui_element: ET.Element = self._create_ui_element(
             artwork_output_dir=artwork_dir,
-            artwork_successfully_copied=artwork_copied_successfully
+            artwork_successfully_copied=artwork_copied_successfully,
         )
         root_element.append(ui_element)
 
@@ -183,7 +183,11 @@ class DecentSamplerPresetGenerator:
         #     root.append(ET.Comment(f"Website: {self.instrument_data.website}"))
         return root
 
-    def _create_ui_element(self, artwork_output_dir: Optional[str] = None, artwork_successfully_copied: bool = False) -> ET.Element:
+    def _create_ui_element(
+        self,
+        artwork_output_dir: Optional[str] = None,
+        artwork_successfully_copied: bool = False,
+    ) -> ET.Element:
         """Creates the <ui> XML element for the Decent Sampler preset.
 
         This element defines the user interface of the instrument. If a UI
@@ -264,9 +268,7 @@ class DecentSamplerPresetGenerator:
 
             if not recording_model.samples:
                 # Drastically simplified f-string for pylint testing
-                print(
-                    f"INFO: Rec {recording_model.name} empty."
-                )
+                print(f"INFO: Rec {recording_model.name} empty.")
                 continue
 
             for sample_model in recording_model.samples:

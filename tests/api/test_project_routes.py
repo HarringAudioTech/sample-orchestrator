@@ -3,10 +3,10 @@ import json
 import pytest
 import json
 from flask import Flask
-from flask.testing import FlaskClient # For typing the client fixture
-from unittest.mock import patch, MagicMock # Keep if used, though not in current file
-from sqlalchemy.orm import Session as SQLAlchemySession # For typing sessions if needed
-from sqlalchemy.engine import Engine # For typing engine if needed
+from flask.testing import FlaskClient  # For typing the client fixture
+from unittest.mock import patch, MagicMock  # Keep if used, though not in current file
+from sqlalchemy.orm import Session as SQLAlchemySession  # For typing sessions if needed
+from sqlalchemy.engine import Engine  # For typing engine if needed
 
 from src.app import create_app  # Assuming your Flask app factory is in src.app
 from src.database.utils import (
@@ -17,7 +17,8 @@ from src.database.utils import (
 from src.database.models import Base, Project as ProjectModel
 
 
-from typing import Generator # For typing fixtures that yield
+from typing import Generator  # For typing fixtures that yield
+
 
 # --- Test Fixtures ---
 @pytest.fixture(scope="module")  # Use module scope for app to be faster
@@ -85,7 +86,7 @@ def manage_database_session(app: Flask) -> Generator[None, None, None]:
         None.
     """
     with app.app_context():
-        import logging # Keep import local if only used here
+        import logging  # Keep import local if only used here
 
         logger = logging.getLogger(__name__)
         # Retrieve the test-specific engine from the app fixture

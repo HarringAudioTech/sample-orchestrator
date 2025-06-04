@@ -1,8 +1,8 @@
 import pytest
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session as SQLAlchemySession # For typing sessions
-from sqlalchemy.engine import Engine as SQLAlchemyEngine # For typing engine
-from typing import Generator # For typing fixtures
+from sqlalchemy.orm import sessionmaker, Session as SQLAlchemySession  # For typing sessions
+from sqlalchemy.engine import Engine as SQLAlchemyEngine  # For typing engine
+from typing import Generator  # For typing fixtures
 
 from src.database.models import (
     Base,
@@ -38,7 +38,9 @@ def db_session(test_engine: SQLAlchemyEngine) -> Generator[SQLAlchemySession, No
     Yields:
         A SQLAlchemy Session instance.
     """
-    session_generator: Generator[SQLAlchemySession, None, None] = get_db_utils(engine_instance=test_engine)
+    session_generator: Generator[SQLAlchemySession, None, None] = get_db_utils(
+        engine_instance=test_engine
+    )
     session: SQLAlchemySession = next(session_generator)
     try:
         yield session
@@ -67,9 +69,11 @@ def test_create_project(db_session: SQLAlchemySession) -> None:
     assert project.created_at is not None
     assert project.updated_at is not None
 
-    retrieved_project: Project | None = db_session.query(Project).filter(Project.id == project.id).first()
+    retrieved_project: Project | None = (
+        db_session.query(Project).filter(Project.id == project.id).first()
+    )
     assert retrieved_project is not None
-    if retrieved_project: # For type checker
+    if retrieved_project:  # For type checker
         assert retrieved_project.name == "Test Project"
 
 
@@ -89,9 +93,11 @@ def test_update_project(db_session: SQLAlchemySession) -> None:
     db_session.commit()
     db_session.refresh(project)
 
-    updated_project: Project | None = db_session.query(Project).filter(Project.id == project.id).first()
+    updated_project: Project | None = (
+        db_session.query(Project).filter(Project.id == project.id).first()
+    )
     assert updated_project is not None
-    if updated_project: # For type checker
+    if updated_project:  # For type checker
         assert updated_project.name == "Updated Project Name"
         assert updated_project.description == "Now with a description"
 
@@ -111,7 +117,9 @@ def test_delete_project(db_session: SQLAlchemySession) -> None:
     db_session.delete(project)
     db_session.commit()
 
-    deleted_project: Project | None = db_session.query(Project).filter(Project.id == project_id).first()
+    deleted_project: Project | None = (
+        db_session.query(Project).filter(Project.id == project_id).first()
+    )
     assert deleted_project is None
 
 
@@ -128,7 +136,7 @@ def test_create_recording(db_session: SQLAlchemySession) -> None:
     db_session.refresh(project)
 
     recording = Recording(
-        project_id=project.id, # type: ignore # project.id will be populated
+        project_id=project.id,  # type: ignore # project.id will be populated
         name="Test Recording",
         file_path="/path/to/recording.wav",
         duration_seconds=120.5,
@@ -146,7 +154,7 @@ def test_create_recording(db_session: SQLAlchemySession) -> None:
     assert recording.file_path == "/path/to/recording.wav"
     assert recording.status == "pending"
     assert recording.project is not None
-    if recording.project: # For type checker
+    if recording.project:  # For type checker
         assert recording.project.name == "Project For Recordings"
 
 
@@ -160,7 +168,7 @@ def test_update_recording_status(db_session: SQLAlchemySession) -> None:
     db_session.add(project)
     db_session.commit()
     db_session.refresh(project)
-    recording = Recording(project_id=project.id, name="Rec Status Test", file_path="test.wav") # type: ignore
+    recording = Recording(project_id=project.id, name="Rec Status Test", file_path="test.wav")  # type: ignore
     db_session.add(recording)
     db_session.commit()
     db_session.refresh(recording)
@@ -173,7 +181,7 @@ def test_update_recording_status(db_session: SQLAlchemySession) -> None:
         db_session.query(Recording).filter(Recording.id == recording.id).first()
     )
     assert updated_recording is not None
-    if updated_recording: # For type checker
+    if updated_recording:  # For type checker
         assert updated_recording.status == "processed"
 
 
@@ -189,14 +197,14 @@ def test_create_sample(db_session: SQLAlchemySession) -> None:
     db_session.commit()
     db_session.refresh(project)
     recording = Recording(
-        project_id=project.id, name="Recording For Samples", file_path="rec.wav" # type: ignore
+        project_id=project.id, name="Recording For Samples", file_path="rec.wav"  # type: ignore
     )
     db_session.add(recording)
     db_session.commit()
     db_session.refresh(recording)
 
     sample = Sample(
-        recording_id=recording.id, # type: ignore
+        recording_id=recording.id,  # type: ignore
         name="Test Sample",
         file_path="dummy/created_sample.wav",
         start_time_seconds=10.0,
@@ -215,7 +223,7 @@ def test_create_sample(db_session: SQLAlchemySession) -> None:
     assert sample.start_time_seconds == 10.0
     assert sample.midi_pitch == 60
     assert sample.recording is not None
-    if sample.recording: # For type checker
+    if sample.recording:  # For type checker
         assert sample.recording.name == "Recording For Samples"
 
 
@@ -231,14 +239,16 @@ def test_project_has_multiple_recordings(db_session: SQLAlchemySession) -> None:
     db_session.commit()
     db_session.refresh(project)
 
-    rec1 = Recording(project_id=project.id, name="Rec 1", file_path="r1.wav") # type: ignore
-    rec2 = Recording(project_id=project.id, name="Rec 2", file_path="r2.wav") # type: ignore
+    rec1 = Recording(project_id=project.id, name="Rec 1", file_path="r1.wav")  # type: ignore
+    rec2 = Recording(project_id=project.id, name="Rec 2", file_path="r2.wav")  # type: ignore
     db_session.add_all([rec1, rec2])
     db_session.commit()
 
-    retrieved_project: Project | None = db_session.query(Project).filter(Project.id == project.id).first()
+    retrieved_project: Project | None = (
+        db_session.query(Project).filter(Project.id == project.id).first()
+    )
     assert retrieved_project is not None
-    if retrieved_project: # For type checker
+    if retrieved_project:  # For type checker
         assert len(retrieved_project.recordings) == 2
         assert retrieved_project.recordings[0].name == "Rec 1"
         assert retrieved_project.recordings[1].name == "Rec 2"
@@ -255,21 +265,21 @@ def test_recording_has_multiple_samples(db_session: SQLAlchemySession) -> None:
     db_session.commit()
     db_session.refresh(project)
     recording = Recording(
-        project_id=project.id, name="Multi-Sample Recording", file_path="rec_ms.wav" # type: ignore
+        project_id=project.id, name="Multi-Sample Recording", file_path="rec_ms.wav"  # type: ignore
     )
     db_session.add(recording)
     db_session.commit()
     db_session.refresh(recording)
 
     sample1 = Sample(
-        recording_id=recording.id, # type: ignore
+        recording_id=recording.id,  # type: ignore
         name="Sample A",
         file_path="dummy/sample_a.wav",
         start_time_seconds=1.0,
         end_time_seconds=2.0,
     )
     sample2 = Sample(
-        recording_id=recording.id, # type: ignore
+        recording_id=recording.id,  # type: ignore
         name="Sample B",
         file_path="dummy/sample_b.wav",
         start_time_seconds=3.0,
@@ -282,7 +292,7 @@ def test_recording_has_multiple_samples(db_session: SQLAlchemySession) -> None:
         db_session.query(Recording).filter(Recording.id == recording.id).first()
     )
     assert retrieved_recording is not None
-    if retrieved_recording: # For type checker
+    if retrieved_recording:  # For type checker
         assert len(retrieved_recording.samples) == 2
         assert retrieved_recording.samples[0].name == "Sample A"
         assert retrieved_recording.samples[1].name == "Sample B"
@@ -301,7 +311,7 @@ def test_create_sample_mapping(db_session: SQLAlchemySession) -> None:
     db_session.refresh(project)
 
     sample_mapping = SampleMapping(
-        project_id=project.id, name="Drum Kit Map", mapping_type="drum_kit_pad" # type: ignore
+        project_id=project.id, name="Drum Kit Map", mapping_type="drum_kit_pad"  # type: ignore
     )
     db_session.add(sample_mapping)
     db_session.commit()
@@ -311,7 +321,7 @@ def test_create_sample_mapping(db_session: SQLAlchemySession) -> None:
     assert sample_mapping.project_id == project.id
     assert sample_mapping.name == "Drum Kit Map"
     assert sample_mapping.project is not None
-    if sample_mapping.project: # For type checker
+    if sample_mapping.project:  # For type checker
         assert sample_mapping.project.name == "Project For Mappings"
 
 
@@ -326,7 +336,7 @@ def test_create_sample_mapping_item(db_session: SQLAlchemySession) -> None:
     db_session.commit()
     db_session.refresh(project)
     recording = Recording(
-        project_id=project.id, # type: ignore
+        project_id=project.id,  # type: ignore
         name="Recording For Mapping Items",
         file_path="rec_mi.wav",
     )
@@ -334,7 +344,7 @@ def test_create_sample_mapping_item(db_session: SQLAlchemySession) -> None:
     db_session.commit()
     db_session.refresh(recording)
     sample = Sample(
-        recording_id=recording.id, # type: ignore
+        recording_id=recording.id,  # type: ignore
         name="Kick Sample",
         file_path="dummy/kick_sample_for_mapping.wav",
         start_time_seconds=0.1,
@@ -343,16 +353,16 @@ def test_create_sample_mapping_item(db_session: SQLAlchemySession) -> None:
     )
     db_session.add(sample)
     sample_mapping = SampleMapping(
-        project_id=project.id, name="Drum Map For Item Test", mapping_type="drum_kit" # type: ignore
+        project_id=project.id, name="Drum Map For Item Test", mapping_type="drum_kit"  # type: ignore
     )
     db_session.add(sample_mapping)
     db_session.commit()
-    db_session.refresh(sample) # Refresh sample to get its ID
-    db_session.refresh(sample_mapping) # Refresh mapping to get its ID
+    db_session.refresh(sample)  # Refresh sample to get its ID
+    db_session.refresh(sample_mapping)  # Refresh mapping to get its ID
 
     item = SampleMappingItem(
-        sample_mapping_id=sample_mapping.id, # type: ignore
-        sample_id=sample.id, # type: ignore
+        sample_mapping_id=sample_mapping.id,  # type: ignore
+        sample_id=sample.id,  # type: ignore
         key_range_start=36,
         key_range_end=36,
     )
@@ -365,10 +375,10 @@ def test_create_sample_mapping_item(db_session: SQLAlchemySession) -> None:
     assert item.sample_id == sample.id
     assert item.key_range_start == 36
     assert item.sample is not None
-    if item.sample: # For type checker
+    if item.sample:  # For type checker
         assert item.sample.name == "Kick Sample"
     assert item.sample_mapping is not None
-    if item.sample_mapping: # For type checker
+    if item.sample_mapping:  # For type checker
         assert item.sample_mapping.name == "Drum Map For Item Test"
 
 
@@ -383,14 +393,14 @@ def test_sample_mapping_has_multiple_items(db_session: SQLAlchemySession) -> Non
     db_session.commit()
     db_session.refresh(project)
     recording = Recording(
-        project_id=project.id, name="Rec For Multi-Item", file_path="rec_smi.wav" # type: ignore
+        project_id=project.id, name="Rec For Multi-Item", file_path="rec_smi.wav"  # type: ignore
     )
     db_session.add(recording)
     db_session.commit()
     db_session.refresh(recording)
 
     sample1 = Sample(
-        recording_id=recording.id, # type: ignore
+        recording_id=recording.id,  # type: ignore
         name="Snare",
         file_path="dummy/snare_for_mapping.wav",
         start_time_seconds=0.1,
@@ -398,7 +408,7 @@ def test_sample_mapping_has_multiple_items(db_session: SQLAlchemySession) -> Non
         midi_pitch=38,
     )
     sample2 = Sample(
-        recording_id=recording.id, # type: ignore
+        recording_id=recording.id,  # type: ignore
         name="HiHat",
         file_path="dummy/hihat_for_mapping.wav",
         start_time_seconds=0.5,
@@ -406,7 +416,7 @@ def test_sample_mapping_has_multiple_items(db_session: SQLAlchemySession) -> Non
         midi_pitch=42,
     )
     sample_mapping = SampleMapping(
-        project_id=project.id, name="Drum Map Multi Test", mapping_type="drum_kit" # type: ignore
+        project_id=project.id, name="Drum Map Multi Test", mapping_type="drum_kit"  # type: ignore
     )
     db_session.add(sample_mapping)
     db_session.add_all([sample1, sample2])
@@ -417,14 +427,14 @@ def test_sample_mapping_has_multiple_items(db_session: SQLAlchemySession) -> Non
     db_session.refresh(sample_mapping)
 
     item1 = SampleMappingItem(
-        sample_mapping_id=sample_mapping.id, # type: ignore
-        sample_id=sample1.id, # type: ignore
+        sample_mapping_id=sample_mapping.id,  # type: ignore
+        sample_id=sample1.id,  # type: ignore
         key_range_start=38,
         key_range_end=38,
     )
     item2 = SampleMappingItem(
-        sample_mapping_id=sample_mapping.id, # type: ignore
-        sample_id=sample2.id, # type: ignore
+        sample_mapping_id=sample_mapping.id,  # type: ignore
+        sample_id=sample2.id,  # type: ignore
         key_range_start=42,
         key_range_end=42,
     )
@@ -435,8 +445,14 @@ def test_sample_mapping_has_multiple_items(db_session: SQLAlchemySession) -> Non
         db_session.query(SampleMapping).filter(SampleMapping.id == sample_mapping.id).first()
     )
     assert retrieved_mapping is not None
-    if retrieved_mapping: # For type checker
+    if retrieved_mapping:  # For type checker
         assert len(retrieved_mapping.sample_mapping_items) == 2
-        item_names = sorted([item.sample.name for item in retrieved_mapping.sample_mapping_items if item.sample])
+        item_names = sorted(
+            [
+                item.sample.name
+                for item in retrieved_mapping.sample_mapping_items
+                if item.sample
+            ]
+        )
         assert "HiHat" in item_names
         assert "Snare" in item_names

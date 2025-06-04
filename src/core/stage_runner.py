@@ -51,20 +51,28 @@ def register_stage(stage_class: Type[AudioProcessingStage]) -> None:
               not a string, or returns an empty string or `None`.
     """
     if not issubclass(stage_class, AudioProcessingStage):
-        raise TypeError(f"Stage class '{stage_class.__name__}' must inherit from AudioProcessingStage.")
+        raise TypeError(
+            f"Stage class '{stage_class.__name__}' must inherit from AudioProcessingStage."
+        )
 
     try:
         # Instantiate the class to get the name from the property
         stage_instance_for_name = stage_class()
         stage_name = stage_instance_for_name.name
         if not stage_name or not isinstance(stage_name, str):
-            raise AttributeError( # Changed to AttributeError for clarity on value
+            raise AttributeError(  # Changed to AttributeError for clarity on value
                 "Stage class's 'name' property returned an empty, None, or non-string value."
             )
     except AttributeError as e:
-        raise TypeError(f"Stage class '{stage_class.__name__}' must have a valid 'name' property that returns a non-empty string: {e}") from e
-    except Exception as e: # Catch other errors during instantiation (e.g. missing other abstract methods)
-        raise TypeError(f"Could not instantiate stage class '{stage_class.__name__}' to get its name. This might be due to missing abstract methods or errors in __init__. Original error: {e}") from e
+        raise TypeError(
+            f"Stage class '{stage_class.__name__}' must have a valid 'name' property that returns a non-empty string: {e}"
+        ) from e
+    except (
+        Exception
+    ) as e:  # Catch other errors during instantiation (e.g. missing other abstract methods)
+        raise TypeError(
+            f"Could not instantiate stage class '{stage_class.__name__}' to get its name. This might be due to missing abstract methods or errors in __init__. Original error: {e}"
+        ) from e
 
     if stage_name in STAGE_REGISTRY:
         logger.warning(
@@ -214,7 +222,7 @@ if __name__ == "__main__":
         DATA_TYPE_FILE_PATH,
         DATA_TYPE_AUDIO_BUFFER_MONO,
     )
-    import os # Required for os.path.exists in FileLoaderStage example
+    import os  # Required for os.path.exists in FileLoaderStage example
 
     logging.basicConfig(
         level=logging.INFO,
@@ -223,36 +231,69 @@ if __name__ == "__main__":
 
     class FileLoaderStage(AudioProcessingStage):
         @property
-        def name(self) -> str: return "file_loader"
+        def name(self) -> str:
+            return "file_loader"
+
         @property
-        def description(self) -> str: return "Loads an audio file path and 'simulates' loading audio data."
+        def description(self) -> str:
+            return "Loads an audio file path and 'simulates' loading audio data."
+
         @property
-        def input_type(self) -> str: return DATA_TYPE_FILE_PATH
+        def input_type(self) -> str:
+            return DATA_TYPE_FILE_PATH
+
         @property
-        def output_type(self) -> str: return DATA_TYPE_AUDIO_BUFFER_MONO
+        def output_type(self) -> str:
+            return DATA_TYPE_AUDIO_BUFFER_MONO
+
         @property
-        def default_params(self) -> Dict[str, Any]: return {"target_samplerate": 44100}
-        def process(self, data: str, params: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> List[float]:
-            logger.info(f"[{self.name}] Processing file: {data} with params: {params}, context: {context}")
+        def default_params(self) -> Dict[str, Any]:
+            return {"target_samplerate": 44100}
+
+        def process(
+            self, data: str, params: Dict[str, Any], context: Optional[Dict[str, Any]] = None
+        ) -> List[float]:
+            logger.info(
+                f"[{self.name}] Processing file: {data} with params: {params}, context: {context}"
+            )
             if not os.path.exists(data) and data != "/dummy/initial_audio.wav":
                 raise FileNotFoundError(f"Input file not found: {data}")
             simulated_audio_data: List[float] = [0.1, 0.2, 0.3, 0.2, 0.1]
-            logger.info(f"[{self.name}] Simulated loading audio data. Target SR: {params.get('target_samplerate')}")
+            logger.info(
+                f"[{self.name}] Simulated loading audio data. Target SR: {params.get('target_samplerate')}"
+            )
             return simulated_audio_data
 
     class ReverbEffectStage(AudioProcessingStage):
         @property
-        def name(self) -> str: return "reverb_effect"
+        def name(self) -> str:
+            return "reverb_effect"
+
         @property
-        def description(self) -> str: return "Applies a simulated reverb effect to mono audio data."
+        def description(self) -> str:
+            return "Applies a simulated reverb effect to mono audio data."
+
         @property
-        def input_type(self) -> str: return DATA_TYPE_AUDIO_BUFFER_MONO
+        def input_type(self) -> str:
+            return DATA_TYPE_AUDIO_BUFFER_MONO
+
         @property
-        def output_type(self) -> str: return DATA_TYPE_AUDIO_BUFFER_MONO
+        def output_type(self) -> str:
+            return DATA_TYPE_AUDIO_BUFFER_MONO
+
         @property
-        def default_params(self) -> Dict[str, Any]: return {"mix": 0.5, "decay_time": 1.5}
-        def process(self, data: List[float], params: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> List[float]:
-            logger.info(f"[{self.name}] Applying reverb. Mix: {params['mix']}, Decay: {params['decay_time']}. Input data length: {len(data)}")
+        def default_params(self) -> Dict[str, Any]:
+            return {"mix": 0.5, "decay_time": 1.5}
+
+        def process(
+            self,
+            data: List[float],
+            params: Dict[str, Any],
+            context: Optional[Dict[str, Any]] = None,
+        ) -> List[float]:
+            logger.info(
+                f"[{self.name}] Applying reverb. Mix: {params['mix']}, Decay: {params['decay_time']}. Input data length: {len(data)}"
+            )
             reverbed_data: List[float] = [val + 0.05 * params["mix"] for val in data]
             return reverbed_data
 
@@ -274,10 +315,14 @@ if __name__ == "__main__":
         if not STAGE_REGISTRY:
             logger.warning("STAGE_REGISTRY is empty.")
         else:
-            final_output = execute_stage_chain(initial_file_path, DATA_TYPE_FILE_PATH, example_chain, shared_context)
+            final_output = execute_stage_chain(
+                initial_file_path, DATA_TYPE_FILE_PATH, example_chain, shared_context
+            )
             logger.info(f"--- Example Stage Chain Execution Finished ---")
             logger.info(f"Final output of the chain: {final_output}")
     except (ValueError, TypeError) as e:
         logger.error(f"Chain execution error: {e}", exc_info=True)
     except Exception as e:
-        logger.error(f"An unexpected error occurred during chain execution: {e}", exc_info=True)
+        logger.error(
+            f"An unexpected error occurred during chain execution: {e}", exc_info=True
+        )

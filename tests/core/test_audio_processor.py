@@ -12,10 +12,10 @@ import pytest
 # import wave # No longer needed
 # from unittest.mock import patch, MagicMock, ANY # No longer needed for current state
 from sqlalchemy import create_engine
-from sqlalchemy.orm import Session as SQLAlchemySession # For typing sessions
-from sqlalchemy.engine import Engine as SQLAlchemyEngine # For typing engine
-from typing import Generator, Optional # For typing fixtures and Optional module import
-import types # For typing the module itself
+from sqlalchemy.orm import Session as SQLAlchemySession  # For typing sessions
+from sqlalchemy.engine import Engine as SQLAlchemyEngine  # For typing engine
+from typing import Generator, Optional  # For typing fixtures and Optional module import
+import types  # For typing the module itself
 
 from src.database.models import (
     Base,
@@ -63,7 +63,9 @@ def db_session(test_engine: SQLAlchemyEngine) -> Generator[SQLAlchemySession, No
     Yields:
         A SQLAlchemy Session instance.
     """
-    session_generator: Generator[SQLAlchemySession, None, None] = get_db_utils(engine_instance=test_engine)
+    session_generator: Generator[SQLAlchemySession, None, None] = get_db_utils(
+        engine_instance=test_engine
+    )
     session: SQLAlchemySession = next(session_generator)
     try:
         yield session

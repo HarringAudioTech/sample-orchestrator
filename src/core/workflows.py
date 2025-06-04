@@ -10,13 +10,16 @@ This module includes:
 
 import logging
 import re  # For potential name conversion (CamelCase to snake_case)
-import os # For __main__ example
+import os  # For __main__ example
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Type, Optional, Generator # Added Generator
+from typing import Any, Dict, List, Type, Optional, Generator  # Added Generator
 
 from src.core.stage_runner import execute_stage_chain, STAGE_REGISTRY as ACTUAL_STAGE_REGISTRY
-from src.core.processing_stages import AudioProcessingStage # For dummy stages in __main__
-from src.core.processing_stages import DATA_TYPE_FILE_PATH, DATA_TYPE_AUDIO_BUFFER_MONO # For __main__
+from src.core.processing_stages import AudioProcessingStage  # For dummy stages in __main__
+from src.core.processing_stages import (
+    DATA_TYPE_FILE_PATH,
+    DATA_TYPE_AUDIO_BUFFER_MONO,
+)  # For __main__
 
 # --- Logger Setup ---
 logger = logging.getLogger(__name__)
@@ -87,7 +90,9 @@ def register_workflow(workflow_class: Type["BaseWorkflow"]) -> None:
 
     registry_key_name: str = _camel_to_snake(workflow_class.__name__)
     if not registry_key_name:
-        raise ValueError(f"Could not derive a valid registry key name from class name '{workflow_class.__name__}'.")
+        raise ValueError(
+            f"Could not derive a valid registry key name from class name '{workflow_class.__name__}'."
+        )
 
     if registry_key_name in WORKFLOW_REGISTRY:
         logger.warning(
@@ -131,7 +136,10 @@ class BaseWorkflow(ABC):
         pass
 
     def run(
-        self, initial_data: Any, initial_data_type: str, context: Optional[Dict[str, Any]] = None
+        self,
+        initial_data: Any,
+        initial_data_type: str,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Any:
         """Executes the workflow's defined chain of processing stages.
 
@@ -168,9 +176,7 @@ class BaseWorkflow(ABC):
             or `TypeError` (for data type mismatches between stages).
         """
         logger.info(f"Running workflow: '{self.name}' ({self.description}).")
-        logger.debug(
-            f"Workflow '{self.name}' stages definition: {self.stages_definition}"
-        )
+        logger.debug(f"Workflow '{self.name}' stages definition: {self.stages_definition}")
 
         current_context = context.copy() if context else {}
         current_context["current_workflow_name"] = self.name
@@ -208,6 +214,7 @@ class ExampleSlicingWorkflow(BaseWorkflow):
             },
         ]
 
+
 try:
     register_workflow(ExampleSlicingWorkflow)
 except Exception as e:
@@ -221,8 +228,9 @@ if __name__ == "__main__":
     )
 
     try:
-        from src.core.stages.slicing_stage import SlicingStage # noqa F401
-        from src.core.stages.noise_reduction_stage import NoiseReductionStage # noqa F401
+        from src.core.stages.slicing_stage import SlicingStage  # noqa F401
+        from src.core.stages.noise_reduction_stage import NoiseReductionStage  # noqa F401
+
         logger.info("Actual SlicingStage and NoiseReductionStage imported for __main__ test.")
     except ImportError:
         logger.warning(
@@ -231,44 +239,86 @@ if __name__ == "__main__":
         )
         example_workflow_instance_for_check = ExampleSlicingWorkflow()
         required_stages_for_example: List[str] = [
-            sdef["stage_name"] for sdef in example_workflow_instance_for_check.stages_definition
+            sdef["stage_name"]
+            for sdef in example_workflow_instance_for_check.stages_definition
         ]
 
-        if "noise_reduction" in required_stages_for_example and "noise_reduction" not in ACTUAL_STAGE_REGISTRY:
+        if (
+            "noise_reduction" in required_stages_for_example
+            and "noise_reduction" not in ACTUAL_STAGE_REGISTRY
+        ):
+
             class DummyNoiseReduction(AudioProcessingStage):
                 @property
-                def name(self) -> str: return "noise_reduction"
+                def name(self) -> str:
+                    return "noise_reduction"
+
                 @property
-                def description(self) -> str: return "Dummy Noise Reduction"
+                def description(self) -> str:
+                    return "Dummy Noise Reduction"
+
                 @property
-                def input_type(self) -> str: return DATA_TYPE_AUDIO_BUFFER_MONO
+                def input_type(self) -> str:
+                    return DATA_TYPE_AUDIO_BUFFER_MONO
+
                 @property
-                def output_type(self) -> str: return DATA_TYPE_AUDIO_BUFFER_MONO
+                def output_type(self) -> str:
+                    return DATA_TYPE_AUDIO_BUFFER_MONO
+
                 @property
-                def default_params(self) -> Dict[str, Any]: return {}
-                def process(self, data: Any, params: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> Any:
+                def default_params(self) -> Dict[str, Any]:
+                    return {}
+
+                def process(
+                    self,
+                    data: Any,
+                    params: Dict[str, Any],
+                    context: Optional[Dict[str, Any]] = None,
+                ) -> Any:
                     logger.info(f"[{self.name}] Dummy processing data: {type(data)}")
-                    return data # Corrected indentation
-            from src.core.stage_runner import register_stage # Local import
+                    return data  # Corrected indentation
+
+            from src.core.stage_runner import register_stage  # Local import
+
             register_stage(DummyNoiseReduction)
             logger.info("Registered DummyNoiseReduction for __main__ test.")
 
         if "slicing" in required_stages_for_example and "slicing" not in ACTUAL_STAGE_REGISTRY:
+
             class DummySlicing(AudioProcessingStage):
                 @property
-                def name(self) -> str: return "slicing"
+                def name(self) -> str:
+                    return "slicing"
+
                 @property
-                def description(self) -> str: return "Dummy Slicing"
+                def description(self) -> str:
+                    return "Dummy Slicing"
+
                 @property
-                def input_type(self) -> str: return DATA_TYPE_AUDIO_BUFFER_MONO # Example, SlicingStage expects file_path
+                def input_type(self) -> str:
+                    return (
+                        DATA_TYPE_AUDIO_BUFFER_MONO  # Example, SlicingStage expects file_path
+                    )
+
                 @property
-                def output_type(self) -> str: return "list_of_sample_data" # Using string as per constants
+                def output_type(self) -> str:
+                    return "list_of_sample_data"  # Using string as per constants
+
                 @property
-                def default_params(self) -> Dict[str, Any]: return {}
-                def process(self, data: Any, params: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+                def default_params(self) -> Dict[str, Any]:
+                    return {}
+
+                def process(
+                    self,
+                    data: Any,
+                    params: Dict[str, Any],
+                    context: Optional[Dict[str, Any]] = None,
+                ) -> List[Dict[str, Any]]:
                     logger.info(f"[{self.name}] Dummy processing data: {type(data)}")
                     return [{"sample_id": 1, "status": "dummy"}]
-            from src.core.stage_runner import register_stage # Local import
+
+            from src.core.stage_runner import register_stage  # Local import
+
             register_stage(DummySlicing)
             logger.info("Registered DummySlicing for __main__ test.")
 
@@ -288,7 +338,9 @@ if __name__ == "__main__":
 
     if WorkflowCls:
         workflow_instance = WorkflowCls()
-        logger.info(f"Workflow: {workflow_instance.name}, Desc: {workflow_instance.description}")
+        logger.info(
+            f"Workflow: {workflow_instance.name}, Desc: {workflow_instance.description}"
+        )
         logger.info(f"Stages: {workflow_instance.stages_definition}")
         logger.warning(
             "Actual execution of ExampleSlicingWorkflow in __main__ is skipped due to potential "

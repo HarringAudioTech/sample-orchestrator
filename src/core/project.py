@@ -153,7 +153,7 @@ class Project:
 
         _db_to_use: Session
         _manage_session_locally: bool = False
-        db_gen_local = None # TODO: type hint for generator
+        db_gen_local = None  # TODO: type hint for generator
 
         if self.db is None:
             logger.debug("No self.db session, creating local session for add_recording.")
@@ -179,7 +179,7 @@ class Project:
                 # sr=None ensures loading at native sample rate.
                 y: np.ndarray
                 sr_librosa: int
-                y, sr_librosa = librosa.load( # type: ignore
+                y, sr_librosa = librosa.load(  # type: ignore
                     file_path, sr=None, mono=False
                 )  # mono=False to get actual channels
 
@@ -263,7 +263,7 @@ class Project:
 
         _db_to_use: Session
         _manage_session_locally: bool = False
-        db_gen_local = None # TODO: type hint for generator
+        db_gen_local = None  # TODO: type hint for generator
 
         if self.db is None:
             logger.debug("No self.db session, creating local session for get_recording.")
@@ -327,7 +327,7 @@ class Project:
 
         _db_to_use: Session
         _manage_session_locally: bool = False
-        db_gen_local = None # TODO: type hint for generator
+        db_gen_local = None  # TODO: type hint for generator
 
         if self.db is None:
             logger.debug("No self.db session, creating local session for list_recordings.")
@@ -407,7 +407,7 @@ class Project:
 
         _db_to_use: Session
         _manage_session_locally: bool = False
-        db_gen_local = None # TODO: type hint for generator
+        db_gen_local = None  # TODO: type hint for generator
 
         if self.db is None:
             logger.debug(
@@ -510,7 +510,7 @@ class Project:
 
         _db_to_use: Session
         _manage_session_locally: bool = False
-        db_gen_local = None # TODO: type hint for generator
+        db_gen_local = None  # TODO: type hint for generator
 
         if self.db is None:
             logger.debug("No self.db session, creating local session for list_midi_devices.")
@@ -594,7 +594,7 @@ class Project:
 
         _db_to_use: Session
         _manage_session_locally: bool = False
-        db_gen_local = None # TODO: type hint for generator
+        db_gen_local = None  # TODO: type hint for generator
 
         if self.db is None:
             logger.debug(
@@ -665,7 +665,7 @@ class Project:
 
         _db_to_use: Session
         _manage_session_locally: bool = False
-        db_gen_local = None # TODO: type hint for generator
+        db_gen_local = None  # TODO: type hint for generator
 
         if self.db is None:
             logger.debug(
@@ -733,7 +733,7 @@ class Project:
 
         _db_to_use: Session
         _manage_session_locally: bool = False
-        db_gen_local = None # TODO: type hint for generator
+        db_gen_local = None  # TODO: type hint for generator
 
         if self.db is None:
             logger.debug(
@@ -816,7 +816,7 @@ class Project:
 
         _db_to_use: Session
         _manage_session_locally: bool = False
-        db_gen_local = None # TODO: type hint for generator
+        db_gen_local = None  # TODO: type hint for generator
 
         if self.db is None:
             logger.debug(

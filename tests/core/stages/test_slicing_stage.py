@@ -11,8 +11,8 @@ import numpy as np
 import soundfile as sf
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session as SQLAlchemySession
-from sqlalchemy.engine import Engine as SQLAlchemyEngine # For typing engine
-from typing import Generator, Dict, Any, List, Optional # Added Optional
+from sqlalchemy.engine import Engine as SQLAlchemyEngine  # For typing engine
+from typing import Generator, Dict, Any, List, Optional  # Added Optional
 
 from src.core.processing_stages import (
     DATA_TYPE_FILE_PATH,
@@ -90,7 +90,7 @@ def db_session(test_engine: SQLAlchemyEngine) -> Generator[SQLAlchemySession, No
     try:
         yield session
     finally:
-        session.rollback() # Ensure any pending changes are rolled back
+        session.rollback()  # Ensure any pending changes are rolled back
         session.close()
 
 
@@ -125,7 +125,7 @@ def setup_test_recording(db_session: SQLAlchemySession) -> RecordingModel:
     project = ProjectModel(name="Test Slicing Project")
     db_session.add(project)
     db_session.commit()
-    db_session.refresh(project) # Ensure project.id is loaded
+    db_session.refresh(project)  # Ensure project.id is loaded
 
     if not os.path.exists(DUMMY_AUDIO_PATH):
         pytest.fail(
@@ -146,7 +146,6 @@ def setup_test_recording(db_session: SQLAlchemySession) -> RecordingModel:
     recording = RecordingModel(
         project_id=project.id,
         name="Test Recording for SlicingStage",
-        file_path=DUMMY_AUDIO_PATH,
         samplerate=sr,
         duration_seconds=duration,
         channels=channels,
@@ -189,7 +188,9 @@ def test_slicing_stage_process_success(
     stage = SlicingStage()
 
     mock_samplerate: int = 22050
-    mock_audio_data_mono: np.ndarray = np.random.rand(mock_samplerate * 2).astype(np.float32)  # 2s audio
+    mock_audio_data_mono: np.ndarray = np.random.rand(mock_samplerate * 2).astype(
+        np.float32
+    )  # 2s audio
     mock_librosa_load.return_value = (mock_audio_data_mono, mock_samplerate)
 
     onset_time_1_s: float = 0.5
@@ -205,7 +206,7 @@ def test_slicing_stage_process_success(
     context: Dict[str, Any] = {
         "db_session": db_session,
         "recording_id": recording.id,
-        "project_id": recording.project_id, # type: ignore # project_id is on RecordingModel
+        "project_id": recording.project_id,  # type: ignore # project_id is on RecordingModel
         "output_sample_dir": temp_output_dir_for_samples,
     }
 
@@ -220,7 +221,7 @@ def test_slicing_stage_process_success(
     mock_librosa_load.assert_called_once_with(recording.file_path, sr=None, mono=True)
 
     expected_call_params: Dict[str, Any] = {
-        **stage.default_params["librosa_onset_params"], # type: ignore
+        **stage.default_params["librosa_onset_params"],  # type: ignore
         **(stage_params.get("librosa_onset_params", {})),
         "units": "samples",
     }
@@ -242,7 +243,7 @@ def test_slicing_stage_process_success(
     max_len_samples1: int = int(
         (
             stage_params.get(
-                "max_sample_length_ms", stage.default_params["max_sample_length_ms"] # type: ignore
+                "max_sample_length_ms", stage.default_params["max_sample_length_ms"]  # type: ignore
             )
             / 1000.0
         )
@@ -270,7 +271,7 @@ def test_slicing_stage_process_success(
     max_len_samples2: int = int(
         (
             stage_params.get(
-                "max_sample_length_ms", stage.default_params["max_sample_length_ms"] # type: ignore
+                "max_sample_length_ms", stage.default_params["max_sample_length_ms"]  # type: ignore
             )
             / 1000.0
         )
@@ -298,17 +299,17 @@ def test_slicing_stage_process_success(
     assert len(db_samples) == 2
     assert db_samples[0].name == sample1_info["name"]
     assert db_samples[0].midi_pitch is None
-    assert abs(db_samples[0].start_time_seconds - expected_start_time1) < 1e-6 # type: ignore
-    assert abs(db_samples[0].end_time_seconds - expected_end_time1) < 1e-6 # type: ignore
+    assert abs(db_samples[0].start_time_seconds - expected_start_time1) < 1e-6  # type: ignore
+    assert abs(db_samples[0].end_time_seconds - expected_end_time1) < 1e-6  # type: ignore
 
     assert db_samples[1].name == sample2_info["name"]
     assert db_samples[1].midi_pitch is None
-    assert abs(db_samples[1].start_time_seconds - expected_start_time2) < 1e-6 # type: ignore
-    assert abs(db_samples[1].end_time_seconds - expected_end_time2) < 1e-6 # type: ignore
+    assert abs(db_samples[1].start_time_seconds - expected_start_time2) < 1e-6  # type: ignore
+    assert abs(db_samples[1].end_time_seconds - expected_end_time2) < 1e-6  # type: ignore
 
     db_session.refresh(recording)
     assert recording.samplerate == mock_samplerate
-    assert abs(recording.duration_seconds - (len(mock_audio_data_mono) / mock_samplerate)) < 1e-6 # type: ignore
+    assert abs(recording.duration_seconds - (len(mock_audio_data_mono) / mock_samplerate)) < 1e-6  # type: ignore
 
 
 def test_slicing_stage_input_file_not_found(
@@ -322,7 +323,7 @@ def test_slicing_stage_input_file_not_found(
     context: Dict[str, Any] = {
         "db_session": db_session,
         "recording_id": recording.id,
-        "project_id": recording.project_id, # type: ignore
+        "project_id": recording.project_id,  # type: ignore
         "output_sample_dir": temp_output_dir_for_samples,
     }
 
@@ -360,11 +361,16 @@ def test_slicing_stage_missing_context_keys(
     base_context: Dict[str, Any] = {
         "db_session": db_session,
         "recording_id": recording.id,
-        "project_id": recording.project_id, # type: ignore
+        "project_id": recording.project_id,  # type: ignore
         "output_sample_dir": "/tmp/pytest_slicing_stage_samples_m_ctx",
     }
 
-    required_keys: List[str] = ["db_session", "recording_id", "project_id", "output_sample_dir"]
+    required_keys: List[str] = [
+        "db_session",
+        "recording_id",
+        "project_id",
+        "output_sample_dir",
+    ]
 
     for key_to_remove in required_keys:
         context_copy: Dict[str, Any] = base_context.copy()
@@ -395,7 +401,7 @@ def test_slicing_stage_librosa_load_error(
     context: Dict[str, Any] = {
         "db_session": db_session,
         "recording_id": recording.id,
-        "project_id": recording.project_id, # type: ignore
+        "project_id": recording.project_id,  # type: ignore
         "output_sample_dir": temp_output_dir_for_samples,
     }
 
@@ -431,7 +437,7 @@ def test_slicing_stage_no_onsets_detected(
     context: Dict[str, Any] = {
         "db_session": db_session,
         "recording_id": recording.id,
-        "project_id": recording.project_id, # type: ignore
+        "project_id": recording.project_id,  # type: ignore
         "output_sample_dir": temp_output_dir_for_samples,
     }
 
@@ -466,7 +472,9 @@ def test_slicing_stage_min_max_sample_length(
     stage = SlicingStage()
 
     mock_samplerate: int = 22050
-    mock_audio_data_mono: np.ndarray = np.random.rand(mock_samplerate * 5).astype(np.float32) # 5s audio
+    mock_audio_data_mono: np.ndarray = np.random.rand(mock_samplerate * 5).astype(
+        np.float32
+    )  # 5s audio
     mock_librosa_load.return_value = (mock_audio_data_mono, mock_samplerate)
 
     mock_onset_samples: np.ndarray = np.array(
@@ -486,7 +494,7 @@ def test_slicing_stage_min_max_sample_length(
     context: Dict[str, Any] = {
         "db_session": db_session,
         "recording_id": recording.id,
-        "project_id": recording.project_id, # type: ignore
+        "project_id": recording.project_id,  # type: ignore
         "output_sample_dir": temp_output_dir_for_samples,
     }
 
@@ -534,7 +542,6 @@ def test_slicing_stage_min_max_sample_length(
     assert abs(sample3_info["start_time_seconds"] - expected_start_time3) < 1e-6
     assert abs(sample3_info["end_time_seconds"] - expected_end_time3) < 1e-6
 
-
     found_call_args: Optional[tuple] = None
     for call_args_tuple in mock_sf_write.call_args_list:
         args, _ = call_args_tuple
@@ -543,9 +550,13 @@ def test_slicing_stage_min_max_sample_length(
             break
     assert found_call_args is not None, "sf.write call for sample 3 not found"
 
-    written_data_slice3: np.ndarray = found_call_args[1] # type: ignore
-    expected_end_sample_idx3_calc: int = mock_onset_samples[3] + int(max_len_s * mock_samplerate)
-    expected_end_sample_idx3_final: int = min(len(mock_audio_data_mono), expected_end_sample_idx3_calc)
+    written_data_slice3: np.ndarray = found_call_args[1]  # type: ignore
+    expected_end_sample_idx3_calc: int = mock_onset_samples[3] + int(
+        max_len_s * mock_samplerate
+    )
+    expected_end_sample_idx3_final: int = min(
+        len(mock_audio_data_mono), expected_end_sample_idx3_calc
+    )
     expected_data_slice3: np.ndarray = mock_audio_data_mono[
         mock_onset_samples[3] : expected_end_sample_idx3_final
     ]

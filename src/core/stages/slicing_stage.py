@@ -4,9 +4,10 @@ This stage is responsible for note detection and slicing of audio files.
 """
 
 import os
+
 # import wave # Not directly used, librosa/soundfile handle wave operations
 import logging
-from typing import Any, Dict, List, Optional # Added Optional
+from typing import Any, Dict, List, Optional  # Added Optional
 from sqlalchemy.orm import Session
 
 from src.core.processing_stages import (
@@ -68,7 +69,9 @@ class SlicingStage(AudioProcessingStage):
             "max_sample_length_ms": 10000,  # Maximum duration for a slice
         }
 
-    def process(self, data: str, params: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    def process(
+        self, data: str, params: Dict[str, Any], context: Optional[Dict[str, Any]] = None
+    ) -> List[Dict[str, Any]]:
         """Processes an audio file: detects onsets, slices them, and saves them.
 
         Args:
@@ -114,25 +117,25 @@ class SlicingStage(AudioProcessingStage):
         recording: Optional[RecordingModel] = (
             db_session.query(RecordingModel).filter(RecordingModel.id == recording_id).first()
         )
-        if not recording: # Should be RecordingModel | None from query, so check for None
+        if not recording:  # Should be RecordingModel | None from query, so check for None
             # This is a critical error, as we need the recording to associate samples.
             # No db commit needed here as it's a read operation that failed to find the target.
             raise ValueError(f"Recording with id {recording_id} not found in the database.")
 
         if not os.path.exists(data):
             recording.status = "slicing_failed"
-            db_session.commit() # Commit status change
+            db_session.commit()  # Commit status change
             raise FileNotFoundError(f"Input audio file not found: {data}")
 
         recording.status = "slicing_active"
-        db_session.commit() # Commit status change
+        db_session.commit()  # Commit status change
         logger.info(f"[{self.name}] Recording {recording_id} status set to 'slicing_active'.")
 
         created_samples_info: List[Dict[str, Any]] = []
         try:
             y: np.ndarray
             sr: int
-            y, sr = librosa.load(data, sr=None, mono=True) # type: ignore # librosa.load can return tuple
+            y, sr = librosa.load(data, sr=None, mono=True)  # type: ignore # librosa.load can return tuple
             total_samples: int = len(y)
             actual_samplerate: int = sr
 
@@ -143,16 +146,18 @@ class SlicingStage(AudioProcessingStage):
                 )
                 recording.samplerate = actual_samplerate
                 # Duration might also change if it was based on old samplerate
-                recording.duration_seconds = librosa.get_duration(y=y, sr=sr) # type: ignore
+                recording.duration_seconds = librosa.get_duration(y=y, sr=sr)  # type: ignore
 
             # Merge user params with stage defaults for librosa_onset_params
-            default_onset_params: Dict[str, Any] = self.default_params.get("librosa_onset_params", {}) # type: ignore
+            default_onset_params: Dict[str, Any] = self.default_params.get("librosa_onset_params", {})  # type: ignore
             user_onset_params: Dict[str, Any] = params.get("librosa_onset_params", {})
             final_onset_params: Dict[str, Any] = {**default_onset_params, **user_onset_params}
 
             # Ensure units is 'samples' for direct use
             final_onset_params["units"] = "samples"
-            onset_samples: np.ndarray = librosa.onset.onset_detect(y=y, sr=sr, **final_onset_params)
+            onset_samples: np.ndarray = librosa.onset.onset_detect(
+                y=y, sr=sr, **final_onset_params
+            )
 
             logger.info(
                 f"[{self.name}] Detected {len(onset_samples)} onsets in recording {recording_id}."
@@ -161,7 +166,7 @@ class SlicingStage(AudioProcessingStage):
             if not onset_samples.any():
                 recording.status = "slicing_completed"  # No onsets is a valid completed state
                 logger.info(f"[{self.name}] No onsets found for recording {recording_id}.")
-                db_session.commit() # Commit status change
+                db_session.commit()  # Commit status change
                 return []
 
             if not os.path.exists(output_sample_dir):
@@ -171,12 +176,12 @@ class SlicingStage(AudioProcessingStage):
                 )
 
             min_len_samples: int = int(
-                params.get("min_sample_length_ms", self.default_params.get("min_sample_length_ms")) # type: ignore
+                params.get("min_sample_length_ms", self.default_params.get("min_sample_length_ms"))  # type: ignore
                 / 1000
                 * sr
             )
             max_len_samples: int = int(
-                params.get("max_sample_length_ms", self.default_params.get("max_sample_length_ms")) # type: ignore
+                params.get("max_sample_length_ms", self.default_params.get("max_sample_length_ms"))  # type: ignore
                 / 1000
                 * sr
             )
@@ -208,7 +213,9 @@ class SlicingStage(AudioProcessingStage):
                 audio_slice: np.ndarray = y[start_sample:end_sample]
 
                 # Using onset index for filename for uniqueness, can be improved
-                sample_filename: str = f"rec_{recording_id}_sample_{i+1}_onset_S{start_sample}.wav"
+                sample_filename: str = (
+                    f"rec_{recording_id}_sample_{i+1}_onset_S{start_sample}.wav"
+                )
                 output_sample_path: str = os.path.join(output_sample_dir, sample_filename)
 
                 try:
@@ -225,8 +232,8 @@ class SlicingStage(AudioProcessingStage):
                     recording_id=recording_id,
                     name=sample_filename,
                     file_path=os.path.abspath(output_sample_path),
-                    start_time_seconds=float(start_sample) / actual_samplerate, # type: ignore
-                    end_time_seconds=float(end_sample) / actual_samplerate, # type: ignore
+                    start_time_seconds=float(start_sample) / actual_samplerate,  # type: ignore
+                    end_time_seconds=float(end_sample) / actual_samplerate,  # type: ignore
                     sample_type="one-shot",  # Default or make configurable
                     midi_pitch=None,  # Librosa onsets don't directly give MIDI pitch
                     metadata_json=f'{{"source_onset_samples": {start_sample}}}',
@@ -250,33 +257,43 @@ class SlicingStage(AudioProcessingStage):
                 f"[{self.name}] Slicing completed for recording {recording_id}. {len(created_samples_info)} samples created."
             )
 
-        except FileNotFoundError as fnf_error: # Already checked, but good for safety during librosa.load
+        except (
+            FileNotFoundError
+        ) as fnf_error:  # Already checked, but good for safety during librosa.load
             logger.error(
                 f"[{self.name}] File not found during librosa.load (should have been caught earlier): {fnf_error}",
                 exc_info=True,
             )
-            if recording: recording.status = "slicing_failed"
+            if recording:
+                recording.status = "slicing_failed"
             raise
-        except ValueError as val_error:  # Catch ValueErrors like missing context keys or DB issues
+        except (
+            ValueError
+        ) as val_error:  # Catch ValueErrors like missing context keys or DB issues
             logger.error(
                 f"[{self.name}] ValueError during processing for recording {recording_id}: {val_error}",
                 exc_info=True,
             )
-            if recording: recording.status = "slicing_failed"
+            if recording:
+                recording.status = "slicing_failed"
             raise
-        except RuntimeError as rt_error:  # Catch critical errors from audio processing libraries
+        except (
+            RuntimeError
+        ) as rt_error:  # Catch critical errors from audio processing libraries
             logger.error(
                 f"[{self.name}] Runtime error during processing for recording {recording_id}: {rt_error}",
                 exc_info=True,
             )
-            if recording: recording.status = "slicing_failed"
+            if recording:
+                recording.status = "slicing_failed"
             raise
-        except Exception as e: # Catch-all for other unexpected errors
+        except Exception as e:  # Catch-all for other unexpected errors
             logger.error(
                 f"[{self.name}] Unexpected error during slicing for recording {recording_id}: {e}",
                 exc_info=True,
             )
-            if recording: recording.status = "slicing_failed"
+            if recording:
+                recording.status = "slicing_failed"
             # Re-raise to allow stage_runner to catch it
             raise RuntimeError(
                 f"Slicing failed for recording {recording_id} due to an unexpected error: {e}"
@@ -284,9 +301,11 @@ class SlicingStage(AudioProcessingStage):
         finally:
             # Ensure session commit happens to save status changes and any samples if processing partway.
             # If an error occurred before `recording` was fetched, `recording` might be None.
-            if recording and db_session: # Ensure db_session is also valid
+            if recording and db_session:  # Ensure db_session is also valid
                 db_session.commit()
-                logger.debug(f"[{self.name}] Final db_session.commit() called for recording {recording_id}.")
+                logger.debug(
+                    f"[{self.name}] Final db_session.commit() called for recording {recording_id}."
+                )
 
         return created_samples_info
 

@@ -1,6 +1,9 @@
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session as SQLAlchemySession # Renamed to avoid conflict
-from sqlalchemy.engine import Engine # For type hinting engine instances
+from sqlalchemy.orm import (
+    sessionmaker,
+    Session as SQLAlchemySession,
+)  # Renamed to avoid conflict
+from sqlalchemy.engine import Engine  # For type hinting engine instances
 from flask import current_app  # Ensure this is imported for get_engine
 from .models import Base
 from typing import Optional, Iterator
@@ -63,7 +66,9 @@ def get_engine(database_url: Optional[str] = None) -> Engine:
     return _engine
 
 
-def get_session_local(engine_instance: Optional[Engine] = None) -> sessionmaker[SQLAlchemySession]:
+def get_session_local(
+    engine_instance: Optional[Engine] = None,
+) -> sessionmaker[SQLAlchemySession]:
     """Creates and returns a SQLAlchemy sessionmaker (a factory for sessions).
 
     This function is responsible for generating a `sessionmaker` instance,
@@ -120,10 +125,12 @@ def init_db(engine_instance: Optional[Engine] = None) -> None:
             to determine the engine. Defaults to None.
     """
     current_engine: Engine = engine_instance or get_engine()
-    import logging # Keep import local to function if only used here
+    import logging  # Keep import local to function if only used here
 
     logger = logging.getLogger(__name__)
-    logger.info(f"init_db: Engine URL: {str(current_engine.url)}") # Ensure URL is string for logging
+    logger.info(
+        f"init_db: Engine URL: {str(current_engine.url)}"
+    )  # Ensure URL is string for logging
     logger.info(
         f"init_db: Tables known to Base.metadata before create_all: {list(Base.metadata.tables.keys())}"
     )
@@ -164,7 +171,9 @@ def get_db(engine_instance: Optional[Engine] = None) -> Iterator[SQLAlchemySessi
             interactions.
     """
     # Create a factory using the potentially overridden engine
-    current_session_local_factory: sessionmaker[SQLAlchemySession] = get_session_local(engine_instance)
+    current_session_local_factory: sessionmaker[SQLAlchemySession] = get_session_local(
+        engine_instance
+    )
     db: SQLAlchemySession = current_session_local_factory()
     try:
         yield db

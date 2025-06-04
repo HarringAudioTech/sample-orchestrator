@@ -4,7 +4,7 @@ import pytest
 import logging
 from typing import Any, Dict, List, Type, Generator, Optional
 from unittest.mock import patch, MagicMock
-from _pytest.logging import LogCaptureFixture # For caplog fixture
+from _pytest.logging import LogCaptureFixture  # For caplog fixture
 
 from src.core.processing_stages import DATA_TYPE_FILE_PATH
 from src.core.workflows import (
@@ -36,6 +36,7 @@ def clear_workflow_registry() -> Generator[None, None, None]:
 # --- Mock BaseWorkflow Implementation ---
 class MockWorkflowAlpha(BaseWorkflow):
     """A mock workflow implementation for testing alpha scenarios."""
+
     _name: str = "Mock Workflow Alpha"
     _description: str = "Alpha workflow for testing."
     _stages_definition: List[Dict[str, Any]] = [{"stage_name": "alpha_stage1", "params": {}}]
@@ -55,6 +56,7 @@ class MockWorkflowAlpha(BaseWorkflow):
 
 class MockWorkflowBeta(BaseWorkflow):
     """A mock workflow implementation for testing beta scenarios."""
+
     _name: str = "Mock Workflow Beta"
     _description: str = "Beta workflow for testing."
     _stages_definition: List[Dict[str, Any]] = [{"stage_name": "beta_stage1", "params": {}}]
@@ -99,7 +101,7 @@ def test_register_workflow_reregistration(caplog: LogCaptureFixture) -> None:
     expected_key_alpha: str = _camel_to_snake(MockWorkflowAlpha.__name__)
     register_workflow(MockWorkflowAlpha)
 
-    WORKFLOW_REGISTRY[expected_key_alpha] = MockWorkflowAlpha # Ensure it's there
+    WORKFLOW_REGISTRY[expected_key_alpha] = MockWorkflowAlpha  # Ensure it's there
 
     with patch("src.core.workflows._camel_to_snake", return_value=expected_key_alpha):
         with caplog.at_level(logging.WARNING):
@@ -117,11 +119,12 @@ def test_register_workflow_reregistration(caplog: LogCaptureFixture) -> None:
 
 def test_register_workflow_type_error_not_subclass() -> None:
     """Test that registering a class not inheriting from BaseWorkflow raises TypeError."""
+
     class NotAWorkflow:
         pass
 
     with pytest.raises(TypeError, match="must inherit from BaseWorkflow"):
-        register_workflow(NotAWorkflow) # type: ignore
+        register_workflow(NotAWorkflow)  # type: ignore
 
 
 # --- Tests for BaseWorkflow and ExampleSlicingWorkflow ---
@@ -169,7 +172,8 @@ def test_example_slicing_workflow_definition() -> None:
 
     WorkflowClass = WORKFLOW_REGISTRY.get(workflow_key)
     assert WorkflowClass is not None, f"{workflow_key} not found in WORKFLOW_REGISTRY."
-    if WorkflowClass is None: return # For mypy
+    if WorkflowClass is None:
+        return  # For mypy
 
     instance = WorkflowClass()
     assert instance.name == "example_slicing_workflow"

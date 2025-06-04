@@ -1,11 +1,11 @@
 import pytest
 import json
 from flask import Flask
-from flask.testing import FlaskClient # For typing the client fixture
-from unittest.mock import patch, MagicMock # Keep if used
-from sqlalchemy.orm import Session as SQLAlchemySession # For typing sessions
-from sqlalchemy.engine import Engine # For typing engine
-from typing import Generator, Dict, Any # For typing fixtures and dicts
+from flask.testing import FlaskClient  # For typing the client fixture
+from unittest.mock import patch, MagicMock  # Keep if used
+from sqlalchemy.orm import Session as SQLAlchemySession  # For typing sessions
+from sqlalchemy.engine import Engine  # For typing engine
+from typing import Generator, Dict, Any  # For typing fixtures and dicts
 
 from src.app import create_app
 from src.database.utils import (
@@ -167,7 +167,9 @@ def sample_data(app: Flask, client: FlaskClient) -> Dict[str, Any]:
 
 
 # GET /recordings/<recording_id>/samples
-def test_list_recording_samples_success(client: FlaskClient, sample_data: Dict[str, Any]) -> None:
+def test_list_recording_samples_success(
+    client: FlaskClient, sample_data: Dict[str, Any]
+) -> None:
     """Test successfully listing samples for a recording."""
     recording_id: int = sample_data["recording_id"]
 
@@ -182,14 +184,16 @@ def test_list_recording_samples_success(client: FlaskClient, sample_data: Dict[s
 
 def test_list_recording_samples_recording_not_found(client: FlaskClient) -> None:
     """Test listing samples for a non-existent recording results in 404."""
-    response = client.get("/recordings/7777/samples") # Assuming 7777 does not exist
+    response = client.get("/recordings/7777/samples")  # Assuming 7777 does not exist
     assert response.status_code == 404
     data = response.get_json()
     assert "error" in data
     assert "Recording not found" in data["error"]
 
 
-def test_list_recording_samples_no_samples(app: Flask, client: FlaskClient, sample_data: Dict[str, Any]) -> None:
+def test_list_recording_samples_no_samples(
+    app: Flask, client: FlaskClient, sample_data: Dict[str, Any]
+) -> None:
     """Test listing samples for a recording that has no samples."""
     project_id: int = sample_data["project_id"]
     new_recording_id: int
@@ -208,7 +212,7 @@ def test_list_recording_samples_no_samples(app: Flask, client: FlaskClient, samp
             )
             db_session.add(new_recording)
             db_session.commit()
-            db_session.refresh(new_recording) # Refresh to get ID
+            db_session.refresh(new_recording)  # Refresh to get ID
             new_recording_id = new_recording.id
         finally:
             db_session.close()

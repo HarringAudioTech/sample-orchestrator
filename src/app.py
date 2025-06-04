@@ -24,6 +24,7 @@ from src.database.utils import (
 from typing import Tuple
 from werkzeug.exceptions import HTTPException
 
+
 def create_app() -> Flask:
     """Creates, configures, and returns an instance of the Flask application.
 
