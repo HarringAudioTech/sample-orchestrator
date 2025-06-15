@@ -8,6 +8,7 @@ The workflow orchestrates these stages.
 import os
 import shutil
 import abc  # Abstract Base Class
+import logging # Added logging
 from typing import Tuple, Optional, List, Type
 import dataclasses
 
@@ -73,14 +74,14 @@ class ProcessingStage(abc.ABC):
 
         try:
             soundfile.write(output_path, audio_data, sr)
-            print(f"[{self.stage_name}] Saved intermediate file: {output_path}")
+            logging.info("[%s] Saved intermediate file: %s", self.stage_name, output_path)
         except Exception as e:  # pylint: disable=broad-except
-            print(
-                f"[{self.stage_name}] Error saving intermediate file {output_path}: {e}"
+            logging.error(
+                "[%s] Error saving intermediate file %s: %s", self.stage_name, output_path, e
             )
             if output_path != original_file_path:
                 shutil.copy(original_file_path, output_path)
-            print(f"[{self.stage_name}] Copied original to {output_path} as fallback.")
+            logging.info("[%s] Copied original to %s as fallback.", self.stage_name, output_path)
             return output_path
         return output_path
 
@@ -104,19 +105,23 @@ class ProcessingStage(abc.ABC):
         output_path = os.path.join(self.working_dir, new_filename)
 
         if input_file_path == output_path:
-            print(
-                f"[{self.stage_name}] Input and output paths are identical, "
-                f"no copy needed: {input_file_path}"
+            logging.debug(
+                "[%s] Input and output paths are identical, no copy needed: %s",
+                self.stage_name,
+                input_file_path
             )
             return input_file_path
 
         try:
             shutil.copy(input_file_path, output_path)
-            print(f"[{self.stage_name}] Copied file to: {output_path}")
+            logging.info("[%s] Copied file to: %s", self.stage_name, output_path)
         except Exception as e:  # pylint: disable=broad-except
-            print(
-                f"[{self.stage_name}] Error copying file {input_file_path} "
-                f"to {output_path}: {e}"
+            logging.error(
+                "[%s] Error copying file %s to %s: %s",
+                self.stage_name,
+                input_file_path,
+                output_path,
+                e
             )
             return input_file_path
         return output_path
@@ -140,20 +145,21 @@ class DenoisingStage(ProcessingStage):
     def process(
         self, input_file_path: str, evaluation_result: VocalChopEvaluationResult
     ) -> str:
-        print(f"[{self.stage_name}] Processing {input_file_path}...")
+        logging.info("[%s] Processing %s...", self.stage_name, input_file_path)
         output_file_path = input_file_path
 
         if evaluation_result.denoising_recommended:
-            print(f"[{self.stage_name}] Denoising recommended for {input_file_path}.")
+            logging.info("[%s] Denoising recommended for %s.", self.stage_name, input_file_path)
             # TODO: Implement actual denoising logic here.
-            print(
-                f"[{self.stage_name}] Denoising not yet implemented. Passing through."
+            logging.debug(
+                "[%s] Denoising not yet implemented. Passing through.", self.stage_name
             )
             output_file_path = self._copy_with_suffix(input_file_path, "denoised_stub")
         else:
-            print(
-                f"[{self.stage_name}] Denoising not recommended for "
-                f"{input_file_path}. Skipping."
+            logging.info(
+                "[%s] Denoising not recommended for %s. Skipping.",
+                self.stage_name,
+                input_file_path
             )
         return output_file_path
 
@@ -167,24 +173,27 @@ class ClickPopRemovalStage(ProcessingStage):
     def process(
         self, input_file_path: str, evaluation_result: VocalChopEvaluationResult
     ) -> str:
-        print(f"[{self.stage_name}] Processing {input_file_path}...")
+        logging.info("[%s] Processing %s...", self.stage_name, input_file_path)
         output_file_path = input_file_path
 
         if evaluation_result.click_pop_detected:
-            print(
-                f"[{self.stage_name}] Click/pop removal recommended for {input_file_path}."
+            logging.info(
+                "[%s] Click/pop removal recommended for %s.",
+                self.stage_name,
+                input_file_path
             )
             # TODO: Implement actual click/pop removal logic here.
-            print(
-                f"[{self.stage_name}] Click/pop removal not yet implemented. Passing through."
+            logging.debug(
+                "[%s] Click/pop removal not yet implemented. Passing through.", self.stage_name
             )
             output_file_path = self._copy_with_suffix(
                 input_file_path, "clickremoved_stub"
             )
         else:
-            print(
-                f"[{self.stage_name}] No clicks/pops detected or recommendation for "
-                f"{input_file_path}. Skipping."
+            logging.info(
+                "[%s] No clicks/pops detected or recommendation for %s. Skipping.",
+                self.stage_name,
+                input_file_path
             )
         return output_file_path
 
@@ -233,21 +242,21 @@ class SilenceAndStabAdjustmentStage(ProcessingStage):
     def process( # noqa: C901
         self, input_file_path: str, evaluation_result: VocalChopEvaluationResult
     ) -> str:
-        print(f"[{self.stage_name}] Processing {input_file_path}...")
+        logging.info("[%s] Processing %s...", self.stage_name, input_file_path)
 
         try:
             audio_data, sr = soundfile.read(input_file_path, dtype="float64")
             if audio_data.ndim > 1:
                 audio_data = np.mean(audio_data, axis=1)
         except Exception as e: # pylint: disable=broad-except
-            print(
-                f"[{self.stage_name}] Error reading audio file {input_file_path}: {e}"
+            logging.error(
+                "[%s] Error reading audio file %s: %s", self.stage_name, input_file_path, e
             )
             return self._copy_with_suffix(input_file_path, "adjustment_failed_load")
 
         if not evaluation_result.stabs:
-            print(
-                f"[{self.stage_name}] No stabs in evaluation_result. Skipping adjustment."
+            logging.info(
+                "[%s] No stabs in evaluation_result. Skipping adjustment.", self.stage_name
             )
             return self._copy_with_suffix(input_file_path, "adjusted_no_stabs")
 
@@ -270,10 +279,10 @@ class SilenceAndStabAdjustmentStage(ProcessingStage):
             )
 
             if stab_copy.end_sample <= stab_copy.start_sample:
-                print(
-                    f"[{self.stage_name}] Warning: Stab {i+1} has zero or negative length "
-                    f"after boundary correction. Original start: {original_start}, "
-                    f"end: {original_end}. Skipping."
+                logging.warning(
+                    "[%s] Stab %s has zero or negative length after boundary correction. "
+                    "Original start: %s, end: %s. Skipping.",
+                    self.stage_name, i + 1, original_start, original_end
                 )
                 continue
 
@@ -305,9 +314,9 @@ class SilenceAndStabAdjustmentStage(ProcessingStage):
                 stab_copy.end_sample = stab_copy.start_sample + int(0.01 * sr)
                 stab_copy.end_sample = min(stab_copy.end_sample, len(audio_data))
                 if stab_copy.end_sample <= stab_copy.start_sample:
-                    print(
-                        f"[{self.stage_name}] Warning: Stab {i+1} collapsed or invalid "
-                        "after ZC adjustment. Skipping."
+                    logging.warning(
+                        "[%s] Stab %s collapsed or invalid after ZC adjustment. Skipping.",
+                        self.stage_name, i + 1
                     )
                     continue
 
@@ -340,8 +349,8 @@ class SilenceAndStabAdjustmentStage(ProcessingStage):
                     current_sample_offset += len(silent_segment)
 
         if not processed_segments:
-            print(
-                f"[{self.stage_name}] No segments processed. Output is copy of input."
+            logging.info(
+                "[%s] No segments processed. Output is copy of input.", self.stage_name
             )
             final_audio_data = np.copy(audio_data)
         else:
@@ -369,149 +378,76 @@ class MetadataUpdateStage(ProcessingStage):
     def __init__(self, working_dir: str):
         super().__init__(working_dir, stage_name="MetadataUpdateStage")
 
-    def _set_string_metadata(
-        self, file_path: str, str_type: int, content: str
-    ) -> bool:
-        """Helper to set string metadata using SFC_SET_STRING."""
-        try:
-            with soundfile.SoundFile(file_path, mode="r+") as sf:
-                # string_bytes = content.encode('utf-8', 'replace') + b'\x00' # pylint: disable=unused-variable
-                if str_type == soundfile_utils.sf_lib.SF_STR_COMMENT:
-                    sf.comment = content
-                    sf.flush()
-                    print(f"[{self.stage_name}] Set comment metadata.")
-                    return True
-                # Add other cases for SF_STR_TITLE, SF_STR_ARTIST etc.
-                print(
-                    f"[{self.stage_name}] Setting string type {str_type} not directly "
-                    "supported by simple attributes. SFC_SET_STRING needed."
-                )
-                return False
-        except Exception as e: # pylint: disable=broad-except
-            print(
-                f"[{self.stage_name}] Error setting string metadata "
-                f"(type {str_type}): {e}"
-            )
-            return False
-
-    # pylint: disable=too-many-branches,too-many-statements
+    # pylint: disable=too-many-branches,too-many-statements # Refactor if it gets too complex
     def process( # noqa: C901
         self, input_file_path: str, evaluation_result: VocalChopEvaluationResult
     ) -> str:
-        print(f"[{self.stage_name}] Processing {input_file_path}...")
+        logging.info("[%s] Processing %s...", self.stage_name, input_file_path)
         output_file_path = self._copy_with_suffix(input_file_path, "meta_updated")
 
-        if evaluation_result.stabs:
-            prepared_cue_list: List[soundfile_utils.SFCuePoint] = []
-            for i, stab_info in enumerate(evaluation_result.stabs):
-                label = stab_info.label if stab_info.label else f"Stab {i+1}"
-                name_bytes = label.encode("utf-8", "replace")
-                if len(name_bytes) > 255:
-                    name_bytes = name_bytes[:255]
-                cue_point = soundfile_utils.SFCuePoint(
-                    indx=i + 1, position=stab_info.start_sample, name=name_bytes
-                )
-                prepared_cue_list.append(cue_point)
-
-            if not soundfile_utils.set_cue_markers(output_file_path, prepared_cue_list):
-                print(f"[{self.stage_name}] Failed to set cue markers.")
-                evaluation_result.issues.append(
-                    f"[{self.stage_name}] Failed to write updated cue markers."
-                )
-            else:
-                print(f"[{self.stage_name}] Successfully updated cue markers.")
-
-        loop_info_to_set = None
-        existing_loop_info = soundfile_utils.get_loop_info(output_file_path)
+        # Prepare a detailed comment string
+        comment_parts = ["Processed by VocalChopPerfectionWorkflow."]
 
         if evaluation_result.tempo is not None:
-            if existing_loop_info is None:
-                existing_loop_info = soundfile_utils.SFLoopInfo(
-                    time_sig_num=4, time_sig_den=4,
-                    loop_mode=soundfile_utils.SF_LOOP_NONE
-                )
-            if existing_loop_info.bpm != evaluation_result.tempo:
-                existing_loop_info.bpm = evaluation_result.tempo
-                loop_info_to_set = existing_loop_info
-                print(
-                    f"[{self.stage_name}] Preparing to update BPM to {evaluation_result.tempo}."
-                )
-
-        if evaluation_result.key is not None:
-            try:
-                midi_note = int(librosa.note_to_midi(evaluation_result.key))
-                if existing_loop_info is None:
-                    existing_loop_info = soundfile_utils.SFLoopInfo(
-                        time_sig_num=4, time_sig_den=4,
-                        loop_mode=soundfile_utils.SF_LOOP_NONE
-                    )
-                if existing_loop_info.root_key != midi_note:
-                    existing_loop_info.root_key = midi_note
-                    loop_info_to_set = existing_loop_info
-                    print(
-                        f"[{self.stage_name}] Preparing to update loop root key to MIDI "
-                        f"{midi_note} ({evaluation_result.key})."
-                    )
-            except Exception as e: # pylint: disable=broad-except
-                print(
-                    f"[{self.stage_name}] Error converting key "
-                    f"'{evaluation_result.key}' to MIDI for loop info: {e}"
-                )
-                evaluation_result.issues.append(f"Error converting key for loop_info: {e}")
-
-        if loop_info_to_set:
-            if not soundfile_utils.set_loop_info(output_file_path, loop_info_to_set):
-                print(f"[{self.stage_name}] Failed to set loop info (tempo/key).")
-                evaluation_result.issues.append(
-                    f"[{self.stage_name}] Failed to write loop info."
-                )
-            else:
-                print(f"[{self.stage_name}] Successfully updated loop info.")
-
-        if evaluation_result.key is not None:
-            try:
-                midi_note = int(librosa.note_to_midi(evaluation_result.key))
-                instr_info = soundfile_utils.get_instrument_info(output_file_path)
-                if instr_info is None:
-                    instr_info = soundfile_utils.SFInstrumentInfo(
-                        gain=0, detune=0, velocity_lo=0, velocity_hi=127,
-                        key_lo=0, key_hi=127, loop_count=0
-                    )
-                if instr_info.basenote != midi_note:
-                    instr_info.basenote = midi_note
-                    if not soundfile_utils.set_instrument_info(output_file_path, instr_info):
-                        evaluation_result.issues.append(
-                            f"[{self.stage_name}] Failed to write instrument info for key."
-                        ) # Corrected long line
-                    else:
-                        print(
-                            f"[{self.stage_name}] Successfully updated instrument info "
-                            f"with key MIDI {midi_note}."
-                        )
-            except Exception as e: # pylint: disable=broad-except
-                print(
-                    f"[{self.stage_name}] Error converting key "
-                    f"'{evaluation_result.key}' to MIDI for instrument info: {e}"
-                )
-                evaluation_result.issues.append(
-                    f"Error converting key for SFInstrumentInfo: {e}"
-                )
-
-        comment_string = "Processed by VocalChopPerfectionWorkflow."
-        if hasattr(soundfile_utils.sf_lib, 'SF_STR_COMMENT'):
-            if not self._set_string_metadata(
-                output_file_path, soundfile_utils.sf_lib.SF_STR_COMMENT, comment_string
-            ):
-                print(
-                    f"[{self.stage_name}] Could not write comment string via helper. "
-                    "Manual SFC_SET_STRING might be needed."
-                )
-                # TODO: Implement robust SFC_SET_STRING in soundfile_utils
+            comment_parts.append(f"Estimated Tempo: {evaluation_result.tempo:.2f} BPM")
         else:
-            print(
-                f"[{self.stage_name}] SF_STR_COMMENT not found in "
-                "soundfile_utils.sf_lib. Cannot set comment."
+            comment_parts.append("Tempo: Not estimated or found in source metadata.")
+
+        if evaluation_result.key is not None:
+            # Removed key_confidence check as it's not a standard field in VocalChopEvaluationResult
+            # The key itself might come from estimation (which might have confidence internally)
+            # or from basic metadata tags.
+            comment_parts.append(f"Key: {evaluation_result.key}")
+        else:
+            comment_parts.append("Key: Not estimated or found in source metadata.")
+
+        comment_parts.append("\nStab Information:")
+        if evaluation_result.stabs:
+            for i, stab in enumerate(evaluation_result.stabs):
+                stab_info = (
+                    f"  Stab {i+1}: Start={stab.start_sample}, End={stab.end_sample}, "
+                    f"Duration={stab.duration_ms:.2f}ms, Label='{stab.label or 'N/A'}'"
+                )
+                comment_parts.append(stab_info)
+        else:
+            comment_parts.append("  No stab information available or processed.")
+
+        # Add any major issues found during evaluation to the comment
+        if evaluation_result.issues:
+            comment_parts.append("\nEvaluation Issues:")
+            for issue in evaluation_result.issues:
+                 # Limit length of issue in comment to avoid overly long strings
+                comment_parts.append(f"  - {issue[:100]}" + ("..." if len(issue) > 100 else ""))
+
+        detailed_comment = "\n".join(comment_parts)
+
+        # Use the new soundfile_utils function to write standard metadata
+        # For now, we'll primarily use the 'comment' and 'software' fields.
+        # Title and artist could be derived or passed if available.
+        software_tag = "Vocal Chop Perfectioner v0.1" # Example software tag
+
+        success = soundfile_utils.write_standard_metadata(
+            file_path=output_file_path,
+            comment=detailed_comment,
+            software=software_tag
+            # title=evaluation_result.title, # If available
+            # artist=evaluation_result.artist # If available
+        )
+
+        if success:
+            logging.info("[%s] Standard metadata (comment, software) written to %s.",
+                         self.stage_name, output_file_path)
+        else:
+            logging.warning("[%s] Failed to write some or all standard metadata to %s.",
+                            self.stage_name, output_file_path)
+            evaluation_result.issues.append(
+                f"[{self.stage_name}] Failed to write all standard metadata tags."
             )
+
+        # The old CFFI-based metadata setting for cues, instrument, loop info is removed
+        # as per the new strategy. These are not standard string tags handled by
+        # the simplified write_standard_metadata.
+
         return output_file_path
 
 # pylint: disable=too-few-public-methods
@@ -545,8 +481,8 @@ class VocalChopPerfectionWorkflow:
         if not os.path.exists(run_working_dir):
             os.makedirs(run_working_dir, exist_ok=True)
 
-        print(f"Starting Vocal Chop Perfection Workflow for: {self.initial_file_path}")
-        print(f"Intermediate files will be stored in: {run_working_dir}")
+        logging.info("Starting Vocal Chop Perfection Workflow for: %s", self.initial_file_path)
+        logging.info("Intermediate files will be stored in: %s", run_working_dir)
 
         current_file_path = self.initial_file_path
 
@@ -556,13 +492,14 @@ class VocalChopPerfectionWorkflow:
                 current_file_path = stage_instance.process(
                     current_file_path, self.evaluation_result
                 )
-                print(
-                    f"Finished stage: {stage_instance.stage_name}, output: {current_file_path}"
+                logging.info(
+                    "Finished stage: %s, output: %s",
+                    stage_instance.stage_name, current_file_path
                 )
             except Exception as e: # pylint: disable=broad-except
-                print(f"Error during stage {stage_instance.stage_name}: {e}")
-                print(
-                    f"Workflow halted due to error in stage {stage_instance.stage_name}."
+                logging.error("Error during stage %s: %s", stage_instance.stage_name, e)
+                logging.error(
+                    "Workflow halted due to error in stage %s.", stage_instance.stage_name
                 )
                 return current_file_path, run_working_dir
 
@@ -571,13 +508,15 @@ class VocalChopPerfectionWorkflow:
 
         try:
             shutil.copy(current_file_path, final_output_path)
-            print(
-                f"Successfully perfected vocal chop. Final output: {final_output_path}"
+            logging.info(
+                "Successfully perfected vocal chop. Final output: %s", final_output_path
             )
         except Exception as e: # pylint: disable=broad-except
-            print(
-                f"Error copying final perfected file from {current_file_path} "
-                f"to {final_output_path}: {e}"
+            logging.error(
+                "Error copying final perfected file from %s to %s: %s",
+                current_file_path,
+                final_output_path,
+                e
             )
             return current_file_path, run_working_dir
 
@@ -585,6 +524,9 @@ class VocalChopPerfectionWorkflow:
 
 
 if __name__ == "__main__":
+    # Basic logging setup for the __main__ example
+    logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+
     # This is a placeholder for a real VocalChopEvaluationResult
     # In a real scenario, this would be populated by VocalChopEvaluator
     MOCK_EVAL_RESULT = VocalChopEvaluationResult(file_path="test.wav")
@@ -597,9 +539,9 @@ if __name__ == "__main__":
         try:
             dummy_audio_data = np.random.rand(44100 * 2).astype(np.float32)
             soundfile.write(DUMMY_TEST_FILE, dummy_audio_data, 44100)
-            print(f"Created dummy {DUMMY_TEST_FILE} for example usage.")
+            logging.info("Created dummy %s for example usage.", DUMMY_TEST_FILE)
         except Exception as e: # pylint: disable=broad-except
-            print(f"Could not create dummy {DUMMY_TEST_FILE}: {e}")
+            logging.error("Could not create dummy %s: %s", DUMMY_TEST_FILE, e)
 
     if os.path.exists(DUMMY_TEST_FILE):
         OUTPUT_DIR_EXAMPLE = "output_perfection" # Renamed to avoid conflict
@@ -609,9 +551,9 @@ if __name__ == "__main__":
         workflow = VocalChopPerfectionWorkflow(
             initial_file_path=DUMMY_TEST_FILE, evaluation_result=MOCK_EVAL_RESULT
         )
-        final_file, intermediates_dir = workflow.run(output_dir=OUTPUT_DIR_EXAMPLE) # Corrected variable
-        print("Workflow finished.")
-        print(f"Final perfected file: {final_file}")
-        print(f"Intermediate files are in: {intermediates_dir}")
+        final_file, intermediates_dir = workflow.run(output_dir=OUTPUT_DIR_EXAMPLE)
+        logging.info("Workflow finished.")
+        logging.info("Final perfected file: %s", final_file)
+        logging.info("Intermediate files are in: %s", intermediates_dir)
     else:
-        print(f"Skipping example usage as {DUMMY_TEST_FILE} could not be created/found.")
+        logging.info("Skipping example usage as %s could not be created/found.", DUMMY_TEST_FILE)

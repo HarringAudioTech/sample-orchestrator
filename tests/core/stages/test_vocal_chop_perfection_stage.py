@@ -1,5 +1,6 @@
 """Unit tests for src.core.stages.vocal_chop_perfection_stage."""
 import os
+import logging # Import logging
 from typing import Tuple, Any # List removed
 import pytest
 import numpy as np  # type: ignore # pylint: disable=import-error
@@ -90,6 +91,7 @@ def test_denoising_stage_passthrough(
     caplog: Any,
 ):
     """Tests DenoisingStage passthrough and logging."""
+    caplog.set_level(logging.DEBUG) # Set log level to DEBUG
     stage = DenoisingStage(
         working_dir=tmp_dirs["output_dir"]
     )
@@ -117,6 +119,7 @@ def test_clickpop_removal_stage_passthrough(
     caplog: Any,
 ):
     """Tests ClickPopRemovalStage passthrough and logging."""
+    caplog.set_level(logging.DEBUG) # Set log level to DEBUG
     stage = ClickPopRemovalStage(working_dir=tmp_dirs["output_dir"])
 
     base_evaluation_result.click_pop_detected = False
@@ -225,67 +228,75 @@ def test_silence_adjustment_stage_silence_insertion(
 # --- Tests for MetadataUpdateStage ---
 
 # pylint: disable=redefined-outer-name
-def test_metadata_update_stage_writes_cues(
+def test_metadata_update_stage_writes_info_to_comment(
     sample_wav_file: str,
     tmp_dirs: dict,
     base_evaluation_result: VocalChopEvaluationResult,
 ):
-    """Tests that MetadataUpdateStage correctly writes cue markers."""
+    """
+    Tests that MetadataUpdateStage writes tempo, key, and stab info
+    into the comment tag.
+    """
+    base_evaluation_result.tempo = 123.45
+    base_evaluation_result.key = "C#maj" # Example key
     base_evaluation_result.stabs = [
-        AnalyzedVocalStab(start_sample=100, end_sample=200, label="TestCue1"),
-        AnalyzedVocalStab(start_sample=300, end_sample=400, label="TestCue Γειά"),
+        AnalyzedVocalStab(start_sample=100, end_sample=200, duration_ms=2.26, label="Stab1"),
+        AnalyzedVocalStab(start_sample=300, end_sample=450, duration_ms=3.40, label="Stab2 Γειά"),
     ]
-    stage = MetadataUpdateStage(working_dir=tmp_dirs["output_dir"])
-    output_path = stage.process(sample_wav_file, base_evaluation_result)
-
-    retrieved_cues = soundfile_utils.get_cue_markers(output_path)
-    assert len(retrieved_cues) == 2
-    assert retrieved_cues[0].name.startswith(b"TestCue1")
-    assert retrieved_cues[0].position == 100
-    assert retrieved_cues[1].name.startswith("TestCue Γειά".encode("utf-8"))
-    assert retrieved_cues[1].position == 300
-
-# pylint: disable=redefined-outer-name
-def test_metadata_update_stage_writes_tempo_key(
-    sample_wav_file: str,
-    tmp_dirs: dict,
-    base_evaluation_result: VocalChopEvaluationResult,
-):
-    """Tests that MetadataUpdateStage correctly writes tempo and key information."""
-    base_evaluation_result.tempo = 140.0
-    base_evaluation_result.key = "A#4/Bb4"
+    # Add a mock issue
+    base_evaluation_result.issues.append("Test issue for comment.")
 
     stage = MetadataUpdateStage(working_dir=tmp_dirs["output_dir"])
     output_path = stage.process(sample_wav_file, base_evaluation_result)
 
-    loop_info = soundfile_utils.get_loop_info(output_path)
-    assert loop_info is not None
-    assert loop_info.bpm == pytest.approx(140.0)
-    assert loop_info.root_key == 70 # A#4/Bb4 is MIDI 70
+    retrieved_meta = soundfile_utils.read_standard_metadata(output_path)
+    assert retrieved_meta is not None, "Failed to read metadata."
+    comment = retrieved_meta.get("comment")
+    assert comment is not None, "Comment field not found in metadata."
 
-    instr_info = soundfile_utils.get_instrument_info(output_path)
-    assert instr_info is not None
-    assert instr_info.basenote == 70
+    # Check for tempo, key, and stab details in the comment
+    assert f"Tempo: {base_evaluation_result.tempo:.2f} BPM" in comment
+    assert f"Key: {base_evaluation_result.key}" in comment
+
+    assert "Stab Information:" in comment
+    for i, stab in enumerate(base_evaluation_result.stabs):
+        assert f"Stab {i+1}: Start={stab.start_sample}" in comment
+        assert f"End={stab.end_sample}" in comment
+        assert f"Duration={stab.duration_ms:.2f}ms" in comment
+        assert f"Label='{stab.label or 'N/A'}'" in comment
+
+    assert "Evaluation Issues:" in comment
+    assert "- Test issue for comment." in comment
+
 
 # pylint: disable=redefined-outer-name
-def test_metadata_update_stage_comment(
+def test_metadata_update_stage_comment( # This test remains, checks basic comment and software tag
     sample_wav_file: str,
     tmp_dirs: dict,
     base_evaluation_result: VocalChopEvaluationResult,
     caplog: Any,
 ):
     """Tests that MetadataUpdateStage attempts to write a comment."""
+    caplog.set_level(logging.INFO) # For checking logs from soundfile_utils
     stage = MetadataUpdateStage(working_dir=tmp_dirs["output_dir"])
     output_path = stage.process(sample_wav_file, base_evaluation_result)
 
-    with soundfile.SoundFile(output_path) as sf_out:
-        if hasattr(sf_out, "comment"):
-            assert "Processed by VocalChopPerfectionWorkflow." in sf_out.comment
-        else:
-            assert "Set comment metadata." in caplog.text
-            print(
-                "Note: Direct comment reading not available, checked log."
-            )
+    # Read the comment back using the new utility function
+    read_meta = soundfile_utils.read_standard_metadata(output_path)
+    assert read_meta is not None
+    assert "comment" in read_meta
+    assert "Processed by VocalChopPerfectionWorkflow." in read_meta["comment"]
+    # Check if software tag starts with the expected string, as soundfile might append its version.
+    software_tag_value = read_meta.get("software")
+    assert software_tag_value is not None
+    assert software_tag_value.startswith("Vocal Chop Perfectioner v0.1")
+
+    # Check logs if direct attribute setting was not possible (e.g. format limitation)
+    # This part of the test might be more relevant if soundfile_utils logs warnings
+    # when direct attribute setting fails.
+    # For now, primary check is if the comment is readable via our own util.
+    if "Failed to write some or all standard metadata" in caplog.text:
+        print("Warning: Some metadata tags may not have been written, check logs for details.")
 
 
 # --- Tests for VocalChopPerfectionWorkflow ---
@@ -312,11 +323,40 @@ def test_workflow_execution_order(
         return_value=sample_wav_file + "_adjusted",
     )
     mock_metadata_process = mocker.patch.object(
-        MetadataUpdateStage, "process", return_value=sample_wav_file + "_meta_updated"
+        MetadataUpdateStage, "process", return_value=sample_wav_file + "_adjusted" # Return its input
     )
 
     workflow = VocalChopPerfectionWorkflow(sample_wav_file, base_evaluation_result)
-    final_file, _ = workflow.run(output_dir) # W0612: intermediates_dir unused
+
+    # Ensure the input file for the final copy operation exists by creating it.
+    # The mock for MetadataUpdateStage returns sample_wav_file + "_adjusted".
+    # We need to make sure this file exists for shutil.copy to succeed in the workflow.
+    # The easiest is to use the original sample_wav_file as a stand-in for this test's purpose.
+    # So, let's have the final mock return a path that *does* exist.
+    # The input to MetadataUpdateStage is sample_wav_file + "_adjusted".
+    # Let's create a dummy file for this path.
+    adjusted_file_path_for_mock = os.path.join(output_dir, os.path.basename(sample_wav_file + "_adjusted"))
+
+    # Touch the file that mock_metadata_process is supposed to receive and then "process"
+    # The previous mock (mock_adjust_process) returns sample_wav_file + "_adjusted"
+    # This path is not created by the mock. Let's use a real file for the final mock return.
+    # For simplicity, let's assume the "adjusted" file is the input to metadata stage.
+    # And metadata stage will output this same file (as per new return_value for mock_metadata_process).
+    # The workflow's shutil.copy needs its source to exist.
+
+    # The input to MetadataUpdateStage is what mock_adjust_process returns.
+    metadata_stage_input_path = sample_wav_file + "_adjusted"
+    # Let's ensure this input path is within the output_dir for clarity,
+    # as stages are expected to work with files there.
+    # However, mocks simply pass strings. The workflow itself uses these strings.
+    # The critical part is that the final `current_file_path` given to `shutil.copy` must exist.
+
+    # Let's make the mock_metadata_process return a path that actually exists.
+    # The simplest existing file is sample_wav_file.
+    # This means the final "perfected" file will be a copy of sample_wav_file.
+    mock_metadata_process.return_value = sample_wav_file
+
+    final_file, _ = workflow.run(output_dir)
 
     mock_denoise_process.assert_called_once_with(
         sample_wav_file, base_evaluation_result
@@ -328,13 +368,14 @@ def test_workflow_execution_order(
         sample_wav_file + "_clickremoved", base_evaluation_result
     )
     mock_metadata_process.assert_called_once_with(
-        sample_wav_file + "_adjusted", base_evaluation_result
+        sample_wav_file + "_adjusted", base_evaluation_result # This is the input it receives
     )
 
     expected_final_name = os.path.basename(sample_wav_file).replace(
         ".wav", "_perfected.wav"
     )
     assert os.path.basename(final_file) == expected_final_name
+    assert os.path.exists(final_file) # Verify the copied file exists
 
 # pylint: disable=redefined-outer-name
 def test_workflow_file_management(
@@ -357,19 +398,23 @@ def test_workflow_file_management(
     assert os.path.exists(
         os.path.join(intermediates_dir, f"{original_base}_denoised_stub.wav")
     )
-    assert os.path.exists(
-        os.path.join(intermediates_dir, f"{original_base}_clickremoved_stub.wav")
-    )
-    assert os.path.exists(
-        os.path.join(intermediates_dir, f"{original_base}_adjusted_stub.wav")
-    )
-    assert os.path.exists(
-        os.path.join(intermediates_dir, f"{original_base}_meta_updated.wav")
-    )
+    # Corrected expected chained filenames
+    clickremoved_name = f"{original_base}_denoised_stub_clickremoved_stub.wav"
+    assert os.path.exists(os.path.join(intermediates_dir, clickremoved_name))
+
+    # SilenceAndStabAdjustmentStage will use "_adjusted_no_stabs" if stabs list is empty
+    adjusted_name = f"{original_base}_denoised_stub_clickremoved_stub_adjusted_no_stabs.wav"
+    assert os.path.exists(os.path.join(intermediates_dir, adjusted_name))
+
+    # MetadataUpdateStage input: sample_denoised_stub_clickremoved_stub_adjusted_no_stabs.wav
+    # _copy_with_suffix will see base as "..._adjusted_no_stabs".
+    # This does not end with any common_suffix. So, it appends "_meta_updated".
+    meta_updated_name = f"{original_base}_denoised_stub_clickremoved_stub_adjusted_no_stabs_meta_updated.wav"
+    assert os.path.exists(os.path.join(intermediates_dir, meta_updated_name))
 
     assert os.path.exists(final_file)
     expected_final_name = f"{original_base}_perfected.wav"
-    # Corrected line:
+    # Corrected line (split for length):
     final_basename = os.path.basename(final_file)
     assert final_basename == expected_final_name
 

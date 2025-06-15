@@ -1,7 +1,7 @@
 """Module for evaluating vocal chop audio files based on ideal characteristics."""
 import dataclasses
 from dataclasses import field
-from typing import List, Optional # Removed Any
+from typing import List, Optional
 
 import soundfile  # type: ignore # pylint: disable=import-error
 import librosa  # type: ignore # pylint: disable=import-error
@@ -23,12 +23,15 @@ class VocalChopIdealCharacteristics:
     """Stores ideal parameters for vocal chops."""
 
     min_silence_duration_ms: float = 75.0
-    expected_stab_counts: List[int] = [2, 4, 8, 16, 32, 64]  # powers of 2
+    expected_stab_counts: List[int] = field(
+        default_factory=lambda: [2, 4, 8, 16, 32, 64]
+    )
     require_tempo_metadata: bool = True
     require_key_metadata: bool = True
     require_cue_labels: bool = True
 
 
+# pylint: disable=too-few-public-methods
 @dataclasses.dataclass
 class AnalyzedVocalStab:
     """Stores information about each detected/analyzed vocal stab."""
@@ -75,11 +78,6 @@ class VocalChopEvaluator:
     def _detect_clicks_pops(self, audio_segment: np.ndarray, sample_rate: int) -> bool:  # pylint: disable=unused-argument
         # Placeholder for actual click/pop detection logic
         # TODO: Implement actual detection (e.g., high-frequency transient detection)
-        # For now, this will not detect anything.
-        # Example:
-        #   high_freq_content = librosa.effects.preemphasis(audio_segment)
-        #   rms = librosa.feature.rms(y=high_freq_content)
-        #   if np.any(rms > threshold): return True
         return False
 
     # pylint: disable=too-many-locals, too-many-branches, too-many-statements
@@ -97,11 +95,10 @@ class VocalChopEvaluator:
         y = None
         sr = 0
 
-        # Load Audio and Basic Info (using soundfile for metadata, librosa for audio array)
         try:
             with soundfile.SoundFile(file_path, "r") as sf_file:
                 evaluation_result.sample_rate = sf_file.samplerate
-                sr = sf_file.samplerate  # Store for librosa
+                sr = sf_file.samplerate
                 evaluation_result.channels = sf_file.channels
                 evaluation_result.duration_ms = (
                     sf_file.frames / sf_file.samplerate
@@ -110,8 +107,8 @@ class VocalChopEvaluator:
             evaluation_result.issues.append(
                 f"Error loading audio file with soundfile: {e}"
             )
-            return evaluation_result  # Cannot proceed
-        except Exception as e:  # Catch other potential errors during file info reading
+            return evaluation_result
+        except Exception as e:
             evaluation_result.issues.append(
                 f"Unexpected error loading audio file info: {e}"
             )
@@ -138,88 +135,95 @@ class VocalChopEvaluator:
 
         audio_duration_samples = len(y_mono)
 
-        # Metadata Extraction
-        cue_markers = soundfile_utils.get_cue_markers(file_path)
-        if cue_markers:
-            evaluation_result.cue_markers_present = True
-            has_any_label = False
-            for cue in cue_markers:
-                label = None
-                if (
-                    cue.name and cue.name != b"\x00"
-                ):  # Check if name is not empty or just null bytes
-                    try:
-                        label = cue.name.decode("utf-8", errors="replace").strip()
-                        if label:  # Ensure label is not empty after strip
-                            has_any_label = True
-                    except Exception:  # pylint: disable=broad-except
-                        label = "Error decoding label"  # Or keep None
+        # --- Commented out CFFI-based metadata reading ---
+        # cue_markers = soundfile_utils.get_cue_markers(file_path)
+        # if cue_markers:
+        #     evaluation_result.cue_markers_present = True
+        #     has_any_label = False
+        #     for cue in cue_markers:
+        #         label = None
+        #         if cue.name and cue.name != b"\x00":
+        #             try:
+        #                 label = cue.name.decode("utf-8", errors="replace").strip()
+        #                 if label:
+        #                     has_any_label = True
+        #             except Exception:  # pylint: disable=broad-except
+        #                 label = "Error decoding label"
+        #         evaluation_result.stabs.append(
+        #             AnalyzedVocalStab(
+        #                 start_sample=int(cue.position),
+        #                 end_sample=int(cue.position),
+        #                 label=label,
+        #             )
+        #         )
+        #     if has_any_label:
+        #         evaluation_result.cue_labels_present = True
 
-                # For now, end_sample is not known from cues alone, set to start_sample or a placeholder
-                # This will be updated by more detailed stab analysis later.
-                evaluation_result.stabs.append(
-                    AnalyzedVocalStab(
-                        start_sample=int(cue.position),
-                        end_sample=int(cue.position),  # Placeholder, to be updated
-                        label=label,
-                    )
-                )
-            if has_any_label:
-                evaluation_result.cue_labels_present = True
+        # if evaluation_result.cue_markers_present and evaluation_result.stabs:
+        #     for i in range(len(evaluation_result.stabs) - 1):
+        #         evaluation_result.stabs[i].end_sample = evaluation_result.stabs[
+        #             i + 1
+        #         ].start_sample
+        #     if evaluation_result.stabs:
+        #         evaluation_result.stabs[-1].end_sample = audio_duration_samples
+        # else:
+        # evaluation_result.issues.append( # This will now always be the case
+        # "Cue markers not found or stabs list empty, attempting onset detection."
+        # )
+        # --- End of commented out CFFI-based metadata reading ---
 
-        # Stab Boundary Refinement/Detection
-        if evaluation_result.cue_markers_present and evaluation_result.stabs:
-            # Estimate end_sample for cue-based stabs
-            for i in range(len(evaluation_result.stabs) - 1):
-                evaluation_result.stabs[i].end_sample = evaluation_result.stabs[
-                    i + 1
-                ].start_sample
-            evaluation_result.stabs[-1].end_sample = audio_duration_samples
-        else:  # No Cues Present (Stab Detection)
-            evaluation_result.issues.append(
-                "Cue markers not found or stabs list empty, attempting onset detection."
+        # Always attempt onset detection as cues are no longer read this way
+        evaluation_result.issues.append(
+            "Detailed cue marker metadata (e.g. from CUE chunks) is no longer read. "
+            "Attempting onset detection for stab boundaries."
+        )
+        try:
+            onsets_samples = librosa.onset.onset_detect(
+                y=y_mono, sr=sr, units="samples", backtrack=False
             )
-            try:
-                onsets_samples = librosa.onset.onset_detect(
-                    y=y_mono, sr=sr, units="samples", backtrack=False
-                )
-                if len(onsets_samples) > 0:
-                    for i, onset_sample in enumerate(onsets_samples):
-                        start_s = int(onset_sample)
-                        end_s = (
-                            int(onsets_samples[i + 1])
-                            if i < len(onsets_samples) - 1
-                            else audio_duration_samples
-                        )
-                        stab = AnalyzedVocalStab(start_sample=start_s, end_sample=end_s)
-                        stab.issues.append(
-                            "Stab detected by onset analysis, not from cues."
-                        )
-                        evaluation_result.stabs.append(stab)
-
-                    if (
-                        len(evaluation_result.stabs)
-                        not in self.ideal_characteristics.expected_stab_counts
-                    ):
-                        evaluation_result.issues.append(
-                            f"Detected stab count ({len(evaluation_result.stabs)}) is not an ideal power of 2."
-                        )
-                        evaluation_result.stab_count_is_power_of_2 = False
-                    else:
-                        evaluation_result.stab_count_is_power_of_2 = True
-                else:
-                    evaluation_result.issues.append(
-                        "No onsets detected for automatic stab creation."
+            if len(onsets_samples) > 0:
+                for i, onset_sample in enumerate(onsets_samples):
+                    start_s = int(onset_sample)
+                    end_s = (
+                        int(onsets_samples[i + 1])
+                        if i < len(onsets_samples) - 1
+                        else audio_duration_samples
                     )
-            except Exception as e:  # pylint: disable=broad-except
-                evaluation_result.issues.append(f"Error during onset detection: {e}")
+                    stab = AnalyzedVocalStab(start_sample=start_s, end_sample=end_s)
+                    stab.issues.append(
+                        "Stab detected by onset analysis, not from cues."
+                    )
+                    evaluation_result.stabs.append(stab)
 
-        # Zero-Crossing and Duration for Stabs
-        zc_window_ms = 5  # 5ms window for zero-crossing check
+                if (
+                    len(evaluation_result.stabs)
+                    not in self.ideal_characteristics.expected_stab_counts
+                ):
+                    evaluation_result.issues.append(
+                        f"Detected stab count ({len(evaluation_result.stabs)}) "
+                        f"is not an ideal power of 2."
+                    )
+                    evaluation_result.stab_count_is_power_of_2 = False
+                else:
+                    evaluation_result.stab_count_is_power_of_2 = True
+            else:
+                evaluation_result.issues.append(
+                    "No onsets detected for automatic stab creation."
+                )
+        except Exception as e:  # pylint: disable=broad-except
+            evaluation_result.issues.append(f"Error during onset detection: {e}")
+        # If no stabs from onset detection, then it's an issue.
+        if not evaluation_result.stabs:
+            evaluation_result.issues.append(
+                "No stabs derived from onset detection. Further analysis might be limited."
+            )
+
+
+        zc_window_ms = 5
         zc_window_samples = int((zc_window_ms / 1000.0) * sr)
 
         for i, stab in enumerate(evaluation_result.stabs):
-            if stab.end_sample <= stab.start_sample:  # Ensure end is after start
+            if stab.end_sample <= stab.start_sample:
                 stab.duration_ms = 0.0
                 stab.issues.append(
                     "End sample is not after start sample. Duration is 0."
@@ -227,37 +231,34 @@ class VocalChopEvaluator:
             else:
                 stab.duration_ms = ((stab.end_sample - stab.start_sample) / sr) * 1000
 
-            # Zero-Crossing Check for start
             start_zc_segment = y_mono[
                 max(0, stab.start_sample - zc_window_samples // 2) : min(
                     audio_duration_samples, stab.start_sample + zc_window_samples // 2
                 )
             ]
             if len(start_zc_segment) > 0:
-                if np.sum(librosa.zero_crossings(start_zc_segment)) > 0:
+                if np.sum(librosa.zero_crossings(start_zc_segment, pad=False)) > 0: # Added pad=False
                     stab.has_clean_start_zero_crossing = True
                 else:
                     stab.has_clean_start_zero_crossing = False
                     stab.issues.append("No clean start zero-crossing detected.")
 
-            # Zero-Crossing Check for end
             end_zc_segment = y_mono[
                 max(0, stab.end_sample - zc_window_samples // 2) : min(
                     audio_duration_samples, stab.end_sample + zc_window_samples // 2
                 )
             ]
             if len(end_zc_segment) > 0:
-                if np.sum(librosa.zero_crossings(end_zc_segment)) > 0:
+                if np.sum(librosa.zero_crossings(end_zc_segment, pad=False)) > 0: # Added pad=False
                     stab.has_clean_end_zero_crossing = True
                 else:
                     stab.has_clean_end_zero_crossing = False
                     stab.issues.append("No clean end zero-crossing detected.")
 
-            # Basic Click/Pop Detection (Stub)
             stab_audio_segment = y_mono[stab.start_sample : stab.end_sample]
             if len(stab_audio_segment) > 0:
                 if self._detect_clicks_pops(stab_audio_segment, sr):
-                    evaluation_result.click_pop_detected = True  # Mark at overall level
+                    evaluation_result.click_pop_detected = True
                     stab.issues.append("Potential clicks/pops detected in this stab.")
                     if (
                         "Potential clicks/pops detected in stabs"
@@ -267,63 +268,48 @@ class VocalChopEvaluator:
                             "Potential clicks/pops detected in stabs"
                         )
 
-        # Silence Analysis (between stabs)
         if len(evaluation_result.stabs) > 1:
             total_silence_duration_ms = 0.0
             num_silence_segments = 0
             for i in range(len(evaluation_result.stabs) - 1):
                 current_stab = evaluation_result.stabs[i]
                 next_stab = evaluation_result.stabs[i + 1]
-
                 silence_start_sample = current_stab.end_sample
                 silence_end_sample = next_stab.start_sample
 
                 if silence_end_sample > silence_start_sample:
-                    # silence_segment_audio = y_mono[silence_start_sample:silence_end_sample] # For RMS analysis later
                     silence_duration_samples = silence_end_sample - silence_start_sample
                     silence_duration_ms = (silence_duration_samples / sr) * 1000
-
                     if (
                         silence_duration_ms
                         < self.ideal_characteristics.min_silence_duration_ms
                     ):
-                        evaluation_result.issues.append( # Shortened line
+                        evaluation_result.issues.append(
                             f"Silence after stab '{current_stab.label or i+1}' "
                             f"is too short ({silence_duration_ms:.2f}ms)."
                         )
                     total_silence_duration_ms += silence_duration_ms
                     num_silence_segments += 1
-                    # TODO: Analyze noise level of silence_segment_audio.
-                    # rms_silence = librosa.feature.rms(y=silence_segment_audio)
-                    # if np.mean(rms_silence) > noise_threshold:
-                    #    evaluation_result.denoising_recommended = True
-                    #    evaluation_result.issues.append("High noise level detected in silence between stabs.")
-                else:  # No silence or overlapping stabs based on current end_sample logic
-                    evaluation_result.issues.append( # Shortened line
+                else:
+                    evaluation_result.issues.append(
                         f"No silence or overlap between stab '{current_stab.label or i+1}' "
                         f"and '{next_stab.label or i+2}'."
                     )
-
             if num_silence_segments > 0:
                 evaluation_result.average_silence_between_stabs_ms = (
                     total_silence_duration_ms / num_silence_segments
                 )
             else:
-                evaluation_result.average_silence_between_stabs_ms = (
-                    0.0  # Or None if preferred
-                )
+                evaluation_result.average_silence_between_stabs_ms = 0.0
         elif len(evaluation_result.stabs) == 1:
-            evaluation_result.average_silence_between_stabs_ms = (
-                None  # Not applicable for single stab files
-            )
+            evaluation_result.average_silence_between_stabs_ms = None
 
-        # Tempo/Key Estimation (if not in metadata)
         if not evaluation_result.metadata_tempo_present:
             try:
                 estimated_tempo, _ = librosa.beat.beat_track(y=y_mono, sr=sr)
                 if (
                     estimated_tempo is not None and estimated_tempo > 0
-                ):  # beat_track can return 0
+                ):
                     evaluation_result.tempo = float(estimated_tempo)
                     evaluation_result.issues.append("Tempo estimated using librosa.")
                 else:
@@ -334,24 +320,13 @@ class VocalChopEvaluator:
                 evaluation_result.issues.append(f"Error during tempo estimation: {e}")
 
         if not evaluation_result.metadata_key_present:
-            # Basic key estimation using chroma features
-            # More advanced key finding might be needed for accuracy
             try:
                 chroma_stft = librosa.feature.chroma_stft(y=y_mono, sr=sr)
-                # Summing chroma features across time to get a pitch class profile
-                # Taking argmax of this profile gives the most prominent pitch class (0-11)
-                # 0 = C, 1 = C#, ..., 11 = B
-                # This is a simplification; does not account for major/minor.
                 chroma_sum = np.sum(chroma_stft, axis=1)
                 estimated_key_idx = np.argmax(chroma_sum)
-
-                # Convert MIDI-like index (0-11 for C-B) to note name.
-                # librosa.midi_to_note expects a full MIDI number.
-                # We can map common MIDI numbers for C4, C#4 etc.
-                # For simplicity, let's map 0-11 directly to note names.
-                # C4 = 60. So, 60+estimated_key_idx for octave 4.
+                # Removed 'sharps' argument for librosa compatibility
                 evaluation_result.key = librosa.midi_to_note(
-                    60 + estimated_key_idx, octave=False, sharps=True
+                    60 + estimated_key_idx, octave=False
                 )
                 evaluation_result.issues.append(
                     "Key estimated using librosa (basic chroma)."
@@ -359,75 +334,81 @@ class VocalChopEvaluator:
             except Exception as e:  # pylint: disable=broad-except
                 evaluation_result.issues.append(f"Error during key estimation: {e}")
 
-        # Moved metadata loading for instrument and loop info here to ensure it's after estimates
-        # if they were needed, and to correctly set metadata_present flags.
-        instrument_info = soundfile_utils.get_instrument_info(file_path)
-        if instrument_info:
-            if 0 <= instrument_info.basenote <= 127:
-                try:
-                    key_from_instrument = librosa.midi_to_note(instrument_info.basenote)
-                    if (
-                        not evaluation_result.metadata_key_present
-                        or evaluation_result.key != key_from_instrument # Or if key was None from estimation
-                    ):
-                        evaluation_result.key = key_from_instrument
-                        evaluation_result.issues.append( # Shortened line
-                            f"Key from instrument metadata: {evaluation_result.key}"
-                        )
-                    evaluation_result.metadata_key_present = True
-                except Exception:  # pylint: disable=broad-except
-                    # This issue indicates problem with metadata value itself
-                    evaluation_result.issues.append( # Shortened line
-                        f"Invalid basenote in instrument_info: {instrument_info.basenote}"
-                    )
+        # --- Commented out CFFI-based detailed metadata reading ---
+        # instrument_info = soundfile_utils.get_instrument_info(file_path)
+        # if instrument_info:
+        #     if 0 <= instrument_info.basenote <= 127:
+        #         try:
+        #             key_from_instrument = librosa.midi_to_note(instrument_info.basenote)
+        #             if (
+        #                 not evaluation_result.metadata_key_present
+        #                 or evaluation_result.key != key_from_instrument
+        #             ):
+        #                 evaluation_result.key = key_from_instrument
+        #                 evaluation_result.issues.append(
+        #                     f"Key from instrument metadata: {evaluation_result.key}"
+        #                 )
+        #             evaluation_result.metadata_key_present = True
+        #         except Exception:  # pylint: disable=broad-except
+        #             evaluation_result.issues.append(
+        #                 f"Invalid basenote in instrument_info: {instrument_info.basenote}"
+        #             )
 
-        actual_loop_info = soundfile_utils.get_loop_info(file_path)
-        if actual_loop_info:
-            if actual_loop_info.bpm > 0:
-                if (
-                    not evaluation_result.metadata_tempo_present
-                    or evaluation_result.tempo != actual_loop_info.bpm
-                ):
-                    evaluation_result.tempo = actual_loop_info.bpm
-                    evaluation_result.issues.append(
-                        f"Tempo from loop metadata: {actual_loop_info.bpm} BPM."
-                    )
-                evaluation_result.metadata_tempo_present = True
+        # actual_loop_info = soundfile_utils.get_loop_info(file_path)
+        # if actual_loop_info:
+        #     if actual_loop_info.bpm > 0:
+        #         if (
+        #             not evaluation_result.metadata_tempo_present
+        #             or evaluation_result.tempo != actual_loop_info.bpm
+        #         ):
+        #             evaluation_result.tempo = actual_loop_info.bpm
+        #             evaluation_result.issues.append(
+        #                 f"Tempo from loop metadata: {actual_loop_info.bpm} BPM."
+        #             )
+        #         evaluation_result.metadata_tempo_present = True
 
-            if not evaluation_result.metadata_key_present and \
-               (0 <= actual_loop_info.root_key <= 127):
-                try:
-                    evaluation_result.key = librosa.midi_to_note(actual_loop_info.root_key)
-                    evaluation_result.metadata_key_present = True
-                    evaluation_result.issues.append( # Shortened line
-                        f"Key from loop metadata: {evaluation_result.key}"
-                    )
-                except Exception:  # pylint: disable=broad-except
-                     evaluation_result.issues.append(
-                         f"Invalid root_key in loop_info: {actual_loop_info.root_key}"
-                    )
+        #     if not evaluation_result.metadata_key_present and \
+        #        (0 <= actual_loop_info.root_key <= 127):
+        #         try:
+        #             evaluation_result.key = librosa.midi_to_note(actual_loop_info.root_key)
+        #             evaluation_result.metadata_key_present = True
+        #             evaluation_result.issues.append(
+        #                 f"Key from loop metadata: {evaluation_result.key}"
+        #             )
+        #         except Exception:  # pylint: disable=broad-except
+        #              evaluation_result.issues.append(
+        #                  f"Invalid root_key in loop_info: {actual_loop_info.root_key}"
+        #             )
+        # --- End of commented out CFFI-based detailed metadata reading ---
 
-        # Idealness Checks (some might have been done based on cue presence earlier)
+        # Standard metadata (like title, artist, comment which might contain key/tempo)
+        # would be read by a different mechanism if needed here, possibly using
+        # soundfile_utils.read_standard_metadata() if we decide evaluator needs it.
+        # For now, tempo/key rely on librosa estimation if not already set by (now removed)
+        # detailed metadata. The flags metadata_tempo_present and metadata_key_present
+        # will remain mostly False unless standard tags are parsed for this info.
+
         if (
             self.ideal_characteristics.require_tempo_metadata
             and not evaluation_result.metadata_tempo_present
             and evaluation_result.tempo is None
-        ):  # Check if estimation also failed
+        ):
             evaluation_result.issues.append(
-                "Tempo metadata missing and estimation failed, but required by ideal characteristics."
+                "Tempo metadata missing and estimation failed, "
+                "but required by ideal characteristics."
             )
 
         if (
             self.ideal_characteristics.require_key_metadata
             and not evaluation_result.metadata_key_present
             and evaluation_result.key is None
-        ):  # Check if estimation also failed
+        ):
             evaluation_result.issues.append(
-                "Key metadata missing and estimation failed, but required by ideal characteristics."
+                "Key metadata missing and estimation failed, "
+                "but required by ideal characteristics."
             )
 
-        # This check is now done after potential onset detection if cues were missing
-        if not evaluation_result.stabs:  # If still no stabs after cues and onsets
+        if not evaluation_result.stabs:
             evaluation_result.issues.append(
                 "No stabs found (neither from cues nor onset detection)."
             )
@@ -436,10 +417,9 @@ class VocalChopEvaluator:
             and evaluation_result.cue_markers_present
             and not evaluation_result.cue_labels_present
         ):
-            # This specific check remains valid if cues were the source
             evaluation_result.issues.append(
-                "Cue labels missing for cued stabs, but required by ideal characteristics."
+                "Cue labels missing for cued stabs, "
+                "but required by ideal characteristics."
             )
-        # Stab count check is now performed within cue or onset detection logic.
 
         return evaluation_result
