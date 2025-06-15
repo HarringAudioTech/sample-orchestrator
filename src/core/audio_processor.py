@@ -2,19 +2,30 @@
 Core audio processing utilities.
 """
 import os
-import numpy as np
-import soundfile # For dummy file creation in main
-from typing import Tuple
+from typing import Tuple, Optional # Added Optional
 
+import numpy as np # type: ignore # pylint: disable=import-error
+import soundfile # type: ignore # For dummy file creation in main, pylint: disable=import-error
+
+# pylint: disable=import-error
 try:
-    from src.core.vocal_chop_evaluator import VocalChopEvaluator, VocalChopIdealCharacteristics, VocalChopEvaluationResult
+    from src.core.vocal_chop_evaluator import (
+        VocalChopEvaluator,
+        VocalChopIdealCharacteristics,
+        VocalChopEvaluationResult,
+    )
     from src.core.stages.vocal_chop_perfection_stage import VocalChopPerfectionWorkflow
 except ImportError:
     # Fallback for direct execution or different project structure
-    from vocal_chop_evaluator import VocalChopEvaluator, VocalChopIdealCharacteristics, VocalChopEvaluationResult
-    from stages.vocal_chop_perfection_stage import VocalChopPerfectionWorkflow
+    from vocal_chop_evaluator import ( # type: ignore
+        VocalChopEvaluator,
+        VocalChopIdealCharacteristics,
+        VocalChopEvaluationResult,
+    )
+    from stages.vocal_chop_perfection_stage import VocalChopPerfectionWorkflow # type: ignore
+# pylint: enable=import-error
 
-
+# pylint: disable=too-few-public-methods
 class AudioProcessor:
     """
     Provides methods for processing audio files, including specialized
@@ -29,7 +40,7 @@ class AudioProcessor:
         self,
         file_path: str,
         output_dir: str,
-        ideal_characteristics: Optional[VocalChopIdealCharacteristics] = None
+        ideal_characteristics: Optional[VocalChopIdealCharacteristics] = None,
     ) -> Tuple[str, str, VocalChopEvaluationResult]:
         """
         Evaluates and attempts to "perfect" a vocal chop audio file.
@@ -65,8 +76,8 @@ class AudioProcessor:
 
         print("\n--- Evaluation Issues ---")
         if evaluation_result.issues:
-            for issue in evaluation_result.issues:
-                print(f"- {issue}")
+            for issue_item in evaluation_result.issues: # Renamed 'issue' to 'issue_item'
+                print(f"- {issue_item}")
         else:
             print("No major issues found during initial evaluation.")
         print("-------------------------\n")
@@ -77,66 +88,65 @@ class AudioProcessor:
         # The workflow's run method already creates a subdirectory within output_dir
         perfected_file_path, intermediates_dir_path = workflow.run(output_dir)
 
-        print(f"Perfection workflow completed.")
+        print("Perfection workflow completed.") # Removed f-string
         print(f"Perfected file: {perfected_file_path}")
         print(f"Intermediates in: {intermediates_dir_path}")
 
         return perfected_file_path, intermediates_dir_path, evaluation_result
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     print("Running AudioProcessor example for vocal chop processing...")
 
     # Create a dummy vocal chop audio file for testing
-    dummy_file_name = "dummy_vocal_chop.wav"
-    dummy_output_dir = "temp_vocal_chop_output"
-    sr = 44100
+    DUMMY_FILE_NAME = "dummy_vocal_chop.wav" # UPPER_CASE
+    DUMMY_OUTPUT_DIR = "temp_vocal_chop_output" # UPPER_CASE
+    SR = 44100 # UPPER_CASE
 
     # Create some stabs with silence in between
-    stab_duration_samples = int(0.2 * sr) # 200ms stabs
-    silence_duration_samples = int(0.1 * sr) # 100ms silence
+    STAB_DURATION_SAMPLES = int(0.2 * SR)
+    SILENCE_DURATION_SAMPLES = int(0.1 * SR)
 
-    stab1 = np.sin(np.linspace(0, 200 * 2 * np.pi, stab_duration_samples)) * 0.5 # A tone
-    stab2 = np.sin(np.linspace(0, 300 * 2 * np.pi, stab_duration_samples)) * 0.5 # Different tone
-    silence = np.zeros(silence_duration_samples)
+    stab1 = (
+        np.sin(np.linspace(0, 200 * 2 * np.pi, STAB_DURATION_SAMPLES)) * 0.5
+    )
+    stab2 = (
+        np.sin(np.linspace(0, 300 * 2 * np.pi, STAB_DURATION_SAMPLES)) * 0.5
+    )
+    silence = np.zeros(SILENCE_DURATION_SAMPLES)
 
     dummy_audio_data = np.concatenate([stab1, silence, stab2]).astype(np.float32)
 
     try:
-        soundfile.write(dummy_file_name, dummy_audio_data, sr)
-        print(f"Created dummy audio file: {dummy_file_name}")
+        soundfile.write(DUMMY_FILE_NAME, dummy_audio_data, SR)
+        print(f"Created dummy audio file: {DUMMY_FILE_NAME}")
 
         processor = AudioProcessor()
 
-        # Define custom ideal characteristics if needed for testing
-        # custom_ideals = VocalChopIdealCharacteristics()
-        # custom_ideals.min_silence_duration_ms = 150
-
         perfected_file, intermediates_dir, eval_res = processor.process_vocal_chop(
-            file_path=dummy_file_name,
-            output_dir=dummy_output_dir
-            # ideal_characteristics=custom_ideals # Uncomment to use custom ideals
+            file_path=DUMMY_FILE_NAME,
+            output_dir=DUMMY_OUTPUT_DIR,
         )
 
         print("\n--- Final Evaluation Result (Post-Processing) ---")
         print(f"Overall Score (placeholder): {eval_res.overall_idealness_score}")
         print("Issues/Log from evaluation and processing stages:")
-        for issue in eval_res.issues:
-            print(f"- {issue}")
+        for issue_item in eval_res.issues: # Renamed 'issue'
+            print(f"- {issue_item}")
         print("Stabs information after processing:")
         for i, stab in enumerate(eval_res.stabs):
-            print(f"  Stab {i+1}: Start: {stab.start_sample}, End: {stab.end_sample}, Duration: {stab.duration_ms:.2f}ms, Label: '{stab.label}'")
+            print(
+                f"  Stab {i+1}: Start: {stab.start_sample}, End: {stab.end_sample}, "
+                f"Duration: {stab.duration_ms:.2f}ms, Label: '{stab.label}'"
+            ) # Line broken for length
             if stab.issues:
                 for stab_issue in stab.issues:
                     print(f"    - Issue: {stab_issue}")
 
-    except Exception as e:
+    except Exception as e: # pylint: disable=broad-except
         print(f"An error occurred during the example run: {e}")
     finally:
-        # Clean up the dummy file and output directory
-        # if os.path.exists(dummy_file_name):
-        #     os.remove(dummy_file_name)
-        # if os.path.exists(dummy_output_dir):
-        #     shutil.rmtree(dummy_output_dir) # Use with caution
-        print(f"\nExample finished. Check '{dummy_output_dir}' for results.")
-        print(f"To cleanup, manually delete '{dummy_file_name}' and '{dummy_output_dir}'.")
+        print(f"\nExample finished. Check '{DUMMY_OUTPUT_DIR}' for results.")
+        print(
+            f"To cleanup, manually delete '{DUMMY_FILE_NAME}' and '{DUMMY_OUTPUT_DIR}'."
+        )
