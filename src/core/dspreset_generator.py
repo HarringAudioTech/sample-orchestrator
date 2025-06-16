@@ -211,7 +211,10 @@ class DecentSamplerPresetGenerator:
             potentially including a background image definition.
         """
         ui_element: ET.Element = ET.Element("ui")
-        if self.instrument_data.ui_background_image_path and artwork_successfully_copied:
+        if (
+            self.instrument_data.ui_background_image_path
+            and artwork_successfully_copied
+        ):
             source_artwork_path: str = self.instrument_data.ui_background_image_path
             artwork_filename: str = os.path.basename(source_artwork_path)
             # XML path should be relative to the .dspreset file location
@@ -256,7 +259,9 @@ class DecentSamplerPresetGenerator:
         groups_element: ET.Element = ET.Element("groups")
 
         if not self.project.project_model or not self.project.project_model.recordings:
-            print("INFO: No recordings found in the project. Groups element will be empty.")
+            print(
+                "INFO: No recordings found in the project. Groups element will be empty."
+            )
             return groups_element
 
         for recording_model in self.project.project_model.recordings:
@@ -274,7 +279,9 @@ class DecentSamplerPresetGenerator:
             for sample_model in recording_model.samples:
                 source_sample_path: str = sample_model.file_path
                 sample_filename: str = os.path.basename(source_sample_path)
-                dest_sample_path: str = os.path.join(samples_output_dir, sample_filename)
+                dest_sample_path: str = os.path.join(
+                    samples_output_dir, sample_filename
+                )
 
                 # Attempt to copy the sample file
                 if os.path.exists(source_sample_path):
@@ -282,7 +289,9 @@ class DecentSamplerPresetGenerator:
                         shutil.copy2(source_sample_path, dest_sample_path)
                         # print(f"INFO: Copied sample: {source_sample_path} to {dest_sample_path}")
                     except IOError as e:
-                        print(f"ERROR: Could not copy sample file {sample_filename}: {e}")
+                        print(
+                            f"ERROR: Could not copy sample file {sample_filename}: {e}"
+                        )
                         continue  # Skip this sample if copy fails
                 else:
                     print(
@@ -312,7 +321,9 @@ class DecentSamplerPresetGenerator:
                     # Assuming the first mapping item dictates the key range for this sample.
                     # More complex logic might be needed if multiple items or
                     # complex mappings exist.
-                    mapping_item: SampleMappingItemModel = sample_model.sample_mapping_items[0]
+                    mapping_item: SampleMappingItemModel = (
+                        sample_model.sample_mapping_items[0]
+                    )
                     if mapping_item.key_range_start is not None:
                         lo_key_str = str(mapping_item.key_range_start)
                     if mapping_item.key_range_end is not None:

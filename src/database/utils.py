@@ -194,4 +194,6 @@ if __name__ == "__main__":
     # --------------------------------------------------------------------------
     print("Initializing main database...")
     init_db()  # Uses default engine from get_engine()
-    print("To verify, you can use a SQLite browser to open 'database.db' in the project root.")
+    print(
+        "To verify, you can use a SQLite browser to open 'database.db' in the project root."
+    )

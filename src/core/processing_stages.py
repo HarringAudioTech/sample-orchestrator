@@ -119,7 +119,10 @@ class AudioProcessingStage(ABC):
 
     @abstractmethod
     def process(
-        self, data: Any, params: Dict[str, Any], context: Optional[Dict[str, Any]] = None
+        self,
+        data: Any,
+        params: Dict[str, Any],
+        context: Optional[Dict[str, Any]] = None,
     ) -> Any:
         """Processes the input data according to the stage's logic and parameters.
 
@@ -178,11 +181,16 @@ if __name__ == "__main__":
             return {"prefix": "processed_"}
 
         def process(
-            self, data: str, params: Dict[str, Any], context: Optional[Dict[str, Any]] = None
+            self,
+            data: str,
+            params: Dict[str, Any],
+            context: Optional[Dict[str, Any]] = None,
         ) -> List[str]:
             # In a real scenario, 'data' would be a file path (string).
             # This example just demonstrates parameter usage.
-            print(f"Processing file: {data} with params: {params} and context: {context}")
+            print(
+                f"Processing file: {data} with params: {params} and context: {context}"
+            )
             output_filename: str = params.get("prefix", "") + data.split("/")[-1]
 
             # Simulate creating a new file path or list of paths

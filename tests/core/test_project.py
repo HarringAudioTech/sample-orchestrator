@@ -85,7 +85,9 @@ class TestProject(unittest.TestCase):
 
         # Using a local patch for get_db to ensure it's not called
         with patch("src.core.project.get_db") as mock_get_db_local:
-            project = Project(project_id=self.project_id, db_session=self.mock_db_session)
+            project = Project(
+                project_id=self.project_id, db_session=self.mock_db_session
+            )
             mock_get_db_local.assert_not_called()  # Verify get_db is not called when session is provided
 
         self.assertEqual(project.project_id, self.project_id)
@@ -170,7 +172,9 @@ class TestProject(unittest.TestCase):
 
             mock_os_exists.assert_called_once_with(file_path)
             mock_librosa_load.assert_called_once_with(file_path, sr=None, mono=False)
-            mock_get_duration.assert_called_once_with(y=dummy_audio_data, sr=sample_rate)
+            mock_get_duration.assert_called_once_with(
+                y=dummy_audio_data, sr=sample_rate
+            )
 
             self.mock_db_session.add.assert_called_once()
             added_object = self.mock_db_session.add.call_args[0][0]
@@ -210,7 +214,9 @@ class TestProject(unittest.TestCase):
             self.mock_db_session.query(ProjectModel).filter_by(
                 id=self.project_id
             ).first.return_value = self.mock_project_model_instance
-            project = Project(project_id=self.project_id, db_session=self.mock_db_session)
+            project = Project(
+                project_id=self.project_id, db_session=self.mock_db_session
+            )
             self.mock_db_session.reset_mock()
 
             stereo_audio_data = np.array([[0.1, 0.2], [0.3, 0.4]])
@@ -327,7 +333,9 @@ class TestProject(unittest.TestCase):
                 "DB Commit Error for Recording"
             )
 
-            with self.assertRaisesRegex(SQLAlchemyError, "DB Commit Error for Recording"):
+            with self.assertRaisesRegex(
+                SQLAlchemyError, "DB Commit Error for Recording"
+            ):
                 project.add_recording(file_path="/test/audio.wav", name="DB Error Case")
 
             self.mock_db_session.add.assert_called_once()
@@ -345,7 +353,9 @@ class TestProject(unittest.TestCase):
         mock_get_db_gr.reset_mock()  # Reset mock_get_db as well for this specific call
         mock_get_db_gr.return_value = iter([self.mock_db_session])  # For get_recording
 
-        mock_recording = RecordingModel(id=10, name="Found Rec", project_id=self.project_id)
+        mock_recording = RecordingModel(
+            id=10, name="Found Rec", project_id=self.project_id
+        )
         # Specific mock for the RecordingModel query chain
         mock_query_rec = self.mock_db_session.query(RecordingModel)
         mock_filter_rec = mock_query_rec.filter(
@@ -469,7 +479,9 @@ class TestProject(unittest.TestCase):
 
     @patch("src.core.project.list_available_midi_devices")
     @patch("src.core.project.get_db")
-    def test_list_midi_devices_successful(self, mock_get_db_lmd, mock_list_devices_func):
+    def test_list_midi_devices_successful(
+        self, mock_get_db_lmd, mock_list_devices_func
+    ):
         mock_get_db_lmd.return_value = iter([self.mock_db_session])
         self.mock_db_session.query(ProjectModel).filter(
             ProjectModel.id == self.project_id
@@ -488,7 +500,9 @@ class TestProject(unittest.TestCase):
         mock_list_devices_func.assert_called_once_with(self.mock_db_session)
         mock_get_db_lmd.assert_called_once()
 
-    @patch("src.core.project.MidiRecorder", new=MidiRecorder)  # Patch with our global mock
+    @patch(
+        "src.core.project.MidiRecorder", new=MidiRecorder
+    )  # Patch with our global mock
     @patch("src.core.project.get_db")
     def test_create_midi_capture_session_successful(
         self, mock_get_db_cmcs

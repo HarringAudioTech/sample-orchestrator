@@ -7,11 +7,13 @@ import os
 import shutil
 import logging
 from unittest.mock import patch, MagicMock, ANY
-import numpy as np # type: ignore # pylint: disable=import-error
-import soundfile as sf # type: ignore # pylint: disable=import-error
-from sqlalchemy import create_engine # type: ignore # pylint: disable=import-error
-from sqlalchemy.orm import sessionmaker, Session as SQLAlchemySession # type: ignore # pylint: disable=import-error
-from sqlalchemy.engine import Engine as SQLAlchemyEngine  # For typing engine # type: ignore # pylint: disable=import-error
+import numpy as np  # type: ignore # pylint: disable=import-error
+import soundfile as sf  # type: ignore # pylint: disable=import-error
+from sqlalchemy import create_engine  # type: ignore # pylint: disable=import-error
+from sqlalchemy.orm import sessionmaker, Session as SQLAlchemySession  # type: ignore # pylint: disable=import-error
+from sqlalchemy.engine import (
+    Engine as SQLAlchemyEngine,
+)  # For typing engine # type: ignore # pylint: disable=import-error
 from typing import Generator, Dict, Any, List, Optional
 
 # pylint: disable=import-error
@@ -28,12 +30,12 @@ try:
         Project as ProjectModel,
     )
 except ImportError:
-    from core.processing_stages import ( # type: ignore
+    from core.processing_stages import (  # type: ignore
         DATA_TYPE_FILE_PATH,
         DATA_TYPE_LIST_OF_SAMPLE_DATA,
     )
-    from core.stages.slicing_stage import SlicingStage # type: ignore
-    from database.models import ( # type: ignore
+    from core.stages.slicing_stage import SlicingStage  # type: ignore
+    from database.models import (  # type: ignore
         Base,
         Recording as RecordingModel,
         Sample as SampleModel,
@@ -65,7 +67,7 @@ if not os.path.exists(DUMMY_AUDIO_PATH):
         wave_data: np.ndarray = amplitude * np.sin(2 * np.pi * frequency * t_arr)
         sf.write(DUMMY_AUDIO_PATH, wave_data.astype(np.float32), samplerate)
         logger.info(f"Created dummy audio file at {DUMMY_AUDIO_PATH}")
-    except Exception as e: # pylint: disable=broad-except
+    except Exception as e:  # pylint: disable=broad-except
         logger.error(f"Could not create dummy audio file {DUMMY_AUDIO_PATH}: {e}")
 
 
@@ -78,7 +80,9 @@ def test_engine() -> SQLAlchemyEngine:
 
 
 @pytest.fixture(scope="function")
-def db_session(test_engine: SQLAlchemyEngine) -> Generator[SQLAlchemySession, None, None]:
+def db_session(
+    test_engine: SQLAlchemyEngine,
+) -> Generator[SQLAlchemySession, None, None]:
     """Creates a new database session for a test, ensuring a clean state."""
     TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
     session: SQLAlchemySession = TestSessionLocal()
@@ -104,7 +108,9 @@ def temp_output_dir_for_samples() -> Generator[str, None, None]:
 
 
 @pytest.fixture
-def setup_test_recording(db_session: SQLAlchemySession) -> RecordingModel: # pylint: disable=redefined-outer-name
+def setup_test_recording(
+    db_session: SQLAlchemySession,
+) -> RecordingModel:  # pylint: disable=redefined-outer-name
     """Sets up a Project and a Recording in the test DB."""
     project = ProjectModel(name="Test Slicing Project")
     db_session.add(project)
@@ -112,16 +118,14 @@ def setup_test_recording(db_session: SQLAlchemySession) -> RecordingModel: # pyl
     db_session.refresh(project)
 
     if not os.path.exists(DUMMY_AUDIO_PATH):
-        pytest.fail(
-            f"Required dummy audio file not found: {DUMMY_AUDIO_PATH}"
-        )
+        pytest.fail(f"Required dummy audio file not found: {DUMMY_AUDIO_PATH}")
 
     try:
         info: sf.SoundFileInfo = sf.info(DUMMY_AUDIO_PATH)
         sr: int = info.samplerate
         channels: int = info.channels
         duration: float = info.duration
-    except Exception as e: # pylint: disable=broad-except
+    except Exception as e:  # pylint: disable=broad-except
         pytest.fail(
             f"Could not get audio details for dummy file {DUMMY_AUDIO_PATH}: {e}"
         )
@@ -156,7 +160,7 @@ def test_slicing_stage_properties() -> None:
 @patch("src.core.stages.slicing_stage.sf.write")
 @patch("src.core.stages.slicing_stage.librosa.onset.onset_detect")
 @patch("src.core.stages.slicing_stage.librosa.load")
-def test_slicing_stage_process_success( # pylint: disable=redefined-outer-name
+def test_slicing_stage_process_success(  # pylint: disable=redefined-outer-name
     mock_librosa_load: MagicMock,
     mock_onset_detect: MagicMock,
     mock_sf_write: MagicMock,
@@ -277,7 +281,11 @@ def test_slicing_stage_process_success( # pylint: disable=redefined-outer-name
 
     db_session.refresh(recording)
     assert recording.samplerate == mock_samplerate
-    assert abs(recording.duration_seconds - (len(mock_audio_data_mono) / mock_samplerate)) < 1e-6
+    assert (
+        abs(recording.duration_seconds - (len(mock_audio_data_mono) / mock_samplerate))
+        < 1e-6
+    )
+
 
 # pylint: disable=redefined-outer-name
 def test_slicing_stage_input_file_not_found(
@@ -299,10 +307,13 @@ def test_slicing_stage_input_file_not_found(
     with pytest.raises(
         FileNotFoundError, match=f"Input audio file not found: {non_existent_file}"
     ):
-        stage.process(data=non_existent_file, params=stage.default_params, context=context)
+        stage.process(
+            data=non_existent_file, params=stage.default_params, context=context
+        )
 
     db_session.refresh(recording)
     assert recording.status == "slicing_failed"
+
 
 # pylint: disable=redefined-outer-name
 def test_slicing_stage_recording_not_found_in_db(
@@ -317,7 +328,10 @@ def test_slicing_stage_recording_not_found_in_db(
         "output_sample_dir": temp_output_dir_for_samples,
     }
     with pytest.raises(ValueError, match="Recording with id 99999 not found"):
-        stage.process(data=DUMMY_AUDIO_PATH, params=stage.default_params, context=context)
+        stage.process(
+            data=DUMMY_AUDIO_PATH, params=stage.default_params, context=context
+        )
+
 
 # pylint: disable=redefined-outer-name
 def test_slicing_stage_missing_context_keys(
@@ -356,7 +370,7 @@ def test_slicing_stage_missing_context_keys(
 @patch(
     "src.core.stages.slicing_stage.librosa.load",
     side_effect=RuntimeError("Simulated librosa.load failure"),
-) # pylint: disable=redefined-outer-name
+)  # pylint: disable=redefined-outer-name
 def test_slicing_stage_librosa_load_error(
     mock_librosa_load_fails: MagicMock,
     db_session: SQLAlchemySession,
@@ -374,7 +388,9 @@ def test_slicing_stage_librosa_load_error(
     }
 
     with pytest.raises(RuntimeError, match="Simulated librosa.load failure"):
-        stage.process(data=recording.file_path, params=stage.default_params, context=context)
+        stage.process(
+            data=recording.file_path, params=stage.default_params, context=context
+        )
 
     db_session.refresh(recording)
     assert recording.status == "slicing_failed"
@@ -398,7 +414,9 @@ def test_slicing_stage_no_onsets_detected(
     stage = SlicingStage()
 
     mock_samplerate: int = 22050
-    mock_audio_data_mono: np.ndarray = np.random.rand(mock_samplerate * 2).astype(np.float32)
+    mock_audio_data_mono: np.ndarray = np.random.rand(mock_samplerate * 2).astype(
+        np.float32
+    )
     mock_librosa_load.return_value = (mock_audio_data_mono, mock_samplerate)
 
     mock_onset_detect.return_value = np.array([])
@@ -418,7 +436,9 @@ def test_slicing_stage_no_onsets_detected(
     assert recording.status == "slicing_completed"
     assert len(result_samples_info) == 0
     db_samples: List[SampleModel] = (
-        db_session.query(SampleModel).filter(SampleModel.recording_id == recording.id).all()
+        db_session.query(SampleModel)
+        .filter(SampleModel.recording_id == recording.id)
+        .all()
     )
     assert len(db_samples) == 0
     assert not os.listdir(temp_output_dir_for_samples)
@@ -450,7 +470,7 @@ def test_slicing_stage_min_max_sample_length(
     mock_onset_samples: np.ndarray = np.array(
         [
             int(0.5 * mock_samplerate),
-            int(0.52 * mock_samplerate), # This one should be skipped (too short)
+            int(0.52 * mock_samplerate),  # This one should be skipped (too short)
             int(1.0 * mock_samplerate),
             int(2.0 * mock_samplerate),
         ]

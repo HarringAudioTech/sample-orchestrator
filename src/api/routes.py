@@ -105,7 +105,9 @@ def create_project() -> Response:
     db_gen = get_db()
     db = next(db_gen)
     try:
-        new_project = ProjectModel(name=data["name"], description=data.get("description"))
+        new_project = ProjectModel(
+            name=data["name"], description=data.get("description")
+        )
         db.add(new_project)
         db.commit()
         db.refresh(new_project)
@@ -202,7 +204,9 @@ def add_project_recording(project_id: int) -> Response:
     # CoreProject manages its own session for loading the project model and adding recording.
     # No direct db session needed here for *that* part.
     try:
-        core_proj = CoreProject(project_id=project_id)  # This might use get_db internally
+        core_proj = CoreProject(
+            project_id=project_id
+        )  # This might use get_db internally
     except ValueError as e:
         return jsonify({"error": str(e)}), 404
 
@@ -217,7 +221,9 @@ def add_project_recording(project_id: int) -> Response:
     if file.filename == "":
         return jsonify({"error": "No selected file (filename is empty)"}), 400
 
-    upload_folder_base = current_app.config.get("UPLOAD_FOLDER", DEFAULT_UPLOAD_BASE_DIR)
+    upload_folder_base = current_app.config.get(
+        "UPLOAD_FOLDER", DEFAULT_UPLOAD_BASE_DIR
+    )
     project_upload_dir = os.path.join(upload_folder_base, f"project_{project_id}")
 
     if not os.path.exists(project_upload_dir):
@@ -248,7 +254,9 @@ def add_project_recording(project_id: int) -> Response:
 
     try:
         # CoreProject.add_recording is expected to use get_db for its session
-        new_recording_model = core_proj.add_recording(file_path=file_path, name=recording_name)
+        new_recording_model = core_proj.add_recording(
+            file_path=file_path, name=recording_name
+        )
         current_app.logger.info(
             f"Recording '{new_recording_model.name}' (ID: {new_recording_model.id}) added to project {project_id}."
         )
@@ -293,7 +301,9 @@ def list_project_recordings(project_id: int) -> Response:
     """
     # CoreProject handles its own session for loading and listing.
     try:
-        core_proj = CoreProject(project_id=project_id)  # This might use get_db internally
+        core_proj = CoreProject(
+            project_id=project_id
+        )  # This might use get_db internally
     except ValueError as e:
         return jsonify({"error": str(e)}), 404
 
@@ -400,20 +410,26 @@ def process_recording_endpoint(recording_id: int) -> Response:
             )
             return (
                 jsonify(
-                    {"error": "Recording is not associated with a project, cannot process."}
+                    {
+                        "error": "Recording is not associated with a project, cannot process."
+                    }
                 ),
                 500,
             )
 
         project = (
-            db.query(ProjectModel).filter(ProjectModel.id == recording.project_id).first()
+            db.query(ProjectModel)
+            .filter(ProjectModel.id == recording.project_id)
+            .first()
         )
         if not project:
             current_app.logger.error(
                 f"Project {recording.project_id} associated with recording {recording_id} not found."
             )
             return (
-                jsonify({"error": f"Associated project {recording.project_id} not found."}),
+                jsonify(
+                    {"error": f"Associated project {recording.project_id} not found."}
+                ),
                 500,
             )
 
@@ -426,15 +442,25 @@ def process_recording_endpoint(recording_id: int) -> Response:
             )
             return (
                 jsonify(
-                    {"error": f"Recording file path not found or invalid: {initial_data}"}
+                    {
+                        "error": f"Recording file path not found or invalid: {initial_data}"
+                    }
                 ),
                 400,
             )
 
-        samples_base_dir = current_app.config.get("SAMPLES_BASE_DIR", DEFAULT_SAMPLES_BASE_DIR)
-        project_samples_dir = os.path.join(samples_base_dir, f"project_{recording.project_id}")
-        recording_samples_dir = os.path.join(project_samples_dir, f"recording_{recording.id}")
-        output_sample_dir_for_run = os.path.join(recording_samples_dir, output_dir_suffix)
+        samples_base_dir = current_app.config.get(
+            "SAMPLES_BASE_DIR", DEFAULT_SAMPLES_BASE_DIR
+        )
+        project_samples_dir = os.path.join(
+            samples_base_dir, f"project_{recording.project_id}"
+        )
+        recording_samples_dir = os.path.join(
+            project_samples_dir, f"recording_{recording.id}"
+        )
+        output_sample_dir_for_run = os.path.join(
+            recording_samples_dir, output_dir_suffix
+        )
 
         try:
             os.makedirs(output_sample_dir_for_run, exist_ok=True)
@@ -446,7 +472,10 @@ def process_recording_endpoint(recording_id: int) -> Response:
                 f"Error creating output directory {output_sample_dir_for_run}: {e}",
                 exc_info=True,
             )
-            return jsonify({"error": f"Could not create output directory: {e.strerror}"}), 500
+            return (
+                jsonify({"error": f"Could not create output directory: {e.strerror}"}),
+                500,
+            )
 
         context = {
             "db_session": db,
@@ -460,7 +489,9 @@ def process_recording_endpoint(recording_id: int) -> Response:
 
         if workflow_name:
             processing_type = f"workflow '{workflow_name}'"
-            WorkflowClass: Optional[type[BaseWorkflow]] = WORKFLOW_REGISTRY.get(workflow_name)
+            WorkflowClass: Optional[type[BaseWorkflow]] = WORKFLOW_REGISTRY.get(
+                workflow_name
+            )
             if not WorkflowClass:
                 available_workflows: List[str] = list(WORKFLOW_REGISTRY.keys())
                 return (
@@ -487,13 +518,17 @@ def process_recording_endpoint(recording_id: int) -> Response:
                     exc_info=True,
                 )
                 return (
-                    jsonify({"error": f"Failed to execute {processing_type}: {str(e)}"}),
+                    jsonify(
+                        {"error": f"Failed to execute {processing_type}: {str(e)}"}
+                    ),
                     500,
                 )
         elif stages_chain:
             if not isinstance(stages_chain, list):
                 return (
-                    jsonify({"error": "'stages_chain' must be a list of stage definitions."}),
+                    jsonify(
+                        {"error": "'stages_chain' must be a list of stage definitions."}
+                    ),
                     400,
                 )
             processing_type = "ad-hoc stage chain"
@@ -525,14 +560,19 @@ def process_recording_endpoint(recording_id: int) -> Response:
                     f"Type mismatch error in {processing_type} for recording {recording_id}: {e}",
                     exc_info=True,
                 )
-                return jsonify({"error": f"Type mismatch in stage chain: {str(e)}"}), 400
+                return (
+                    jsonify({"error": f"Type mismatch in stage chain: {str(e)}"}),
+                    400,
+                )
             except Exception as e:
                 current_app.logger.error(
                     f"Error executing {processing_type} for recording {recording_id}: {e}",
                     exc_info=True,
                 )
                 return (
-                    jsonify({"error": f"Failed to execute {processing_type}: {str(e)}"}),
+                    jsonify(
+                        {"error": f"Failed to execute {processing_type}: {str(e)}"}
+                    ),
                     500,
                 )
         else:

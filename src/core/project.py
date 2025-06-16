@@ -90,7 +90,9 @@ class Project:
 
         try:
             project_model: ProjectModel | None = (
-                _db_to_use.query(ProjectModel).filter(ProjectModel.id == project_id).first()
+                _db_to_use.query(ProjectModel)
+                .filter(ProjectModel.id == project_id)
+                .first()
             )
             if not project_model:
                 logger.error(f"Project with id {project_id} not found in database.")
@@ -109,7 +111,9 @@ class Project:
                 try:
                     # Ensure generator is exhausted and session closed if created locally
                     next(db_gen, None)
-                    logger.debug("Closed locally managed session for Project initialization.")
+                    logger.debug(
+                        "Closed locally managed session for Project initialization."
+                    )
                 except StopIteration:  # Handle if generator is already exhausted
                     pass
 
@@ -156,7 +160,9 @@ class Project:
         db_gen_local = None  # TODO: type hint for generator
 
         if self.db is None:
-            logger.debug("No self.db session, creating local session for add_recording.")
+            logger.debug(
+                "No self.db session, creating local session for add_recording."
+            )
             db_gen_local = get_db()
             _db_to_use = next(db_gen_local)
             _manage_session_locally = True
@@ -266,7 +272,9 @@ class Project:
         db_gen_local = None  # TODO: type hint for generator
 
         if self.db is None:
-            logger.debug("No self.db session, creating local session for get_recording.")
+            logger.debug(
+                "No self.db session, creating local session for get_recording."
+            )
             db_gen_local = get_db()
             _db_to_use = next(db_gen_local)
             _manage_session_locally = True
@@ -330,7 +338,9 @@ class Project:
         db_gen_local = None  # TODO: type hint for generator
 
         if self.db is None:
-            logger.debug("No self.db session, creating local session for list_recordings.")
+            logger.debug(
+                "No self.db session, creating local session for list_recordings."
+            )
             db_gen_local = get_db()
             _db_to_use = next(db_gen_local)
             _manage_session_locally = True
@@ -513,7 +523,9 @@ class Project:
         db_gen_local = None  # TODO: type hint for generator
 
         if self.db is None:
-            logger.debug("No self.db session, creating local session for list_midi_devices.")
+            logger.debug(
+                "No self.db session, creating local session for list_midi_devices."
+            )
             db_gen_local = get_db()
             _db_to_use = next(db_gen_local)
             _manage_session_locally = True
@@ -526,7 +538,9 @@ class Project:
             devices: List[MidiDeviceModel] = list_available_midi_devices(_db_to_use)
             logger.info(f"Found {len(devices)} MIDI devices.")
             return devices
-        except Exception as e:  # Includes SQLAlchemyError from list_available_midi_devices
+        except (
+            Exception
+        ) as e:  # Includes SQLAlchemyError from list_available_midi_devices
             logger.error(
                 f"Error listing MIDI devices in Project.list_midi_devices: {e}",
                 exc_info=True,
@@ -539,7 +553,9 @@ class Project:
             if _manage_session_locally and db_gen_local:
                 try:
                     next(db_gen_local, None)
-                    logger.debug("Closed locally managed session for list_midi_devices.")
+                    logger.debug(
+                        "Closed locally managed session for list_midi_devices."
+                    )
                 except StopIteration:
                     pass
 
@@ -616,7 +632,9 @@ class Project:
                 session_name=session_name,
                 db=_db_to_use,  # Pass the resolved session to MidiRecorder
             )
-            logger.info(f"Successfully initialized MidiRecorder for session '{session_name}'.")
+            logger.info(
+                f"Successfully initialized MidiRecorder for session '{session_name}'."
+            )
             # If MidiRecorder commits, and _db_to_use is self.db, that commit happens on the external session.
             # This is generally acceptable as the method name implies creation.
             return recorder
@@ -704,7 +722,9 @@ class Project:
                 except StopIteration:
                     pass
 
-    def get_midi_capture_session(self, session_id: int) -> MidiCaptureSessionModel | None:
+    def get_midi_capture_session(
+        self, session_id: int
+    ) -> MidiCaptureSessionModel | None:
         """Retrieves a specific MIDI capture session by ID, ensuring it belongs to this project.
 
         This method queries the database for a `MidiCaptureSessionModel` that
@@ -851,7 +871,9 @@ class Project:
                 .order_by(MidiFileModel.created_at.asc())
                 .all()
             )
-            logger.debug(f"Found {len(midi_files)} MIDI files for session ID {session_id}.")
+            logger.debug(
+                f"Found {len(midi_files)} MIDI files for session ID {session_id}."
+            )
             return midi_files
         except SQLAlchemyError as e:
             logger.error(

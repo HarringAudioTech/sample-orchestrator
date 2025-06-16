@@ -89,7 +89,9 @@ class MockErrorStage(AudioProcessingStage):
 
     def __init__(self, config=None, **kwargs):
         super().__init__(config)
-        self.received_kwargs = kwargs  # To store any extra kwargs passed during instantiation
+        self.received_kwargs = (
+            kwargs  # To store any extra kwargs passed during instantiation
+        )
 
     def process(
         self, data, params: dict, context: Optional[dict] = None

@@ -171,7 +171,9 @@ def execute_stage_chain(
                 f"Error instantiating stage '{stage_name}' (index {i}): {e}",
                 exc_info=True,
             )
-            raise RuntimeError(f"Could not instantiate stage '{stage_name}': {e}") from e
+            raise RuntimeError(
+                f"Could not instantiate stage '{stage_name}': {e}"
+            ) from e
 
         logger.info(
             f"Executing stage {i + 1}/{len(chain_definition)}: '{stage_name}' ({stage_instance.description})"
@@ -197,7 +199,9 @@ def execute_stage_chain(
         )
 
         try:
-            processed_data = stage_instance.process(current_data, merged_params, context)
+            processed_data = stage_instance.process(
+                current_data, merged_params, context
+            )
             logger.info(
                 f"Stage '{stage_name}' (index {i}) completed. Output type: '{stage_instance.output_type}'."
             )
@@ -251,7 +255,10 @@ if __name__ == "__main__":
             return {"target_samplerate": 44100}
 
         def process(
-            self, data: str, params: Dict[str, Any], context: Optional[Dict[str, Any]] = None
+            self,
+            data: str,
+            params: Dict[str, Any],
+            context: Optional[Dict[str, Any]] = None,
         ) -> List[float]:
             logger.info(
                 f"[{self.name}] Processing file: {data} with params: {params}, context: {context}"

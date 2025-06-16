@@ -1,4 +1,5 @@
 """Module for evaluating vocal chop audio files based on ideal characteristics."""
+
 import dataclasses
 from dataclasses import field
 from typing import List, Optional
@@ -72,10 +73,13 @@ class VocalChopEvaluationResult:
 # pylint: disable=too-few-public-methods
 class VocalChopEvaluator:
     """Evaluates vocal chop files against ideal characteristics."""
+
     def __init__(self, ideal_characteristics: VocalChopIdealCharacteristics):
         self.ideal_characteristics = ideal_characteristics
 
-    def _detect_clicks_pops(self, audio_segment: np.ndarray, sample_rate: int) -> bool:  # pylint: disable=unused-argument
+    def _detect_clicks_pops(
+        self, audio_segment: np.ndarray, sample_rate: int
+    ) -> bool:  # pylint: disable=unused-argument
         # Placeholder for actual click/pop detection logic
         # TODO: Implement actual detection (e.g., high-frequency transient detection)
         return False
@@ -218,7 +222,6 @@ class VocalChopEvaluator:
                 "No stabs derived from onset detection. Further analysis might be limited."
             )
 
-
         zc_window_ms = 5
         zc_window_samples = int((zc_window_ms / 1000.0) * sr)
 
@@ -237,7 +240,9 @@ class VocalChopEvaluator:
                 )
             ]
             if len(start_zc_segment) > 0:
-                if np.sum(librosa.zero_crossings(start_zc_segment, pad=False)) > 0: # Added pad=False
+                if (
+                    np.sum(librosa.zero_crossings(start_zc_segment, pad=False)) > 0
+                ):  # Added pad=False
                     stab.has_clean_start_zero_crossing = True
                 else:
                     stab.has_clean_start_zero_crossing = False
@@ -249,7 +254,9 @@ class VocalChopEvaluator:
                 )
             ]
             if len(end_zc_segment) > 0:
-                if np.sum(librosa.zero_crossings(end_zc_segment, pad=False)) > 0: # Added pad=False
+                if (
+                    np.sum(librosa.zero_crossings(end_zc_segment, pad=False)) > 0
+                ):  # Added pad=False
                     stab.has_clean_end_zero_crossing = True
                 else:
                     stab.has_clean_end_zero_crossing = False
@@ -307,9 +314,7 @@ class VocalChopEvaluator:
         if not evaluation_result.metadata_tempo_present:
             try:
                 estimated_tempo, _ = librosa.beat.beat_track(y=y_mono, sr=sr)
-                if (
-                    estimated_tempo is not None and estimated_tempo > 0
-                ):
+                if estimated_tempo is not None and estimated_tempo > 0:
                     evaluation_result.tempo = float(estimated_tempo)
                     evaluation_result.issues.append("Tempo estimated using librosa.")
                 else:

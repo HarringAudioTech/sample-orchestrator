@@ -39,7 +39,9 @@ class MockWorkflowAlpha(BaseWorkflow):
 
     _name: str = "Mock Workflow Alpha"
     _description: str = "Alpha workflow for testing."
-    _stages_definition: List[Dict[str, Any]] = [{"stage_name": "alpha_stage1", "params": {}}]
+    _stages_definition: List[Dict[str, Any]] = [
+        {"stage_name": "alpha_stage1", "params": {}}
+    ]
 
     @property
     def name(self) -> str:
@@ -59,7 +61,9 @@ class MockWorkflowBeta(BaseWorkflow):
 
     _name: str = "Mock Workflow Beta"
     _description: str = "Beta workflow for testing."
-    _stages_definition: List[Dict[str, Any]] = [{"stage_name": "beta_stage1", "params": {}}]
+    _stages_definition: List[Dict[str, Any]] = [
+        {"stage_name": "beta_stage1", "params": {}}
+    ]
 
     @property
     def name(self) -> str:
@@ -154,7 +158,9 @@ def test_base_workflow_run_method(mock_execute_stage_chain: MagicMock) -> None:
     assert result == "final_processed_data"
 
     expected_context_for_chain: Dict[str, Any] = mock_context_val.copy()
-    expected_context_for_chain["current_workflow_name"] = mock_workflow_alpha_instance.name
+    expected_context_for_chain["current_workflow_name"] = (
+        mock_workflow_alpha_instance.name
+    )
 
     mock_execute_stage_chain.assert_called_once_with(
         initial_data=initial_data_val,

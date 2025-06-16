@@ -5,10 +5,11 @@ Each stage takes an audio file and an evaluation result, performs a specific
 modification or analysis, and outputs a (potentially modified) audio file path.
 The workflow orchestrates these stages.
 """
+
 import os
 import shutil
 import abc  # Abstract Base Class
-import logging # Added logging
+import logging  # Added logging
 from typing import Tuple, Optional, List, Type
 import dataclasses
 
@@ -23,18 +24,18 @@ try:
     from src.core.vocal_chop_evaluator import (
         VocalChopEvaluationResult,
         AnalyzedVocalStab,
-        VocalChopIdealCharacteristics
+        VocalChopIdealCharacteristics,
     )
     from src.utils import soundfile_utils
 except ImportError:
     # Fallback for cases where the script might be run directly or structure is different
     # This is primarily for development; a real project would have a fixed structure.
-    from core.vocal_chop_evaluator import ( # type: ignore
+    from core.vocal_chop_evaluator import (  # type: ignore
         VocalChopEvaluationResult,
         AnalyzedVocalStab,
-        VocalChopIdealCharacteristics
+        VocalChopIdealCharacteristics,
     )
-    from utils import soundfile_utils # type: ignore
+    from utils import soundfile_utils  # type: ignore
 # pylint: enable=import-error
 
 
@@ -74,14 +75,21 @@ class ProcessingStage(abc.ABC):
 
         try:
             soundfile.write(output_path, audio_data, sr)
-            logging.info("[%s] Saved intermediate file: %s", self.stage_name, output_path)
+            logging.info(
+                "[%s] Saved intermediate file: %s", self.stage_name, output_path
+            )
         except Exception as e:  # pylint: disable=broad-except
             logging.error(
-                "[%s] Error saving intermediate file %s: %s", self.stage_name, output_path, e
+                "[%s] Error saving intermediate file %s: %s",
+                self.stage_name,
+                output_path,
+                e,
             )
             if output_path != original_file_path:
                 shutil.copy(original_file_path, output_path)
-            logging.info("[%s] Copied original to %s as fallback.", self.stage_name, output_path)
+            logging.info(
+                "[%s] Copied original to %s as fallback.", self.stage_name, output_path
+            )
             return output_path
         return output_path
 
@@ -108,7 +116,7 @@ class ProcessingStage(abc.ABC):
             logging.debug(
                 "[%s] Input and output paths are identical, no copy needed: %s",
                 self.stage_name,
-                input_file_path
+                input_file_path,
             )
             return input_file_path
 
@@ -121,7 +129,7 @@ class ProcessingStage(abc.ABC):
                 self.stage_name,
                 input_file_path,
                 output_path,
-                e
+                e,
             )
             return input_file_path
         return output_path
@@ -134,6 +142,7 @@ class ProcessingStage(abc.ABC):
         Processes the audio file based on the stage's logic.
         Returns the path to the processed audio file (which might be in the working_dir).
         """
+
 
 # pylint: disable=too-few-public-methods
 class DenoisingStage(ProcessingStage):
@@ -149,7 +158,9 @@ class DenoisingStage(ProcessingStage):
         output_file_path = input_file_path
 
         if evaluation_result.denoising_recommended:
-            logging.info("[%s] Denoising recommended for %s.", self.stage_name, input_file_path)
+            logging.info(
+                "[%s] Denoising recommended for %s.", self.stage_name, input_file_path
+            )
             # TODO: Implement actual denoising logic here.
             logging.debug(
                 "[%s] Denoising not yet implemented. Passing through.", self.stage_name
@@ -159,9 +170,10 @@ class DenoisingStage(ProcessingStage):
             logging.info(
                 "[%s] Denoising not recommended for %s. Skipping.",
                 self.stage_name,
-                input_file_path
+                input_file_path,
             )
         return output_file_path
+
 
 # pylint: disable=too-few-public-methods
 class ClickPopRemovalStage(ProcessingStage):
@@ -176,26 +188,30 @@ class ClickPopRemovalStage(ProcessingStage):
         logging.info("[%s] Processing %s...", self.stage_name, input_file_path)
         output_file_path = input_file_path
 
+        # Ensure 'detected_clicks' attribute is initialized if other stages expect it.
+        if not hasattr(evaluation_result, "detected_clicks"):
+            evaluation_result.detected_clicks = []
+
         if evaluation_result.click_pop_detected:
+            # Log that removal is recommended but currently skipped.
             logging.info(
-                "[%s] Click/pop removal recommended for %s.",
+                "[%s] Click/pop removal is recommended for %s, but actual removal is not yet implemented. Skipping.",
                 self.stage_name,
-                input_file_path
+                input_file_path,
             )
-            # TODO: Implement actual click/pop removal logic here.
-            logging.debug(
-                "[%s] Click/pop removal not yet implemented. Passing through.", self.stage_name
-            )
+            # Copy the file with a suffix to indicate it passed through this stage, even if no processing occurred.
+            # This maintains consistency with how other stubbed stages might behave.
             output_file_path = self._copy_with_suffix(
                 input_file_path, "clickremoved_stub"
             )
         else:
             logging.info(
-                "[%s] No clicks/pops detected or recommendation for %s. Skipping.",
+                "[%s] No clicks/pops detected or removal not recommended for %s. Skipping.",
                 self.stage_name,
-                input_file_path
+                input_file_path,
             )
         return output_file_path
+
 
 # pylint: disable=too-few-public-methods
 class SilenceAndStabAdjustmentStage(ProcessingStage):
@@ -239,7 +255,7 @@ class SilenceAndStabAdjustmentStage(ProcessingStage):
         return start + closest_zc_idx_in_window
 
     # pylint: disable=too-many-locals,too-many-branches,too-many-statements
-    def process( # noqa: C901
+    def process(  # noqa: C901
         self, input_file_path: str, evaluation_result: VocalChopEvaluationResult
     ) -> str:
         logging.info("[%s] Processing %s...", self.stage_name, input_file_path)
@@ -248,19 +264,25 @@ class SilenceAndStabAdjustmentStage(ProcessingStage):
             audio_data, sr = soundfile.read(input_file_path, dtype="float64")
             if audio_data.ndim > 1:
                 audio_data = np.mean(audio_data, axis=1)
-        except Exception as e: # pylint: disable=broad-except
+        except Exception as e:  # pylint: disable=broad-except
             logging.error(
-                "[%s] Error reading audio file %s: %s", self.stage_name, input_file_path, e
+                "[%s] Error reading audio file %s: %s",
+                self.stage_name,
+                input_file_path,
+                e,
             )
             return self._copy_with_suffix(input_file_path, "adjustment_failed_load")
 
         if not evaluation_result.stabs:
             logging.info(
-                "[%s] No stabs in evaluation_result. Skipping adjustment.", self.stage_name
+                "[%s] No stabs in evaluation_result. Skipping adjustment.",
+                self.stage_name,
             )
             return self._copy_with_suffix(input_file_path, "adjusted_no_stabs")
 
-        min_silence_duration_ms = VocalChopIdealCharacteristics().min_silence_duration_ms
+        min_silence_duration_ms = (
+            VocalChopIdealCharacteristics().min_silence_duration_ms
+        )
 
         processed_segments = []
         updated_stabs_info = []
@@ -282,7 +304,10 @@ class SilenceAndStabAdjustmentStage(ProcessingStage):
                 logging.warning(
                     "[%s] Stab %s has zero or negative length after boundary correction. "
                     "Original start: %s, end: %s. Skipping.",
-                    self.stage_name, i + 1, original_start, original_end
+                    self.stage_name,
+                    i + 1,
+                    original_start,
+                    original_end,
                 )
                 continue
 
@@ -306,7 +331,9 @@ class SilenceAndStabAdjustmentStage(ProcessingStage):
             end_window = audio_data[search_end_begin:search_end_end]
             if len(end_window) > 0:
                 relative_end_zc = self._find_closest_zero_crossing(
-                    end_window, stab_copy.end_sample - search_end_begin, zc_search_samples
+                    end_window,
+                    stab_copy.end_sample - search_end_begin,
+                    zc_search_samples,
                 )
                 stab_copy.end_sample = search_end_begin + relative_end_zc
 
@@ -316,11 +343,14 @@ class SilenceAndStabAdjustmentStage(ProcessingStage):
                 if stab_copy.end_sample <= stab_copy.start_sample:
                     logging.warning(
                         "[%s] Stab %s collapsed or invalid after ZC adjustment. Skipping.",
-                        self.stage_name, i + 1
+                        self.stage_name,
+                        i + 1,
                     )
                     continue
 
-            stab_audio_segment = audio_data[stab_copy.start_sample : stab_copy.end_sample]
+            stab_audio_segment = audio_data[
+                stab_copy.start_sample : stab_copy.end_sample
+            ]
             processed_segments.append(stab_audio_segment)
 
             new_stab_start_sample = current_sample_offset
@@ -332,9 +362,8 @@ class SilenceAndStabAdjustmentStage(ProcessingStage):
                     start_sample=new_stab_start_sample,
                     end_sample=new_stab_end_sample,
                     label=stab_copy.label,
-                    duration_ms=(
-                        (new_stab_end_sample - new_stab_start_sample) / sr
-                    ) * 1000,
+                    duration_ms=((new_stab_end_sample - new_stab_start_sample) / sr)
+                    * 1000,
                     has_clean_start_zero_crossing=True,
                     has_clean_end_zero_crossing=True,
                     issues=stab_copy.issues[:],
@@ -362,7 +391,7 @@ class SilenceAndStabAdjustmentStage(ProcessingStage):
         )
         if len(updated_stabs_info) > 1:
             evaluation_result.average_silence_between_stabs_ms = min_silence_duration_ms
-        elif not updated_stabs_info: # No stabs processed
+        elif not updated_stabs_info:  # No stabs processed
             evaluation_result.average_silence_between_stabs_ms = None
         # else: 1 stab, average_silence_between_stabs_ms remains as it was (likely None)
 
@@ -370,6 +399,7 @@ class SilenceAndStabAdjustmentStage(ProcessingStage):
             final_audio_data, sr, input_file_path, "adjusted"
         )
         return output_file_path
+
 
 # pylint: disable=too-few-public-methods
 class MetadataUpdateStage(ProcessingStage):
@@ -379,7 +409,7 @@ class MetadataUpdateStage(ProcessingStage):
         super().__init__(working_dir, stage_name="MetadataUpdateStage")
 
     # pylint: disable=too-many-branches,too-many-statements # Refactor if it gets too complex
-    def process( # noqa: C901
+    def process(  # noqa: C901
         self, input_file_path: str, evaluation_result: VocalChopEvaluationResult
     ) -> str:
         logging.info("[%s] Processing %s...", self.stage_name, input_file_path)
@@ -416,30 +446,38 @@ class MetadataUpdateStage(ProcessingStage):
         if evaluation_result.issues:
             comment_parts.append("\nEvaluation Issues:")
             for issue in evaluation_result.issues:
-                 # Limit length of issue in comment to avoid overly long strings
-                comment_parts.append(f"  - {issue[:100]}" + ("..." if len(issue) > 100 else ""))
+                # Limit length of issue in comment to avoid overly long strings
+                comment_parts.append(
+                    f"  - {issue[:100]}" + ("..." if len(issue) > 100 else "")
+                )
 
         detailed_comment = "\n".join(comment_parts)
 
         # Use the new soundfile_utils function to write standard metadata
         # For now, we'll primarily use the 'comment' and 'software' fields.
         # Title and artist could be derived or passed if available.
-        software_tag = "Vocal Chop Perfectioner v0.1" # Example software tag
+        software_tag = "Vocal Chop Perfectioner v0.1"  # Example software tag
 
         success = soundfile_utils.write_standard_metadata(
             file_path=output_file_path,
             comment=detailed_comment,
-            software=software_tag
+            software=software_tag,
             # title=evaluation_result.title, # If available
             # artist=evaluation_result.artist # If available
         )
 
         if success:
-            logging.info("[%s] Standard metadata (comment, software) written to %s.",
-                         self.stage_name, output_file_path)
+            logging.info(
+                "[%s] Standard metadata (comment, software) written to %s.",
+                self.stage_name,
+                output_file_path,
+            )
         else:
-            logging.warning("[%s] Failed to write some or all standard metadata to %s.",
-                            self.stage_name, output_file_path)
+            logging.warning(
+                "[%s] Failed to write some or all standard metadata to %s.",
+                self.stage_name,
+                output_file_path,
+            )
             evaluation_result.issues.append(
                 f"[{self.stage_name}] Failed to write all standard metadata tags."
             )
@@ -449,6 +487,7 @@ class MetadataUpdateStage(ProcessingStage):
         # the simplified write_standard_metadata.
 
         return output_file_path
+
 
 # pylint: disable=too-few-public-methods
 class VocalChopPerfectionWorkflow:
@@ -481,7 +520,9 @@ class VocalChopPerfectionWorkflow:
         if not os.path.exists(run_working_dir):
             os.makedirs(run_working_dir, exist_ok=True)
 
-        logging.info("Starting Vocal Chop Perfection Workflow for: %s", self.initial_file_path)
+        logging.info(
+            "Starting Vocal Chop Perfection Workflow for: %s", self.initial_file_path
+        )
         logging.info("Intermediate files will be stored in: %s", run_working_dir)
 
         current_file_path = self.initial_file_path
@@ -494,12 +535,14 @@ class VocalChopPerfectionWorkflow:
                 )
                 logging.info(
                     "Finished stage: %s, output: %s",
-                    stage_instance.stage_name, current_file_path
+                    stage_instance.stage_name,
+                    current_file_path,
                 )
-            except Exception as e: # pylint: disable=broad-except
+            except Exception as e:  # pylint: disable=broad-except
                 logging.error("Error during stage %s: %s", stage_instance.stage_name, e)
                 logging.error(
-                    "Workflow halted due to error in stage %s.", stage_instance.stage_name
+                    "Workflow halted due to error in stage %s.",
+                    stage_instance.stage_name,
                 )
                 return current_file_path, run_working_dir
 
@@ -511,12 +554,12 @@ class VocalChopPerfectionWorkflow:
             logging.info(
                 "Successfully perfected vocal chop. Final output: %s", final_output_path
             )
-        except Exception as e: # pylint: disable=broad-except
+        except Exception as e:  # pylint: disable=broad-except
             logging.error(
                 "Error copying final perfected file from %s to %s: %s",
                 current_file_path,
                 final_output_path,
-                e
+                e,
             )
             return current_file_path, run_working_dir
 
@@ -525,7 +568,7 @@ class VocalChopPerfectionWorkflow:
 
 if __name__ == "__main__":
     # Basic logging setup for the __main__ example
-    logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
     # This is a placeholder for a real VocalChopEvaluationResult
     # In a real scenario, this would be populated by VocalChopEvaluator
@@ -540,11 +583,11 @@ if __name__ == "__main__":
             dummy_audio_data = np.random.rand(44100 * 2).astype(np.float32)
             soundfile.write(DUMMY_TEST_FILE, dummy_audio_data, 44100)
             logging.info("Created dummy %s for example usage.", DUMMY_TEST_FILE)
-        except Exception as e: # pylint: disable=broad-except
+        except Exception as e:  # pylint: disable=broad-except
             logging.error("Could not create dummy %s: %s", DUMMY_TEST_FILE, e)
 
     if os.path.exists(DUMMY_TEST_FILE):
-        OUTPUT_DIR_EXAMPLE = "output_perfection" # Renamed to avoid conflict
+        OUTPUT_DIR_EXAMPLE = "output_perfection"  # Renamed to avoid conflict
         if not os.path.exists(OUTPUT_DIR_EXAMPLE):
             os.makedirs(OUTPUT_DIR_EXAMPLE, exist_ok=True)
 
@@ -556,4 +599,6 @@ if __name__ == "__main__":
         logging.info("Final perfected file: %s", final_file)
         logging.info("Intermediate files are in: %s", intermediates_dir)
     else:
-        logging.info("Skipping example usage as %s could not be created/found.", DUMMY_TEST_FILE)
+        logging.info(
+            "Skipping example usage as %s could not be created/found.", DUMMY_TEST_FILE
+        )

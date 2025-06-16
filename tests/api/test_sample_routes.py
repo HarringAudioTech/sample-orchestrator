@@ -111,7 +111,9 @@ def sample_data(app: Flask, client: FlaskClient) -> Dict[str, Any]:
         A dictionary containing IDs of the created project, recording, and samples.
     """
     with client.application.app_context():
-        SessionLocal = get_session_local(engine_instance=app.config["TEST_ENGINE_INSTANCE"])
+        SessionLocal = get_session_local(
+            engine_instance=app.config["TEST_ENGINE_INSTANCE"]
+        )
         db_session: SQLAlchemySession = SessionLocal()
         try:
             project = ProjectModel(name="Sample Project for Samples")
@@ -198,7 +200,9 @@ def test_list_recording_samples_no_samples(
     project_id: int = sample_data["project_id"]
     new_recording_id: int
     with client.application.app_context():
-        SessionLocal = get_session_local(engine_instance=app.config["TEST_ENGINE_INSTANCE"])
+        SessionLocal = get_session_local(
+            engine_instance=app.config["TEST_ENGINE_INSTANCE"]
+        )
         db_session: SQLAlchemySession = SessionLocal()
         try:
             new_recording = RecordingModel(
@@ -225,7 +229,9 @@ def test_list_recording_samples_no_samples(
 
 
 # GET /samples/<sample_id>
-def test_get_sample_details_success(client: FlaskClient, sample_data: Dict[str, Any]) -> None:
+def test_get_sample_details_success(
+    client: FlaskClient, sample_data: Dict[str, Any]
+) -> None:
     """Test successfully retrieving details for a specific sample."""
     sample1_id: int = sample_data["sample1_id"]
 

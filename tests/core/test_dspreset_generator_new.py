@@ -58,7 +58,9 @@ class TestDecentSamplerPresetGeneratorNew(unittest.TestCase):
         # These will be configured within specific tests that need them.
         self.mock_recording_model_1 = MagicMock(name="RecordingModel1")
         self.mock_recording_model_1.name = "Piano Recording"
-        self.mock_recording_model_1.samples = []  # Default to no samples for a recording
+        self.mock_recording_model_1.samples = (
+            []
+        )  # Default to no samples for a recording
 
         self.mock_sample_model_1 = MagicMock(name="SampleModel1")
         self.mock_sample_model_1.file_path = "/path/to/sample1.wav"
@@ -80,10 +82,12 @@ class TestDecentSamplerPresetGeneratorNew(unittest.TestCase):
     def test_sanitize_filename(self):
         # Test cases for _sanitize_filename
         self.assertEqual(
-            self.generator._sanitize_filename("My Instrument Name"), "my_instrument_name"
+            self.generator._sanitize_filename("My Instrument Name"),
+            "my_instrument_name",
         )
         self.assertEqual(
-            self.generator._sanitize_filename("MY_UPPER_CASE_NAME"), "my_upper_case_name"
+            self.generator._sanitize_filename("MY_UPPER_CASE_NAME"),
+            "my_upper_case_name",
         )
         self.assertEqual(
             self.generator._sanitize_filename("already_sanitized"), "already_sanitized"
@@ -96,10 +100,12 @@ class TestDecentSamplerPresetGeneratorNew(unittest.TestCase):
             "name_with-hyphens_and_underscores",
         )
         self.assertEqual(
-            self.generator._sanitize_filename("Name With Numbers 123"), "name_with_numbers_123"
+            self.generator._sanitize_filename("Name With Numbers 123"),
+            "name_with_numbers_123",
         )
         self.assertEqual(
-            self.generator._sanitize_filename(" Special Chars!@#$ "), "_special_chars!@#$_"
+            self.generator._sanitize_filename(" Special Chars!@#$ "),
+            "_special_chars!@#$_",
         )  # Corrected: added trailing underscore
 
     # Placeholder for the first complex test for generate_preset
@@ -114,7 +120,9 @@ class TestDecentSamplerPresetGeneratorNew(unittest.TestCase):
         # Detailed XML content is for other tests.
 
         # Configure mock project data for this test
-        self.mock_sample_model_1.sample_mapping_items = [self.mock_sample_mapping_item_1]
+        self.mock_sample_model_1.sample_mapping_items = [
+            self.mock_sample_mapping_item_1
+        ]
         self.mock_recording_model_1.samples = [self.mock_sample_model_1]
         self.mock_project.project_model.recordings = [self.mock_recording_model_1]
         self.instrument_data.ui_background_image_path = "/path/to/artwork.jpg"
@@ -126,7 +134,9 @@ class TestDecentSamplerPresetGeneratorNew(unittest.TestCase):
         sanitized_instrument_name = self.generator._sanitize_filename(
             self.instrument_data.name
         )
-        expected_instrument_dir = os.path.join(self.output_base_dir, sanitized_instrument_name)
+        expected_instrument_dir = os.path.join(
+            self.output_base_dir, sanitized_instrument_name
+        )
         expected_samples_dir = os.path.join(expected_instrument_dir, "Samples")
         expected_artwork_dir = os.path.join(expected_instrument_dir, "Artwork")
 
@@ -136,8 +146,12 @@ class TestDecentSamplerPresetGeneratorNew(unittest.TestCase):
 
         # Assertions for file copying (artwork and samples)
         # Artwork
-        artwork_filename = os.path.basename(self.instrument_data.ui_background_image_path)
-        expected_dest_artwork_path = os.path.join(expected_artwork_dir, artwork_filename)
+        artwork_filename = os.path.basename(
+            self.instrument_data.ui_background_image_path
+        )
+        expected_dest_artwork_path = os.path.join(
+            expected_artwork_dir, artwork_filename
+        )
         mock_copy.assert_any_call(
             self.instrument_data.ui_background_image_path, expected_dest_artwork_path
         )
@@ -172,7 +186,9 @@ class TestDecentSamplerPresetGeneratorNew(unittest.TestCase):
         # Configure mock project data
         self.mock_sample_mapping_item_1.key_range_start = 50
         self.mock_sample_mapping_item_1.key_range_end = 55
-        self.mock_sample_model_1.sample_mapping_items = [self.mock_sample_mapping_item_1]
+        self.mock_sample_model_1.sample_mapping_items = [
+            self.mock_sample_mapping_item_1
+        ]
         self.mock_sample_model_1.midi_pitch = 52  # Within the key range
         self.mock_sample_model_1.file_path = "samples_for_test/sample1.wav"
 
@@ -184,7 +200,10 @@ class TestDecentSamplerPresetGeneratorNew(unittest.TestCase):
         mock_sample_mapping_item_2.key_range_end = 72
         mock_sample_model_2.sample_mapping_items = [mock_sample_mapping_item_2]
 
-        self.mock_recording_model_1.samples = [self.mock_sample_model_1, mock_sample_model_2]
+        self.mock_recording_model_1.samples = [
+            self.mock_sample_model_1,
+            mock_sample_model_2,
+        ]
         self.mock_project.project_model.recordings = [self.mock_recording_model_1]
         self.instrument_data.ui_background_image_path = "artwork_files/background.png"
         self.instrument_data.version = "1.2.3"  # Test version attribute
@@ -198,7 +217,8 @@ class TestDecentSamplerPresetGeneratorNew(unittest.TestCase):
 
         # Capture the root ET.Element passed to the ET.ElementTree constructor
         self.assertTrue(
-            mock_ET_ElementTree_class.called, "ET.ElementTree constructor was not called."
+            mock_ET_ElementTree_class.called,
+            "ET.ElementTree constructor was not called.",
         )
         constructor_args, _ = mock_ET_ElementTree_class.call_args
         written_tree_root = constructor_args[0]
@@ -240,9 +260,12 @@ class TestDecentSamplerPresetGeneratorNew(unittest.TestCase):
             "Samples", os.path.basename(self.mock_sample_model_1.file_path)
         )
         self.assertEqual(sample1_xml.get("path"), expected_sample1_path)
-        self.assertEqual(sample1_xml.get("rootNote"), str(self.mock_sample_model_1.midi_pitch))
         self.assertEqual(
-            sample1_xml.get("loKey"), str(self.mock_sample_mapping_item_1.key_range_start)
+            sample1_xml.get("rootNote"), str(self.mock_sample_model_1.midi_pitch)
+        )
+        self.assertEqual(
+            sample1_xml.get("loKey"),
+            str(self.mock_sample_mapping_item_1.key_range_start),
         )
         self.assertEqual(
             sample1_xml.get("hiKey"), str(self.mock_sample_mapping_item_1.key_range_end)
@@ -256,7 +279,9 @@ class TestDecentSamplerPresetGeneratorNew(unittest.TestCase):
             "Samples", os.path.basename(mock_sample_model_2.file_path)
         )
         self.assertEqual(sample2_xml.get("path"), expected_sample2_path)
-        self.assertEqual(sample2_xml.get("rootNote"), str(mock_sample_model_2.midi_pitch))
+        self.assertEqual(
+            sample2_xml.get("rootNote"), str(mock_sample_model_2.midi_pitch)
+        )
         self.assertEqual(
             sample2_xml.get("loKey"), str(mock_sample_mapping_item_2.key_range_start)
         )
@@ -273,7 +298,9 @@ class TestDecentSamplerPresetGeneratorNew(unittest.TestCase):
         sanitized_instrument_name = self.generator._sanitize_filename(
             self.instrument_data.name
         )
-        expected_instrument_dir = os.path.join(self.output_base_dir, sanitized_instrument_name)
+        expected_instrument_dir = os.path.join(
+            self.output_base_dir, sanitized_instrument_name
+        )
         expected_dspreset_filename = sanitized_instrument_name + ".dspreset"
         expected_dspreset_path = os.path.join(
             expected_instrument_dir, expected_dspreset_filename
@@ -320,9 +347,13 @@ class TestDecentSamplerPresetGeneratorNew(unittest.TestCase):
         self.assertIsNotNone(ui_element)
         tab_element = ui_element.find("tab")
 
-        all_background_images = written_tree_root.findall(".//ui/tab/background[@image]")
+        all_background_images = written_tree_root.findall(
+            ".//ui/tab/background[@image]"
+        )
         self.assertEqual(
-            len(all_background_images), 0, "No background image attribute should be present."
+            len(all_background_images),
+            0,
+            "No background image attribute should be present.",
         )
         if tab_element:  # Tab might still exist
             self.assertIsNone(
@@ -362,7 +393,9 @@ class TestDecentSamplerPresetGeneratorNew(unittest.TestCase):
         # Check print output for info message
         # This check depends on the exact message logged by the generator
         # For now, let's assume a general check. A more specific check might be needed.
-        printed_output = "".join(str(call_arg) for call_arg in mock_print.call_args_list)
+        printed_output = "".join(
+            str(call_arg) for call_arg in mock_print.call_args_list
+        )
         self.assertIn(
             "No recordings found",
             printed_output,
@@ -412,7 +445,9 @@ class TestDecentSamplerPresetGeneratorNew(unittest.TestCase):
         args, _ = MockElementTree.call_args
         written_tree_root = args[0]  # The root ET.Element passed to ET.ElementTree()
 
-        all_background_images = written_tree_root.findall(".//ui/tab/background[@image]")
+        all_background_images = written_tree_root.findall(
+            ".//ui/tab/background[@image]"
+        )
         self.assertEqual(
             len(all_background_images),
             0,
@@ -427,7 +462,8 @@ class TestDecentSamplerPresetGeneratorNew(unittest.TestCase):
                 artwork_copy_called = True
                 break
         self.assertFalse(
-            artwork_copy_called, "shutil.copy2 should not be called for missing artwork."
+            artwork_copy_called,
+            "shutil.copy2 should not be called for missing artwork.",
         )
 
     @patch("os.makedirs")
@@ -440,10 +476,14 @@ class TestDecentSamplerPresetGeneratorNew(unittest.TestCase):
     ):
         # Configure a sample whose file is missing
         self.mock_sample_model_1.file_path = "/path/to/missing_sample.wav"
-        self.mock_sample_model_1.sample_mapping_items = [self.mock_sample_mapping_item_1]
+        self.mock_sample_model_1.sample_mapping_items = [
+            self.mock_sample_mapping_item_1
+        ]
         self.mock_recording_model_1.samples = [self.mock_sample_model_1]
         self.mock_project.project_model.recordings = [self.mock_recording_model_1]
-        self.instrument_data.ui_background_image_path = None  # No artwork for simplicity
+        self.instrument_data.ui_background_image_path = (
+            None  # No artwork for simplicity
+        )
 
         # os.path.exists: sample is missing
         def side_effect_exists(path):
@@ -486,7 +526,8 @@ class TestDecentSamplerPresetGeneratorNew(unittest.TestCase):
                 sample_copy_called = True
                 break
         self.assertFalse(
-            sample_copy_called, "shutil.copy2 should not be called for a missing sample file."
+            sample_copy_called,
+            "shutil.copy2 should not be called for a missing sample file.",
         )
 
     @patch("os.makedirs", side_effect=OSError("Test OSError"))
@@ -522,7 +563,9 @@ class TestDecentSamplerPresetGeneratorNew(unittest.TestCase):
         self.instrument_data.ui_background_image_path = "/path/to/artwork.jpg"
         # Ensure project has at least one sample so that sample copying is also attempted,
         # to isolate that the error is from artwork copy
-        self.mock_sample_model_1.sample_mapping_items = [self.mock_sample_mapping_item_1]
+        self.mock_sample_model_1.sample_mapping_items = [
+            self.mock_sample_mapping_item_1
+        ]
         self.mock_recording_model_1.samples = [self.mock_sample_model_1]
         self.mock_project.project_model.recordings = [self.mock_recording_model_1]
 
@@ -539,7 +582,9 @@ class TestDecentSamplerPresetGeneratorNew(unittest.TestCase):
 
         self.generator.generate_preset()
 
-        artwork_filename = os.path.basename(self.instrument_data.ui_background_image_path)
+        artwork_filename = os.path.basename(
+            self.instrument_data.ui_background_image_path
+        )
         self.assertTrue(
             any(
                 f"ERROR: Could not copy artwork file {artwork_filename}: Test IOError on artwork copy"
@@ -552,7 +597,9 @@ class TestDecentSamplerPresetGeneratorNew(unittest.TestCase):
         self.assertTrue(MockElementTree.called)
         args, _ = MockElementTree.call_args
         written_tree_root = args[0]
-        all_background_images = written_tree_root.findall(".//ui/tab/background[@image]")
+        all_background_images = written_tree_root.findall(
+            ".//ui/tab/background[@image]"
+        )
         self.assertEqual(len(all_background_images), 0)  # No background if copy failed
 
         # Ensure sample was still copied (if mock_exists allows it)
@@ -589,9 +636,14 @@ class TestDecentSamplerPresetGeneratorNew(unittest.TestCase):
             self.mock_sample_mapping_item_1
         ]  # Reuse
 
-        self.mock_recording_model_1.samples = [mock_failing_sample, self.mock_sample_model_1]
+        self.mock_recording_model_1.samples = [
+            mock_failing_sample,
+            self.mock_sample_model_1,
+        ]
         self.mock_project.project_model.recordings = [self.mock_recording_model_1]
-        self.instrument_data.ui_background_image_path = None  # No artwork for simplicity
+        self.instrument_data.ui_background_image_path = (
+            None  # No artwork for simplicity
+        )
 
         # shutil.copy2 side effect: raise IOError for the failing sample
         def copy_side_effect(src, dst):

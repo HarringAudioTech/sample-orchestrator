@@ -1,6 +1,9 @@
 import pytest
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session as SQLAlchemySession  # For typing sessions
+from sqlalchemy.orm import (
+    sessionmaker,
+    Session as SQLAlchemySession,
+)  # For typing sessions
 from sqlalchemy.engine import Engine as SQLAlchemyEngine  # For typing engine
 from typing import Generator  # For typing fixtures
 
@@ -29,7 +32,9 @@ def test_engine() -> SQLAlchemyEngine:
 
 
 @pytest.fixture(scope="function")
-def db_session(test_engine: SQLAlchemyEngine) -> Generator[SQLAlchemySession, None, None]:
+def db_session(
+    test_engine: SQLAlchemyEngine,
+) -> Generator[SQLAlchemySession, None, None]:
     """Creates a new database session for a test.
 
     Args:
@@ -442,7 +447,9 @@ def test_sample_mapping_has_multiple_items(db_session: SQLAlchemySession) -> Non
     db_session.commit()
 
     retrieved_mapping: SampleMapping | None = (
-        db_session.query(SampleMapping).filter(SampleMapping.id == sample_mapping.id).first()
+        db_session.query(SampleMapping)
+        .filter(SampleMapping.id == sample_mapping.id)
+        .first()
     )
     assert retrieved_mapping is not None
     if retrieved_mapping:  # For type checker

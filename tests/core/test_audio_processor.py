@@ -52,7 +52,9 @@ def test_engine() -> SQLAlchemyEngine:
 
 
 @pytest.fixture(scope="function")
-def db_session(test_engine: SQLAlchemyEngine) -> Generator[SQLAlchemySession, None, None]:
+def db_session(
+    test_engine: SQLAlchemyEngine,
+) -> Generator[SQLAlchemySession, None, None]:
     """Creates a new database session for a test, ensuring a clean state.
 
     Uses the get_db utility from src.database.utils.
@@ -79,7 +81,9 @@ def db_session(test_engine: SQLAlchemyEngine) -> Generator[SQLAlchemySession, No
 
 def test_audio_processor_module_importable() -> None:
     """Checks if the audio_processor module can be imported."""
-    assert audio_processor is not None, "src.core.audio_processor module failed to import."
+    assert (
+        audio_processor is not None
+    ), "src.core.audio_processor module failed to import."
     # Can also check for specific attributes if any are expected, e.g.:
     # assert hasattr(audio_processor, 'some_expected_future_function')
 

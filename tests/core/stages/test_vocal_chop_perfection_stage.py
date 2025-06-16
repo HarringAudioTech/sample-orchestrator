@@ -1,7 +1,8 @@
 """Unit tests for src.core.stages.vocal_chop_perfection_stage."""
+
 import os
-import logging # Import logging
-from typing import Tuple, Any # List removed
+import logging  # Import logging
+from typing import Tuple, Any  # List removed
 import pytest
 import numpy as np  # type: ignore # pylint: disable=import-error
 import soundfile  # type: ignore # pylint: disable=import-error
@@ -23,11 +24,12 @@ try:
         VocalChopIdealCharacteristics,
     )
     from src.utils import soundfile_utils
+
     # SFCuePoint is used by tested code, not directly here.
     # from src.utils.soundfile_utils import SFCuePoint
 except ImportError:
     # Fallback for different execution contexts
-    from core.stages.vocal_chop_perfection_stage import ( # type: ignore
+    from core.stages.vocal_chop_perfection_stage import (  # type: ignore
         VocalChopPerfectionWorkflow,
         DenoisingStage,
         ClickPopRemovalStage,
@@ -35,17 +37,19 @@ except ImportError:
         MetadataUpdateStage,
         # ProcessingStage,
     )
-    from core.vocal_chop_evaluator import ( # type: ignore
+    from core.vocal_chop_evaluator import (  # type: ignore
         VocalChopEvaluationResult,
         AnalyzedVocalStab,
         VocalChopIdealCharacteristics,
     )
-    from utils import soundfile_utils # type: ignore
+    from utils import soundfile_utils  # type: ignore
+
     # from utils.soundfile_utils import SFCuePoint # type: ignore
 # pylint: enable=import-error
 
 
 # --- Fixtures ---
+
 
 @pytest.fixture
 def tmp_dirs(tmp_path):
@@ -54,8 +58,11 @@ def tmp_dirs(tmp_path):
     output_dir.mkdir()
     return {"output_dir": str(output_dir), "base_tmp_path": str(tmp_path)}
 
+
 @pytest.fixture
-def base_evaluation_result(sample_wav_file) -> VocalChopEvaluationResult: # pylint: disable=redefined-outer-name
+def base_evaluation_result(
+    sample_wav_file,
+) -> VocalChopEvaluationResult:  # pylint: disable=redefined-outer-name
     """Returns a basic VocalChopEvaluationResult instance."""
     info = soundfile.info(sample_wav_file)
     return VocalChopEvaluationResult(
@@ -65,23 +72,25 @@ def base_evaluation_result(sample_wav_file) -> VocalChopEvaluationResult: # pyli
         duration_ms=(info.frames / info.samplerate) * 1000,
     )
 
+
 @pytest.fixture
 def ideal_characteristics() -> VocalChopIdealCharacteristics:
     """Returns default VocalChopIdealCharacteristics."""
     return VocalChopIdealCharacteristics()
 
+
 @pytest.fixture
-def sample_wav_file(tmp_path) -> str: # pylint: disable=redefined-outer-name
+def sample_wav_file(tmp_path) -> str:  # pylint: disable=redefined-outer-name
     """Creates a simple WAV file and returns its path."""
     file_path = tmp_path / "sample.wav"
     sr = 44100
-    y = np.sin(
-        2 * np.pi * 440 * np.linspace(0, 1, sr), dtype=np.float32
-    )
+    y = np.sin(2 * np.pi * 440 * np.linspace(0, 1, sr), dtype=np.float32)
     soundfile.write(str(file_path), y, sr)
     return str(file_path)
 
+
 # --- Tests for Stubbed Stages ---
+
 
 # pylint: disable=redefined-outer-name
 def test_denoising_stage_passthrough(
@@ -91,10 +100,8 @@ def test_denoising_stage_passthrough(
     caplog: Any,
 ):
     """Tests DenoisingStage passthrough and logging."""
-    caplog.set_level(logging.DEBUG) # Set log level to DEBUG
-    stage = DenoisingStage(
-        working_dir=tmp_dirs["output_dir"]
-    )
+    caplog.set_level(logging.DEBUG)  # Set log level to DEBUG
+    stage = DenoisingStage(working_dir=tmp_dirs["output_dir"])
     base_evaluation_result.denoising_recommended = False
     output_path = stage.process(sample_wav_file, base_evaluation_result)
     assert output_path == sample_wav_file
@@ -111,6 +118,7 @@ def test_denoising_stage_passthrough(
     assert "Denoising recommended" in caplog.text
     assert "Denoising not yet implemented" in caplog.text
 
+
 # pylint: disable=redefined-outer-name
 def test_clickpop_removal_stage_passthrough(
     sample_wav_file: str,
@@ -119,13 +127,13 @@ def test_clickpop_removal_stage_passthrough(
     caplog: Any,
 ):
     """Tests ClickPopRemovalStage passthrough and logging."""
-    caplog.set_level(logging.DEBUG) # Set log level to DEBUG
+    caplog.set_level(logging.DEBUG)  # Set log level to DEBUG
     stage = ClickPopRemovalStage(working_dir=tmp_dirs["output_dir"])
 
     base_evaluation_result.click_pop_detected = False
     output_path = stage.process(sample_wav_file, base_evaluation_result)
     assert output_path == sample_wav_file
-    assert "No clicks/pops detected" in caplog.text
+    assert "No clicks/pops detected or removal not recommended" in caplog.text
 
     caplog.clear()
     base_evaluation_result.click_pop_detected = True
@@ -135,11 +143,12 @@ def test_clickpop_removal_stage_passthrough(
     )
     assert os.path.basename(output_path) == expected_output_name
     assert os.path.exists(output_path)
-    assert "Click/pop removal recommended" in caplog.text
-    assert "Click/pop removal not yet implemented" in caplog.text
+    assert "Click/pop removal is recommended for" in caplog.text
+    assert "but actual removal is not yet implemented. Skipping." in caplog.text
 
 
 # --- Tests for SilenceAndStabAdjustmentStage ---
+
 
 @pytest.fixture
 def two_burst_wav_file(tmp_path) -> Tuple[str, int, int, int]:
@@ -162,6 +171,7 @@ def two_burst_wav_file(tmp_path) -> Tuple[str, int, int, int]:
     file_path = tmp_path / "two_burst.wav"
     soundfile.write(str(file_path), audio_data, sr)
     return str(file_path), sr, burst_duration_samples, silence_duration_samples
+
 
 # pylint: disable=redefined-outer-name,too-many-locals
 def test_silence_adjustment_stage_silence_insertion(
@@ -227,6 +237,7 @@ def test_silence_adjustment_stage_silence_insertion(
 
 # --- Tests for MetadataUpdateStage ---
 
+
 # pylint: disable=redefined-outer-name
 def test_metadata_update_stage_writes_info_to_comment(
     sample_wav_file: str,
@@ -238,10 +249,14 @@ def test_metadata_update_stage_writes_info_to_comment(
     into the comment tag.
     """
     base_evaluation_result.tempo = 123.45
-    base_evaluation_result.key = "C#maj" # Example key
+    base_evaluation_result.key = "C#maj"  # Example key
     base_evaluation_result.stabs = [
-        AnalyzedVocalStab(start_sample=100, end_sample=200, duration_ms=2.26, label="Stab1"),
-        AnalyzedVocalStab(start_sample=300, end_sample=450, duration_ms=3.40, label="Stab2 Γειά"),
+        AnalyzedVocalStab(
+            start_sample=100, end_sample=200, duration_ms=2.26, label="Stab1"
+        ),
+        AnalyzedVocalStab(
+            start_sample=300, end_sample=450, duration_ms=3.40, label="Stab2 Γειά"
+        ),
     ]
     # Add a mock issue
     base_evaluation_result.issues.append("Test issue for comment.")
@@ -270,14 +285,14 @@ def test_metadata_update_stage_writes_info_to_comment(
 
 
 # pylint: disable=redefined-outer-name
-def test_metadata_update_stage_comment( # This test remains, checks basic comment and software tag
+def test_metadata_update_stage_comment(  # This test remains, checks basic comment and software tag
     sample_wav_file: str,
     tmp_dirs: dict,
     base_evaluation_result: VocalChopEvaluationResult,
     caplog: Any,
 ):
     """Tests that MetadataUpdateStage attempts to write a comment."""
-    caplog.set_level(logging.INFO) # For checking logs from soundfile_utils
+    caplog.set_level(logging.INFO)  # For checking logs from soundfile_utils
     stage = MetadataUpdateStage(working_dir=tmp_dirs["output_dir"])
     output_path = stage.process(sample_wav_file, base_evaluation_result)
 
@@ -296,10 +311,13 @@ def test_metadata_update_stage_comment( # This test remains, checks basic commen
     # when direct attribute setting fails.
     # For now, primary check is if the comment is readable via our own util.
     if "Failed to write some or all standard metadata" in caplog.text:
-        print("Warning: Some metadata tags may not have been written, check logs for details.")
+        print(
+            "Warning: Some metadata tags may not have been written, check logs for details."
+        )
 
 
 # --- Tests for VocalChopPerfectionWorkflow ---
+
 
 # pylint: disable=redefined-outer-name
 def test_workflow_execution_order(
@@ -323,7 +341,9 @@ def test_workflow_execution_order(
         return_value=sample_wav_file + "_adjusted",
     )
     mock_metadata_process = mocker.patch.object(
-        MetadataUpdateStage, "process", return_value=sample_wav_file + "_adjusted" # Return its input
+        MetadataUpdateStage,
+        "process",
+        return_value=sample_wav_file + "_adjusted",  # Return its input
     )
 
     workflow = VocalChopPerfectionWorkflow(sample_wav_file, base_evaluation_result)
@@ -335,7 +355,9 @@ def test_workflow_execution_order(
     # So, let's have the final mock return a path that *does* exist.
     # The input to MetadataUpdateStage is sample_wav_file + "_adjusted".
     # Let's create a dummy file for this path.
-    adjusted_file_path_for_mock = os.path.join(output_dir, os.path.basename(sample_wav_file + "_adjusted"))
+    adjusted_file_path_for_mock = os.path.join(
+        output_dir, os.path.basename(sample_wav_file + "_adjusted")
+    )
 
     # Touch the file that mock_metadata_process is supposed to receive and then "process"
     # The previous mock (mock_adjust_process) returns sample_wav_file + "_adjusted"
@@ -368,14 +390,16 @@ def test_workflow_execution_order(
         sample_wav_file + "_clickremoved", base_evaluation_result
     )
     mock_metadata_process.assert_called_once_with(
-        sample_wav_file + "_adjusted", base_evaluation_result # This is the input it receives
+        sample_wav_file + "_adjusted",
+        base_evaluation_result,  # This is the input it receives
     )
 
     expected_final_name = os.path.basename(sample_wav_file).replace(
         ".wav", "_perfected.wav"
     )
     assert os.path.basename(final_file) == expected_final_name
-    assert os.path.exists(final_file) # Verify the copied file exists
+    assert os.path.exists(final_file)  # Verify the copied file exists
+
 
 # pylint: disable=redefined-outer-name
 def test_workflow_file_management(
@@ -403,7 +427,9 @@ def test_workflow_file_management(
     assert os.path.exists(os.path.join(intermediates_dir, clickremoved_name))
 
     # SilenceAndStabAdjustmentStage will use "_adjusted_no_stabs" if stabs list is empty
-    adjusted_name = f"{original_base}_denoised_stub_clickremoved_stub_adjusted_no_stabs.wav"
+    adjusted_name = (
+        f"{original_base}_denoised_stub_clickremoved_stub_adjusted_no_stabs.wav"
+    )
     assert os.path.exists(os.path.join(intermediates_dir, adjusted_name))
 
     # MetadataUpdateStage input: sample_denoised_stub_clickremoved_stub_adjusted_no_stabs.wav

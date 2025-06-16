@@ -1,117 +1,207 @@
-"""
-Unit tests for the NoiseReductionStage.
-"""
-
 import pytest
 import numpy as np
 import logging
-from typing import Dict, Any, List, cast
-from _pytest.logging import LogCaptureFixture  # For caplog fixture type
+from unittest.mock import (
+    patch,
+)  # For mocker.patch if pytest-mock isn't auto-imported as 'mocker'
 
-from src.core.processing_stages import DATA_TYPE_AUDIO_BUFFER_MONO
 from src.core.stages.noise_reduction_stage import NoiseReductionStage
 
+# Assuming AudioProcessingContext might be a defined class/dataclass,
+# otherwise a Dict is fine. For now, Dict is used as per stage.
+# from src.core.audio_processing_context import AudioProcessingContext
+
+# Logger for this test module (optional, but good practice)
 logger = logging.getLogger(__name__)
 
-# --- NoiseReductionStage Tests ---
+
+@pytest.fixture
+def noise_reduction_stage() -> NoiseReductionStage:
+    """Fixture to create a NoiseReductionStage instance."""
+    return NoiseReductionStage()
 
 
-def test_noise_reduction_stage_properties() -> None:
-    """Test the basic properties of NoiseReductionStage."""
-    stage = NoiseReductionStage()
-    assert stage.name == "noise_reduction"
-    assert stage.description is not None and stage.description != ""
-    assert stage.input_type == DATA_TYPE_AUDIO_BUFFER_MONO
-    assert stage.output_type == DATA_TYPE_AUDIO_BUFFER_MONO
-    default_params: Dict[str, Any] = stage.default_params
-    assert "amount" in default_params
-    assert "aggressiveness" in default_params
+@pytest.fixture
+def dummy_audio_data() -> np.ndarray:
+    """Fixture for dummy audio data."""
+    # Create a simple sine wave as dummy data to make it more predictable than random
+    sample_rate = 44100
+    duration = 0.1  # seconds
+    frequency = 440  # Hz (A4 note)
+    t = np.linspace(0, duration, int(sample_rate * duration), endpoint=False)
+    audio = 0.5 * np.sin(2 * np.pi * frequency * t)
+    return audio.astype(np.float32)
 
 
-def test_noise_reduction_stage_process_success() -> None:
-    """Test successful processing with default and overridden parameters."""
-    stage = NoiseReductionStage()
-    # Create a dummy NumPy array for input
-    dummy_input_data: np.ndarray = np.array([0.1, -0.2, 0.3, -0.4, 0.5], dtype=np.float32)
+@pytest.fixture
+def sample_rate() -> int:
+    """Fixture for a sample sample rate."""
+    return 44100
 
-    # Test with default parameters
-    params_default: Dict[str, Any] = stage.default_params.copy()
-    context_default: Dict[str, Any] = {"project_id": 1, "recording_id": 10}
 
-    logger.info("Testing NoiseReductionStage with default parameters...")
-    output_data_default: np.ndarray = stage.process(
-        np.copy(dummy_input_data), params_default, context_default
+def test_successful_noise_reduction(
+    noise_reduction_stage: NoiseReductionStage,
+    dummy_audio_data: np.ndarray,
+    sample_rate: int,
+    mocker,  # pytest-mock fixture
+) -> None:
+    """Test that noisereduce.reduce_noise is called correctly and its output is returned."""
+    # We need to mock 'noisereduce.reduce_noise' within the module where it's imported and used.
+    # Assuming NoiseReductionStage imports it as 'import noisereduce',
+    # the path is 'src.core.stages.noise_reduction_stage.noisereduce.reduce_noise'
+    mock_reduce_noise = mocker.patch(
+        "src.core.stages.noise_reduction_stage.noisereduce.reduce_noise"
     )
 
-    assert isinstance(output_data_default, np.ndarray)
-    assert output_data_default.shape == dummy_input_data.shape
-    # Check the placeholder logic (attenuation by 0.98)
-    expected_output_default: np.ndarray = dummy_input_data * 0.98
-    np.testing.assert_array_almost_equal(
-        output_data_default, expected_output_default, decimal=5
+    # Configure the mock to return a slightly different array to distinguish it
+    reduced_audio_data = dummy_audio_data * 0.5
+    mock_reduce_noise.return_value = reduced_audio_data
+
+    params = noise_reduction_stage.default_params
+    context = {"sample_rate": sample_rate}
+
+    processed_data = noise_reduction_stage.process(
+        data=np.copy(dummy_audio_data), params=params, context=context
     )
 
-    # Test with overridden parameters
-    params_override: Dict[str, Any] = {"amount": 0.8, "aggressiveness": 5}
-    context_override: Dict[str, Any] = {"some_other_key": "value"}  # Context can vary
+    mock_reduce_noise.assert_called_once()
+    call_args = mock_reduce_noise.call_args
+    assert call_args is not None
+    np.testing.assert_array_equal(call_args.kwargs["y"], dummy_audio_data)
+    assert call_args.kwargs["sr"] == sample_rate
+    np.testing.assert_array_equal(processed_data, reduced_audio_data)
+    logger.info("Successfully tested noise reduction call and output handling.")
 
-    logger.info("Testing NoiseReductionStage with overridden parameters...")
-    output_data_override: np.ndarray = stage.process(
-        np.copy(dummy_input_data), params_override, context_override
+
+def test_missing_sample_rate_in_context(
+    noise_reduction_stage: NoiseReductionStage,
+    dummy_audio_data: np.ndarray,
+    caplog,  # pytest's built-in log capture
+    mocker,
+) -> None:
+    """Test behavior when sample_rate is missing from context and reduce_noise fails."""
+    mock_reduce_noise = mocker.patch(
+        "src.core.stages.noise_reduction_stage.noisereduce.reduce_noise"
     )
 
-    assert isinstance(output_data_override, np.ndarray)
-    assert output_data_override.shape == dummy_input_data.shape
-    # Placeholder logic is the same, parameters are logged but don't change
-    # behavior in placeholder
-    expected_output_override: np.ndarray = dummy_input_data * 0.98
-    np.testing.assert_array_almost_equal(
-        output_data_override, expected_output_override, decimal=5
-    )
+    # This side effect will simulate reduce_noise failing when sr=0
+    def side_effect_for_sr_zero(y, sr):
+        if sr == 0:
+            raise ValueError("Sample rate cannot be 0 for noisereduce")
+        return y
 
+    mock_reduce_noise.side_effect = side_effect_for_sr_zero
 
-def test_noise_reduction_stage_process_logs_parameters(caplog: LogCaptureFixture) -> None:
-    """Test that processing logs the parameters used.
+    params = noise_reduction_stage.default_params
+    context_no_sr = {}  # Missing sample_rate
 
-    Args:
-        caplog: Pytest fixture to capture log output.
-    """
-    stage = NoiseReductionStage()
-    dummy_input_data: np.ndarray = np.array([0.1, 0.2], dtype=np.float32)
-    params: Dict[str, Any] = {"amount": 0.7, "aggressiveness": 4}
-    context: Dict[str, Any] = {}  # Empty context for this test
+    with caplog.at_level(logging.WARNING):  # Check for warning
+        processed_data = noise_reduction_stage.process(
+            data=np.copy(dummy_audio_data), params=params, context=context_no_sr
+        )
 
-    with caplog.at_level(logging.INFO):
-        stage.process(dummy_input_data, params, context)
-
-    assert f"[{stage.name}] Applying noise reduction (placeholder)..." in caplog.text
+    assert "'sample_rate' not found in context" in caplog.text
+    # Check that the error from reduce_noise (due to sr=0) was logged by the stage
     assert (
-        f"Parameters: amount={params['amount']}, aggressiveness={params['aggressiveness']}"
+        "Error during noise reduction: Sample rate cannot be 0 for noisereduce"
         in caplog.text
     )
-    assert f"Input data shape: {dummy_input_data.shape}" in caplog.text
+
+    mock_reduce_noise.assert_called_once()
+    call_args = mock_reduce_noise.call_args
+    assert call_args is not None
+    np.testing.assert_array_equal(call_args.kwargs["y"], dummy_audio_data)
+    assert call_args.kwargs["sr"] == 0
+    # Expect original data because the try-except in process should catch the error
+    np.testing.assert_array_equal(processed_data, dummy_audio_data)
+    logger.info(
+        "Successfully tested missing sample_rate leading to reduce_noise failure."
+    )
 
 
-def test_noise_reduction_stage_invalid_input_type() -> None:
+def test_reduce_noise_general_exception(
+    noise_reduction_stage: NoiseReductionStage,
+    dummy_audio_data: np.ndarray,
+    sample_rate: int,
+    caplog,
+    mocker,
+) -> None:
+    """Test that the stage handles general exceptions from noisereduce.reduce_noise."""
+    mock_reduce_noise = mocker.patch(
+        "src.core.stages.noise_reduction_stage.noisereduce.reduce_noise"
+    )
+    mock_reduce_noise.side_effect = Exception("Generic noisereduce error")
+
+    params = noise_reduction_stage.default_params
+    context = {"sample_rate": sample_rate}
+
+    with caplog.at_level(logging.ERROR):
+        processed_data = noise_reduction_stage.process(
+            data=np.copy(dummy_audio_data), params=params, context=context
+        )
+
+    assert "Error during noise reduction: Generic noisereduce error" in caplog.text
+    np.testing.assert_array_equal(processed_data, dummy_audio_data)
+    logger.info("Successfully tested general exception handling for reduce_noise.")
+
+
+def test_noise_reduction_invalid_input_type(
+    noise_reduction_stage: NoiseReductionStage,
+) -> None:
     """Test processing with an invalid input data type raises TypeError."""
-    stage = NoiseReductionStage()
-    invalid_data: List[float] = [0.1, 0.2, 0.3]  # Not a NumPy array
-    params: Dict[str, Any] = stage.default_params
-    context: Dict[str, Any] = {}
+    invalid_data = [0.1, 0.2, 0.3]  # Not a NumPy array
+    params = noise_reduction_stage.default_params
+    context = {"sample_rate": 44100}
 
-    with pytest.raises(TypeError, match=f"Input data for {stage.name} must be a NumPy array."):
-        # We use cast here because the type checker would normally catch this,
-        # but we are specifically testing the runtime check within the process method.
-        stage.process(cast(np.ndarray, invalid_data), params, context)
+    with pytest.raises(
+        TypeError,
+        match=f"Input data for {noise_reduction_stage.name} must be a NumPy array.",
+    ):
+        noise_reduction_stage.process(data=invalid_data, params=params, context=context)  # type: ignore
+    logger.info("Successfully tested invalid input type handling.")
 
 
-def test_noise_reduction_stage_empty_input_array() -> None:
-    """Test processing with an empty NumPy array."""
-    stage = NoiseReductionStage()
-    empty_input_data: np.ndarray = np.array([], dtype=np.float32)
-    params: Dict[str, Any] = stage.default_params
-    context: Dict[str, Any] = {}
+def test_noise_reduction_stage_properties(
+    noise_reduction_stage: NoiseReductionStage,
+) -> None:
+    """Test the basic properties of NoiseReductionStage."""
+    assert noise_reduction_stage.name == "noise_reduction"
+    assert (
+        noise_reduction_stage.description is not None
+        and noise_reduction_stage.description != ""
+    )
+    # Assuming DATA_TYPE_AUDIO_BUFFER_MONO is "audio_buffer_mono"
+    assert noise_reduction_stage.input_type == "audio_buffer_mono"
+    assert noise_reduction_stage.output_type == "audio_buffer_mono"
+    default_params = noise_reduction_stage.default_params
+    assert "amount" in default_params
+    assert "aggressiveness" in default_params
+    logger.info("Successfully tested stage properties.")
 
-    output_data: np.ndarray = stage.process(empty_input_data, params, context)
-    assert isinstance(output_data, np.ndarray)
-    assert output_data.shape == (0,)  # Expect an empty array of the same shape
+
+def test_empty_audio_data_processing(
+    noise_reduction_stage: NoiseReductionStage, sample_rate: int, mocker
+) -> None:
+    """Test processing with an empty audio array."""
+    mock_reduce_noise = mocker.patch(
+        "src.core.stages.noise_reduction_stage.noisereduce.reduce_noise"
+    )
+    empty_audio_data = np.array([], dtype=np.float32)
+    # Assume noisereduce might return an empty array or raise an error if input is empty.
+    # If it returns an empty array:
+    mock_reduce_noise.return_value = np.array([], dtype=np.float32)
+
+    params = noise_reduction_stage.default_params
+    context = {"sample_rate": sample_rate}
+
+    processed_data = noise_reduction_stage.process(
+        data=np.copy(empty_audio_data), params=params, context=context
+    )
+
+    mock_reduce_noise.assert_called_once()
+    call_args = mock_reduce_noise.call_args
+    assert call_args is not None
+    np.testing.assert_array_equal(call_args.kwargs["y"], empty_audio_data)
+    assert call_args.kwargs["sr"] == sample_rate
+    np.testing.assert_array_equal(processed_data, empty_audio_data)
+    logger.info("Successfully tested processing of empty audio data.")

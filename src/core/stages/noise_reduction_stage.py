@@ -6,6 +6,7 @@ This stage serves as a placeholder for a noise reduction algorithm.
 import logging
 import numpy as np  # For potential audio buffer manipulation
 from typing import Any, Dict, Optional
+import noisereduce
 
 from src.core.processing_stages import AudioProcessingStage, DATA_TYPE_AUDIO_BUFFER_MONO
 from src.core.stage_runner import register_stage
@@ -41,9 +42,11 @@ class NoiseReductionStage(AudioProcessingStage):
 
     @property
     def default_params(self) -> Dict[str, Any]:
+        # These parameters are not directly used by noisereduce.reduce_noise in its basic form.
+        # They are kept here for potential future use or more advanced configuration.
         return {
-            "amount": 0.5,  # 0.0 to 1.0, how much reduction to apply
-            "aggressiveness": 3,  # 1 to 5, how aggressively to target noise
+            "amount": 0.5,  # Example: could map to 'prop_decrease' or similar if supported
+            "aggressiveness": 3,  # Example: could influence other parameters of noisereduce
         }
 
     def process(
@@ -57,11 +60,10 @@ class NoiseReductionStage(AudioProcessingStage):
         Args:
             data: The input mono audio buffer (NumPy array).
             params: Parameters for noise reduction, merged with defaults.
-                           Expected keys: "amount", "aggressiveness".
-            context: Shared context dictionary (not used by this placeholder).
+            context: Shared context dictionary, expected to contain 'sample_rate'.
 
         Returns:
-            The processed mono audio buffer (NumPy array), slightly attenuated.
+            The processed mono audio buffer (NumPy array).
 
         Raises:
             TypeError: If the input data is not a NumPy array.
@@ -73,28 +75,45 @@ class NoiseReductionStage(AudioProcessingStage):
             logger.error(
                 f"[{self.name}] Input data is not a NumPy array, but type: {type(data)}"
             )
-            raise TypeError(
-                f"Input data for {
-                    self.name} must be a NumPy array."
+            raise TypeError(f"Input data for {self.name} must be a NumPy array.")
+
+        if context is None or "sample_rate" not in context:
+            logger.warning(
+                f"[{self.name}] 'sample_rate' not found in context. "
+                "Noise reduction might not be effective or may raise an error. "
+                "Proceeding with a default of 0, which is likely incorrect."
             )
+            sample_rate = (
+                0  # This is likely to cause issues but handles missing key for now
+            )
+        else:
+            sample_rate = context["sample_rate"]
 
-        amount = params.get("amount", self.default_params["amount"])
-        aggressiveness = params.get("aggressiveness", self.default_params["aggressiveness"])
-
+        # Log parameters, including sample rate from context
         logger.info(
-            f"[{self.name}] Applying noise reduction (placeholder)... "
-            f"Parameters: amount={amount}, aggressiveness={aggressiveness}. "
+            f"[{self.name}] Applying noise reduction... "
             f"Input data shape: {data.shape}, dtype: {data.dtype}. "
+            f"Sample rate: {sample_rate}. "
+            f"Using parameters: {params} (Note: basic noisereduce call doesn't use them directly)."
             f"Context keys: {list(context.keys()) if context else 'None'}."
         )
 
-        # Placeholder logic: slightly attenuate the signal to simulate some processing.
-        # A real implementation would use a noise reduction algorithm (e.g.,
-        # spectral gating).
-        processed_data = data * 0.98  # Apply a 2% attenuation as a placeholder effect
-
-        logger.info(f"[{self.name}] Placeholder noise reduction applied.")
-        return processed_data
+        # Perform noise reduction
+        # Note: The 'params' from this stage (amount, aggressiveness) are not directly
+        # used in the basic noisereduce.reduce_noise call here.
+        # For more advanced usage, these could be mapped to specific arguments
+        # of reduce_noise if applicable (e.g., prop_decrease, n_fft, etc.).
+        try:
+            reduced_noise_data = noisereduce.reduce_noise(y=data, sr=sample_rate)
+            logger.info(f"[{self.name}] Noise reduction applied successfully.")
+            return reduced_noise_data
+        except Exception as e:
+            logger.error(
+                f"[{self.name}] Error during noise reduction: {e}", exc_info=True
+            )
+            # Depending on desired behavior, either re-raise or return original data
+            # For now, returning original data to allow pipeline to continue if possible
+            return data
 
 
 # Register the stage when this module is imported

@@ -24,7 +24,9 @@ class Project(Base):
 
     __tablename__ = "projects"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(
+        Integer, primary_key=True, index=True, autoincrement=True
+    )
     name: Mapped[str] = mapped_column(String, nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(
@@ -52,8 +54,12 @@ class Recording(Base):
 
     __tablename__ = "recordings"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
-    project_id: Mapped[int] = mapped_column(Integer, ForeignKey("projects.id"), nullable=False)
+    id: Mapped[int] = mapped_column(
+        Integer, primary_key=True, index=True, autoincrement=True
+    )
+    project_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("projects.id"), nullable=False
+    )
     name: Mapped[str] = mapped_column(String, nullable=False)
     file_path: Mapped[str] = mapped_column(String, nullable=False, unique=True)
     duration_seconds: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
@@ -83,7 +89,9 @@ class Sample(Base):
 
     __tablename__ = "samples"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(
+        Integer, primary_key=True, index=True, autoincrement=True
+    )
     recording_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("recordings.id"), nullable=False
     )
@@ -125,8 +133,12 @@ class SampleMapping(Base):
 
     __tablename__ = "sample_mappings"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
-    project_id: Mapped[int] = mapped_column(Integer, ForeignKey("projects.id"), nullable=False)
+    id: Mapped[int] = mapped_column(
+        Integer, primary_key=True, index=True, autoincrement=True
+    )
+    project_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("projects.id"), nullable=False
+    )
     name: Mapped[str] = mapped_column(
         String, nullable=False
     )  # E.g., "Piano C4-D#4 Layer 1", "Kick Drum Pad"
@@ -140,7 +152,9 @@ class SampleMapping(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
-    project: Mapped["Project"] = relationship("Project", back_populates="sample_mappings")
+    project: Mapped["Project"] = relationship(
+        "Project", back_populates="sample_mappings"
+    )
     sample_mapping_items: Mapped[List["SampleMappingItem"]] = relationship(
         "SampleMappingItem",
         back_populates="sample_mapping",
@@ -155,11 +169,15 @@ class SampleMappingItem(Base):
 
     __tablename__ = "sample_mapping_items"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(
+        Integer, primary_key=True, index=True, autoincrement=True
+    )
     sample_mapping_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("sample_mappings.id"), nullable=False
     )
-    sample_id: Mapped[int] = mapped_column(Integer, ForeignKey("samples.id"), nullable=False)
+    sample_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("samples.id"), nullable=False
+    )
     key_range_start: Mapped[Optional[int]] = mapped_column(
         Integer, nullable=True
     )  # MIDI note number
@@ -181,7 +199,9 @@ class SampleMappingItem(Base):
     sample_mapping: Mapped["SampleMapping"] = relationship(
         "SampleMapping", back_populates="sample_mapping_items"
     )
-    sample: Mapped["Sample"] = relationship("Sample", back_populates="sample_mapping_items")
+    sample: Mapped["Sample"] = relationship(
+        "Sample", back_populates="sample_mapping_items"
+    )
 
 
 # Note on cascade options:
@@ -198,7 +218,9 @@ class MidiDevice(Base):
 
     __tablename__ = "midi_devices"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(
+        Integer, primary_key=True, index=True, autoincrement=True
+    )
     name: Mapped[str] = mapped_column(String, nullable=False, unique=True)
     system_identifier: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(
@@ -208,7 +230,9 @@ class MidiDevice(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
-    midi_files: Mapped[List["MidiFile"]] = relationship("MidiFile", back_populates="device")
+    midi_files: Mapped[List["MidiFile"]] = relationship(
+        "MidiFile", back_populates="device"
+    )
 
 
 class MidiCaptureSession(Base):
@@ -216,8 +240,12 @@ class MidiCaptureSession(Base):
 
     __tablename__ = "midi_capture_sessions"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
-    project_id: Mapped[int] = mapped_column(Integer, ForeignKey("projects.id"), nullable=False)
+    id: Mapped[int] = mapped_column(
+        Integer, primary_key=True, index=True, autoincrement=True
+    )
+    project_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("projects.id"), nullable=False
+    )
     name: Mapped[str] = mapped_column(String, nullable=False)
     start_time: Mapped[Optional[datetime.datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
@@ -251,7 +279,9 @@ class MidiFile(Base):
 
     __tablename__ = "midi_files"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(
+        Integer, primary_key=True, index=True, autoincrement=True
+    )
     midi_capture_session_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("midi_capture_sessions.id"), nullable=False
     )
@@ -272,7 +302,9 @@ class MidiFile(Base):
     capture_session: Mapped["MidiCaptureSession"] = relationship(
         "MidiCaptureSession", back_populates="midi_files"
     )
-    device: Mapped["MidiDevice"] = relationship("MidiDevice", back_populates="midi_files")
+    device: Mapped["MidiDevice"] = relationship(
+        "MidiDevice", back_populates="midi_files"
+    )
 
 
 # Add relationship to Project model for Mypy

@@ -1,5 +1,6 @@
 """Unit tests for src.core.vocal_chop_evaluator."""
-from typing import Tuple, Any # Removed List as it's not directly used by tests
+
+from typing import Tuple, Any  # Removed List as it's not directly used by tests
 import pytest
 import numpy as np  # type: ignore # pylint: disable=import-error
 import soundfile  # type: ignore # pylint: disable=import-error
@@ -14,9 +15,10 @@ try:
         # VocalChopEvaluationResult,
         # AnalyzedVocalStab,
     )
+
     # Imports for SFCuePoint, SFInstrumentInfo, SFLoopInfo removed as they are no longer used
 except ImportError:
-    from core.vocal_chop_evaluator import ( # type: ignore
+    from core.vocal_chop_evaluator import (  # type: ignore
         VocalChopEvaluator,
         VocalChopIdealCharacteristics,
     )
@@ -33,7 +35,7 @@ def ideal_characteristics_fixture() -> VocalChopIdealCharacteristics:
 
 
 @pytest.fixture
-def evaluator_fixture( # pylint: disable=redefined-outer-name
+def evaluator_fixture(  # pylint: disable=redefined-outer-name
     ideal_characteristics_fixture: VocalChopIdealCharacteristics,
 ) -> VocalChopEvaluator:
     """Returns a VocalChopEvaluator instance."""
@@ -57,7 +59,7 @@ def dummy_audio_data_fixture() -> Tuple[np.ndarray, int]:
 
 
 @pytest.fixture
-def temp_wav_file_fixture( # pylint: disable=redefined-outer-name
+def temp_wav_file_fixture(  # pylint: disable=redefined-outer-name
     tmp_path, dummy_audio_data_fixture: Tuple[np.ndarray, int]
 ) -> str:
     """Creates a temporary WAV file with dummy audio data."""
@@ -68,6 +70,7 @@ def temp_wav_file_fixture( # pylint: disable=redefined-outer-name
 
 
 # --- Test Cases ---
+
 
 # pylint: disable=redefined-outer-name
 def test_evaluate_basic_info(
@@ -80,12 +83,17 @@ def test_evaluate_basic_info(
     _, sr = dummy_audio_data_fixture
 
     # Mock librosa functions that would be called since metadata is absent
-    mocker.patch("librosa.onset.onset_detect", return_value=np.array([])) # No onsets found
-    mocker.patch("librosa.beat.beat_track", return_value=(0.0, np.array([]))) # No tempo
+    mocker.patch(
+        "librosa.onset.onset_detect", return_value=np.array([])
+    )  # No onsets found
+    mocker.patch(
+        "librosa.beat.beat_track", return_value=(0.0, np.array([]))
+    )  # No tempo
     # Mock key estimation to return a default or None
-    mocker.patch("librosa.feature.chroma_stft", return_value=np.random.rand(12,10)) # Dummy chroma
+    mocker.patch(
+        "librosa.feature.chroma_stft", return_value=np.random.rand(12, 10)
+    )  # Dummy chroma
     mocker.patch("librosa.midi_to_note", return_value="C")
-
 
     result = evaluator_fixture.evaluate(temp_wav_file_fixture)
 
@@ -95,19 +103,20 @@ def test_evaluate_basic_info(
 
     assert not result.metadata_tempo_present
     assert not result.metadata_key_present
-    assert not result.metadata_tempo_present # Detailed metadata flags will be False
+    assert not result.metadata_tempo_present  # Detailed metadata flags will be False
     assert not result.metadata_key_present
     assert not result.cue_markers_present
     assert not result.cue_labels_present
 
     # Check if tempo estimation was attempted and if it failed (due to mock returning 0.0)
     assert result.tempo is None
-    assert any("Tempo estimation failed or returned zero" in issue for issue in result.issues)
+    assert any(
+        "Tempo estimation failed or returned zero" in issue for issue in result.issues
+    )
 
     # Check if key estimation was attempted (mocked to return "C")
     assert result.key == "C"
     assert any("Key estimated using librosa" in issue for issue in result.issues)
-
 
     # Check for the specific issue related to no detailed cues
     assert any(
@@ -117,12 +126,14 @@ def test_evaluate_basic_info(
 
 
 # pylint: disable=redefined-outer-name
-def test_evaluate_with_onsets_and_estimations( # Renamed from test_evaluate_with_full_metadata
+def test_evaluate_with_onsets_and_estimations(  # Renamed from test_evaluate_with_full_metadata
     evaluator_fixture: VocalChopEvaluator, temp_wav_file_fixture: str, mocker: Any
 ):
     """Tests evaluation when onsets are detected and tempo/key are estimated."""
     # Mock onset detection to return 4 onsets
-    mock_onsets = np.array([100, 200, 300, 400]) * (44100 // 1000) # Positions in samples
+    mock_onsets = np.array([100, 200, 300, 400]) * (
+        44100 // 1000
+    )  # Positions in samples
     mocker.patch("librosa.onset.onset_detect", return_value=mock_onsets)
 
     # Mock tempo estimation
@@ -130,14 +141,16 @@ def test_evaluate_with_onsets_and_estimations( # Renamed from test_evaluate_with
 
     # Mock key estimation (chroma_stft -> argmax -> midi_to_note)
     # Simplified: just mock the final midi_to_note conversion
-    mocker.patch("librosa.midi_to_note", return_value="Cmaj") # Example key
+    mocker.patch("librosa.midi_to_note", return_value="Cmaj")  # Example key
 
     result = evaluator_fixture.evaluate(temp_wav_file_fixture)
 
-    assert not result.metadata_tempo_present # Will be false as we don't read detailed metadata
-    assert not result.metadata_key_present   # Will be false
+    assert (
+        not result.metadata_tempo_present
+    )  # Will be false as we don't read detailed metadata
+    assert not result.metadata_key_present  # Will be false
     assert not result.cue_markers_present  # Will be false
-    assert not result.cue_labels_present   # Will be false
+    assert not result.cue_labels_present  # Will be false
 
     assert result.tempo == 120.0
     assert result.key == "Cmaj"
@@ -145,7 +158,7 @@ def test_evaluate_with_onsets_and_estimations( # Renamed from test_evaluate_with
     assert len(result.stabs) == 4
     # Stab labels will be None as they are not derived from onsets
     assert result.stabs[0].label is None
-    assert result.stab_count_is_power_of_2 # 4 is a power of 2
+    assert result.stab_count_is_power_of_2  # 4 is a power of 2
 
     assert any("Tempo estimated using librosa" in issue for issue in result.issues)
     assert any("Key estimated using librosa" in issue for issue in result.issues)
@@ -153,7 +166,7 @@ def test_evaluate_with_onsets_and_estimations( # Renamed from test_evaluate_with
 
 
 # pylint: disable=redefined-outer-name
-def test_evaluate_missing_cue_labels( # This test's premise is now less relevant
+def test_evaluate_missing_cue_labels(  # This test's premise is now less relevant
     evaluator_fixture: VocalChopEvaluator, temp_wav_file_fixture: str, mocker: Any
 ):
     """
@@ -162,15 +175,16 @@ def test_evaluate_missing_cue_labels( # This test's premise is now less relevant
     and relevant issue is logged if ideal_characteristics.require_cue_labels is True.
     """
     # Onsets will be detected instead of cues
-    mocker.patch("librosa.onset.onset_detect", return_value=np.array([100,200]))
+    mocker.patch("librosa.onset.onset_detect", return_value=np.array([100, 200]))
     mocker.patch("librosa.beat.beat_track", return_value=(120.0, np.array([])))
     mocker.patch("librosa.midi_to_note", return_value="Cmaj")
 
-
-    evaluator_fixture.ideal_characteristics.require_cue_labels = True # Ensure it's required
+    evaluator_fixture.ideal_characteristics.require_cue_labels = (
+        True  # Ensure it's required
+    )
     result = evaluator_fixture.evaluate(temp_wav_file_fixture)
 
-    assert not result.cue_markers_present # Detailed cues are not read
+    assert not result.cue_markers_present  # Detailed cues are not read
     assert not result.cue_labels_present  # Thus, no labels from them
 
     # The issue "Cue labels missing..." is logged if ideal_characteristics.require_cue_labels is True
@@ -184,7 +198,11 @@ def test_evaluate_missing_cue_labels( # This test's premise is now less relevant
     # So, the specific "Cue labels missing..." issue won't be logged under current logic.
     # This test might need to be re-thought or removed if it no longer tests a unique state.
     # For now, let's assert the state.
-    assert not any("Cue labels missing" in issue for issue in result.issues if "ideal" in issue.lower())
+    assert not any(
+        "Cue labels missing" in issue
+        for issue in result.issues
+        if "ideal" in issue.lower()
+    )
 
 
 # pylint: disable=redefined-outer-name
@@ -195,17 +213,21 @@ def test_evaluate_stab_count_not_power_of_2(
     # Mock onset detection to return 3 onsets
     mock_onsets = np.array([100, 200, 300]) * (44100 // 1000)
     mocker.patch("librosa.onset.onset_detect", return_value=mock_onsets)
-    mocker.patch("librosa.beat.beat_track", return_value=(120.0, np.array([]))) # Mock tempo/key for completeness
+    mocker.patch(
+        "librosa.beat.beat_track", return_value=(120.0, np.array([]))
+    )  # Mock tempo/key for completeness
     mocker.patch("librosa.midi_to_note", return_value="Cmaj")
-
 
     result = evaluator_fixture.evaluate(temp_wav_file_fixture)
     assert not result.stab_count_is_power_of_2
-    assert any("Detected stab count (3) is not an ideal power of 2" in issue for issue in result.issues)
+    assert any(
+        "Detected stab count (3) is not an ideal power of 2" in issue
+        for issue in result.issues
+    )
 
 
 # pylint: disable=redefined-outer-name
-def test_evaluate_no_cues_onset_detection( # This test remains largely the same
+def test_evaluate_no_cues_onset_detection(  # This test remains largely the same
     evaluator_fixture: VocalChopEvaluator, tmp_path: Any, mocker: Any
 ):
     """Tests onset detection when (as is now standard) no detailed cue markers are read."""
@@ -218,27 +240,32 @@ def test_evaluate_no_cues_onset_detection( # This test remains largely the same
     soundfile.write(str(onset_test_file), y, sr)
 
     # No need to mock soundfile_utils.get_cue_markers anymore
-    mocker.patch("librosa.beat.beat_track", return_value=(120.0, np.array([]))) # Mock tempo/key
+    mocker.patch(
+        "librosa.beat.beat_track", return_value=(120.0, np.array([]))
+    )  # Mock tempo/key
     mocker.patch("librosa.midi_to_note", return_value="Cmaj")
 
-
     # Mock onset detection to return 3 onsets for this test's purpose
-    mock_onsets = np.array([0, len(y1) + len(silence), len(y1)*2 + len(silence)*2]).astype(int)
+    mock_onsets = np.array(
+        [0, len(y1) + len(silence), len(y1) * 2 + len(silence) * 2]
+    ).astype(int)
     mocker.patch("librosa.onset.onset_detect", return_value=mock_onsets)
-
 
     result = evaluator_fixture.evaluate(str(onset_test_file))
 
-    assert len(result.stabs) == 3 # Expect 3 onsets as per mock
+    assert len(result.stabs) == 3  # Expect 3 onsets as per mock
     assert all(
-        "Stab detected by onset analysis, not from cues." in stab.issues for stab in result.stabs
+        "Stab detected by onset analysis, not from cues." in stab.issues
+        for stab in result.stabs
     )
     assert any(
-        "Detailed cue marker metadata (e.g. from CUE chunks) is no longer read" in issue for issue in result.issues
+        "Detailed cue marker metadata (e.g. from CUE chunks) is no longer read" in issue
+        for issue in result.issues
     )
-    assert not result.stab_count_is_power_of_2 # 3 is not power of 2
+    assert not result.stab_count_is_power_of_2  # 3 is not power of 2
     assert any(
-        "Detected stab count (3) is not an ideal power of 2" in issue # Check specific message
+        "Detected stab count (3) is not an ideal power of 2"
+        in issue  # Check specific message
         for issue in result.issues
     )
 
@@ -253,14 +280,16 @@ def test_evaluate_zero_crossings(
     # Phase: 0 -> 1.9*pi. Length: 0.1 sec.
     # Starts at sin(0)=0. Ends at sin(1.9*pi) which is negative. Max at 0.5pi, min at 1.5pi. Crosses 0 at pi.
     y_clean_stab = np.sin(np.linspace(0, 1.9 * np.pi, int(0.1 * sr))).astype(np.float32)
-    y_unclean_stab = (np.ones(int(0.1 * sr)) * 0.5).astype(np.float32) # No ZCs
+    y_unclean_stab = (np.ones(int(0.1 * sr)) * 0.5).astype(np.float32)  # No ZCs
 
     clean_file = tmp_path / "zc_clean.wav"
     unclean_file = tmp_path / "zc_unclean.wav"
     soundfile.write(str(clean_file), y_clean_stab, sr)
     soundfile.write(
         str(unclean_file),
-        np.concatenate([y_unclean_stab, np.zeros(sr//100), y_unclean_stab]), # Added sr//100 for sample rate
+        np.concatenate(
+            [y_unclean_stab, np.zeros(sr // 100), y_unclean_stab]
+        ),  # Added sr//100 for sample rate
         sr,
     )
 
@@ -275,23 +304,33 @@ def test_evaluate_zero_crossings(
     # librosa.zero_crossings (x_curr * x_prev < 0) doesn't count crossing if one sample is 0.0
     # A sine wave starting at 0.0 will thus not show a ZC at the very start by this definition.
     assert not result_clean.stabs[0].has_clean_start_zero_crossing
-    assert not result_clean.stabs[0].has_clean_end_zero_crossing # Similarly for end if it lands on 0.0
+    assert not result_clean.stabs[
+        0
+    ].has_clean_end_zero_crossing  # Similarly for end if it lands on 0.0
 
     # Test for unclean file: two stabs corresponding to y_unclean_stab segments
-    onsets_unclean = np.array([0, len(y_unclean_stab) + sr//100])
+    onsets_unclean = np.array([0, len(y_unclean_stab) + sr // 100])
     mocker.patch("librosa.onset.onset_detect", return_value=onsets_unclean)
     result_unclean = evaluator_fixture.evaluate(str(unclean_file))
 
     assert len(result_unclean.stabs) == 2
     assert not result_unclean.stabs[0].has_clean_start_zero_crossing
     assert not result_unclean.stabs[0].has_clean_end_zero_crossing
-    assert any("No clean start zero-crossing" in issue for issue in result_unclean.stabs[0].issues)
-    assert any("No clean end zero-crossing" in issue for issue in result_unclean.stabs[0].issues)
+    assert any(
+        "No clean start zero-crossing" in issue
+        for issue in result_unclean.stabs[0].issues
+    )
+    assert any(
+        "No clean end zero-crossing" in issue
+        for issue in result_unclean.stabs[0].issues
+    )
 
     assert not result_unclean.stabs[1].has_clean_start_zero_crossing
     # The end of the second unclean stab might coincide with file end, which could be a ZC if padded with zeros by soundfile write.
     # For a raw ones-array, its end won't be a ZC. Test data ends with y_unclean_stab.
-    assert not result_unclean.stabs[1].has_clean_start_zero_crossing # This was duplicated, keep one
+    assert not result_unclean.stabs[
+        1
+    ].has_clean_start_zero_crossing  # This was duplicated, keep one
     assert not result_unclean.stabs[1].has_clean_end_zero_crossing
 
 
@@ -302,14 +341,18 @@ def test_evaluate_silence_duration(tmp_path: Any, mocker: Any):
     This test will verify that "No silence or overlap" is logged.
     """
     sr = 44100
-    ideal_chars = VocalChopIdealCharacteristics(min_silence_duration_ms=75.0) # Min silence is 75ms
+    ideal_chars = VocalChopIdealCharacteristics(
+        min_silence_duration_ms=75.0
+    )  # Min silence is 75ms
     evaluator = VocalChopEvaluator(ideal_chars)
 
-    stab_sound = np.ones(int(0.1 * sr)) * 0.5 # 100ms stab
-    actual_silence_between_stabs = np.zeros(int(0.05 * sr)) # 50ms silence
+    stab_sound = np.ones(int(0.1 * sr)) * 0.5  # 100ms stab
+    actual_silence_between_stabs = np.zeros(int(0.05 * sr))  # 50ms silence
 
     # Audio: STAB | SHORT_SILENCE | STAB
-    audio_data = np.concatenate([stab_sound, actual_silence_between_stabs, stab_sound]).astype(np.float32)
+    audio_data = np.concatenate(
+        [stab_sound, actual_silence_between_stabs, stab_sound]
+    ).astype(np.float32)
     file_path = tmp_path / "short_silence_test.wav"
     soundfile.write(str(file_path), audio_data, sr)
 
@@ -333,11 +376,13 @@ def test_evaluate_silence_duration(tmp_path: Any, mocker: Any):
     # Thus, silence_start_sample == silence_end_sample in the evaluator's loop.
     expected_issue_message = "No silence or overlap between stab '1' and '2'."
     assert any(expected_issue_message in issue for issue in result.issues)
-    assert result.average_silence_between_stabs_ms == 0.0 # Because no positive silence segments found
+    assert (
+        result.average_silence_between_stabs_ms == 0.0
+    )  # Because no positive silence segments found
 
 
 # pylint: disable=redefined-outer-name
-def test_tempo_key_estimation( # This test should still be valid
+def test_tempo_key_estimation(  # This test should still be valid
     evaluator_fixture: VocalChopEvaluator, temp_wav_file_fixture: str, mocker: Any
 ):
     """Tests tempo and key estimation when metadata is (effectively) missing."""
@@ -353,8 +398,8 @@ def test_tempo_key_estimation( # This test should still be valid
     result = evaluator_fixture.evaluate(temp_wav_file_fixture)
 
     # Check that librosa functions were called (indirectly, by checking their effect)
-    assert result.tempo == 135.0 # Verifies beat_track mock was used
-    assert result.key == "A#"    # Verifies chroma_stft and midi_to_note mocks were used
+    assert result.tempo == 135.0  # Verifies beat_track mock was used
+    assert result.key == "A#"  # Verifies chroma_stft and midi_to_note mocks were used
     assert any("Tempo estimated using librosa" in issue for issue in result.issues)
     assert any(
         "Key estimated using librosa (basic chroma)" in issue for issue in result.issues
@@ -362,7 +407,7 @@ def test_tempo_key_estimation( # This test should still be valid
 
 
 # pylint: disable=redefined-outer-name
-def test_click_pop_stub( # This test should still be valid
+def test_click_pop_stub(  # This test should still be valid
     evaluator_fixture: VocalChopEvaluator, temp_wav_file_fixture: str, mocker: Any
 ):
     """Tests that click_pop_detected is False due to the stubbed detector."""
@@ -370,7 +415,6 @@ def test_click_pop_stub( # This test should still be valid
     mocker.patch("librosa.onset.onset_detect", return_value=np.array([0]))
     mocker.patch("librosa.beat.beat_track", return_value=(120.0, np.array([])))
     mocker.patch("librosa.midi_to_note", return_value="Cmaj")
-
 
     spy_detect_clicks_pops = mocker.spy(evaluator_fixture, "_detect_clicks_pops")
 

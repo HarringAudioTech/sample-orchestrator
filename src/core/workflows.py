@@ -14,8 +14,13 @@ import os  # For __main__ example
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Type, Optional, Generator  # Added Generator
 
-from src.core.stage_runner import execute_stage_chain, STAGE_REGISTRY as ACTUAL_STAGE_REGISTRY
-from src.core.processing_stages import AudioProcessingStage  # For dummy stages in __main__
+from src.core.stage_runner import (
+    execute_stage_chain,
+    STAGE_REGISTRY as ACTUAL_STAGE_REGISTRY,
+)
+from src.core.processing_stages import (
+    AudioProcessingStage,
+)  # For dummy stages in __main__
 from src.core.processing_stages import (
     DATA_TYPE_FILE_PATH,
     DATA_TYPE_AUDIO_BUFFER_MONO,
@@ -176,7 +181,9 @@ class BaseWorkflow(ABC):
             or `TypeError` (for data type mismatches between stages).
         """
         logger.info(f"Running workflow: '{self.name}' ({self.description}).")
-        logger.debug(f"Workflow '{self.name}' stages definition: {self.stages_definition}")
+        logger.debug(
+            f"Workflow '{self.name}' stages definition: {self.stages_definition}"
+        )
 
         current_context = context.copy() if context else {}
         current_context["current_workflow_name"] = self.name
@@ -229,9 +236,13 @@ if __name__ == "__main__":
 
     try:
         from src.core.stages.slicing_stage import SlicingStage  # noqa F401
-        from src.core.stages.noise_reduction_stage import NoiseReductionStage  # noqa F401
+        from src.core.stages.noise_reduction_stage import (
+            NoiseReductionStage,
+        )  # noqa F401
 
-        logger.info("Actual SlicingStage and NoiseReductionStage imported for __main__ test.")
+        logger.info(
+            "Actual SlicingStage and NoiseReductionStage imported for __main__ test."
+        )
     except ImportError:
         logger.warning(
             "Could not import actual SlicingStage or NoiseReductionStage for __main__ test. "
@@ -283,7 +294,10 @@ if __name__ == "__main__":
             register_stage(DummyNoiseReduction)
             logger.info("Registered DummyNoiseReduction for __main__ test.")
 
-        if "slicing" in required_stages_for_example and "slicing" not in ACTUAL_STAGE_REGISTRY:
+        if (
+            "slicing" in required_stages_for_example
+            and "slicing" not in ACTUAL_STAGE_REGISTRY
+        ):
 
             class DummySlicing(AudioProcessingStage):
                 @property
@@ -296,9 +310,7 @@ if __name__ == "__main__":
 
                 @property
                 def input_type(self) -> str:
-                    return (
-                        DATA_TYPE_AUDIO_BUFFER_MONO  # Example, SlicingStage expects file_path
-                    )
+                    return DATA_TYPE_AUDIO_BUFFER_MONO  # Example, SlicingStage expects file_path
 
                 @property
                 def output_type(self) -> str:
@@ -330,7 +342,9 @@ if __name__ == "__main__":
                 f"Key: '{wf_key}', Name: '{instance.name}', Desc: '{instance.description}'"
             )
         except Exception as e:
-            logger.error(f"Could not inspect workflow class {wf_class_val.__name__}: {e}")
+            logger.error(
+                f"Could not inspect workflow class {wf_class_val.__name__}: {e}"
+            )
 
     logger.info("\n--- Testing ExampleSlicingWorkflow (structure) ---")
     workflow_to_run_key: str = "example_slicing_workflow"

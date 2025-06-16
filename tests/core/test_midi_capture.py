@@ -35,9 +35,12 @@ class TestMidiCaptureUtilities(unittest.TestCase):
             sanitize_filename("Device-With-Hyphens!@#.mid"), "Device-With-Hyphens.mid"
         )
         self.assertEqual(
-            sanitize_filename("  Leading Trailing Spaces  "), "__Leading_Trailing_Spaces__"
+            sanitize_filename("  Leading Trailing Spaces  "),
+            "__Leading_Trailing_Spaces__",
         )  # Corrected assertion
-        self.assertEqual(sanitize_filename("already_sanitized_name"), "already_sanitized_name")
+        self.assertEqual(
+            sanitize_filename("already_sanitized_name"), "already_sanitized_name"
+        )
         self.assertEqual(sanitize_filename(""), "")
 
     @patch("src.core.midi_capture.mido.get_input_names")
@@ -47,7 +50,11 @@ class TestMidiCaptureUtilities(unittest.TestCase):
     ):
         mock_db_session = MagicMock()
 
-        mock_get_input_names.return_value = ["MIDI Device 1", "MIDI Device 2", "New Device 3"]
+        mock_get_input_names.return_value = [
+            "MIDI Device 1",
+            "MIDI Device 2",
+            "New Device 3",
+        ]
 
         mock_existing_device_1 = MidiDevice(
             id=1, name="MIDI Device 1", system_identifier="sys_id_1"
@@ -79,7 +86,8 @@ class TestMidiCaptureUtilities(unittest.TestCase):
         # Verify that add was called for each device found by mido.get_input_names
         # This implicitly checks that the loop iterated as expected.
         self.assertEqual(
-            len(mock_db_session.add.call_args_list), len(mock_get_input_names.return_value)
+            len(mock_db_session.add.call_args_list),
+            len(mock_get_input_names.return_value),
         )
 
         # The existing assertions already cover that:
@@ -108,7 +116,9 @@ class TestMidiCaptureUtilities(unittest.TestCase):
         self.assertIn("New Device 3", added_device_names)
         self.assertIsNotNone(new_device_instance_check)
         if new_device_instance_check:  # Should exist
-            self.assertEqual(new_device_instance_check.system_identifier, "New Device 3")
+            self.assertEqual(
+                new_device_instance_check.system_identifier, "New Device 3"
+            )
             # self.assertEqual(new_device_instance_check.created_at, fixed_time) # Commenting out: SUT might not set this, or uses DB default.
             # self.assertEqual(new_device_instance_check.updated_at, fixed_time) # Commenting out: SUT might not set this for new devices.
 
@@ -119,7 +129,10 @@ class TestMidiCaptureUtilities(unittest.TestCase):
         self.assertIn(mock_existing_device_2, returned_devices)
         self.assertTrue(any(d.name == "New Device 3" for d in returned_devices))
 
-    @patch("src.core.midi_capture.mido.get_input_names", side_effect=Exception("Mido error"))
+    @patch(
+        "src.core.midi_capture.mido.get_input_names",
+        side_effect=Exception("Mido error"),
+    )
     def test_list_available_midi_devices_mido_exception(self, mock_get_input_names_exc):
         mock_db_session = MagicMock()
         with self.assertRaisesRegex(Exception, "Mido error"):
@@ -149,7 +162,9 @@ class TestMidiCaptureUtilities(unittest.TestCase):
         mock_db_session = MagicMock()
         # Re-instantiate mock_device for this test to avoid interference
         mock_device_instance = MidiDevice(id=1, name="Test Device")
-        mock_db_session.query(MidiDevice).filter().first.return_value = mock_device_instance
+        mock_db_session.query(MidiDevice).filter().first.return_value = (
+            mock_device_instance
+        )
 
         device = get_midi_device_by_name(mock_db_session, "Test Device")
 
@@ -182,16 +197,22 @@ class TestMidiRecorder(unittest.TestCase):
 
         # Mock for the project query result
         self.project_id = 1
-        self.mock_project_instance = ProjectModel(id=self.project_id, name="Test Project")
+        self.mock_project_instance = ProjectModel(
+            id=self.project_id, name="Test Project"
+        )
 
         # Configure the chain of calls for: db.query(ProjectModel).filter(...).first()
         mock_query_method_on_session = MagicMock(name="query_method")
         self.mock_db_session.query = mock_query_method_on_session
 
-        mock_filter_result = MagicMock(name="filter_result_obj")  # Object returned by query()
+        mock_filter_result = MagicMock(
+            name="filter_result_obj"
+        )  # Object returned by query()
         mock_query_method_on_session.return_value = mock_filter_result
 
-        mock_first_result = MagicMock(name="first_result_obj")  # Object returned by filter()
+        mock_first_result = MagicMock(
+            name="first_result_obj"
+        )  # Object returned by filter()
         mock_filter_result.filter.return_value = mock_first_result
 
         mock_first_result.first.return_value = (
@@ -218,7 +239,9 @@ class TestMidiRecorder(unittest.TestCase):
         self, mock_datetime_module, mock_mido_open_input, mock_get_device_by_name
     ):
         mock_get_device_by_name.return_value = self.mock_found_device
-        mock_mido_port = MagicMock(spec=mido.ports.BaseInput)  # Mock the MIDI port object
+        mock_mido_port = MagicMock(
+            spec=mido.ports.BaseInput
+        )  # Mock the MIDI port object
         mock_mido_open_input.return_value = mock_mido_port
 
         fixed_time = datetime.datetime(2024, 1, 1, 12, 30, 0)
@@ -234,7 +257,9 @@ class TestMidiRecorder(unittest.TestCase):
 
         self.assertEqual(recorder.session_name, self.session_name)
         self.assertEqual(recorder.project_id, self.project_id)
-        mock_get_device_by_name.assert_called_once_with(self.mock_db_session, "MIDI Device 1")
+        mock_get_device_by_name.assert_called_once_with(
+            self.mock_db_session, "MIDI Device 1"
+        )
         # mock_mido_open_input is not called during __init__
         # mock_mido_open_input.assert_called_once_with("MIDI Device 1", callback=recorder._midi_callback)
         # self.assertEqual(recorder.midi_port, mock_mido_port) # This is also set in start_recording
@@ -272,7 +297,9 @@ class TestMidiRecorder(unittest.TestCase):
 
     @patch("src.core.midi_capture.mido.open_input")
     @patch("src.core.midi_capture.datetime", wraps=datetime)
-    def test_recorder_start_recording_successful(self, mock_datetime_module, mock_open_input):
+    def test_recorder_start_recording_successful(
+        self, mock_datetime_module, mock_open_input
+    ):
         # Pre-condition: Initialize MidiRecorder successfully
         # self.mock_db_session.query(ProjectModel).filter().first() is already configured in setUp
         # self.mock_db_session.query(MidiDevice).filter().first() is NOT needed by MidiRecorder.__init__
@@ -316,7 +343,10 @@ class TestMidiRecorder(unittest.TestCase):
         self.mock_db_session.add.assert_any_call(recorder.capture_session)
         self.mock_db_session.commit.assert_called()  # Changed from assert_called_once
 
-    @patch("src.core.midi_capture.mido.open_input", side_effect=Exception("Port open error"))
+    @patch(
+        "src.core.midi_capture.mido.open_input",
+        side_effect=Exception("Port open error"),
+    )
     def test_recorder_start_recording_port_open_failure(self, mock_open_input_error):
         # Init recorder
         with patch(
@@ -346,7 +376,9 @@ class TestMidiRecorder(unittest.TestCase):
         recorder.capture_session = None  # Simulate it not being set
         recorder.target_devices = []  # As per SUT check
 
-        with self.assertRaisesRegex(ValueError, "MidiRecorder not properly initialized"):
+        with self.assertRaisesRegex(
+            ValueError, "MidiRecorder not properly initialized"
+        ):
             recorder.start_recording(self.mock_db_session)
 
     def test_recorder_start_recording_no_target_devices(self):
@@ -407,13 +439,16 @@ class TestMidiRecorder(unittest.TestCase):
             self.assertEqual(
                 recorder.midi_files[key_ch0_dev1].tracks[0].name, "TestDevice1_ch0"
             )
-            self.assertEqual(recorder.midi_files[key_ch0_dev1].tracks[0], [msg1_ch0_dev1])
+            self.assertEqual(
+                recorder.midi_files[key_ch0_dev1].tracks[0], [msg1_ch0_dev1]
+            )
 
             # Test 2: Second message for (Device1, Channel 0)
             msg2_ch0_dev1 = mido.Message("note_off", note=60, channel=0)
             recorder._midi_callback(msg2_ch0_dev1, "TestDevice1")
             self.assertEqual(
-                recorder.midi_files[key_ch0_dev1].tracks[0], [msg1_ch0_dev1, msg2_ch0_dev1]
+                recorder.midi_files[key_ch0_dev1].tracks[0],
+                [msg1_ch0_dev1, msg2_ch0_dev1],
             )
 
             # Test 3: System message for (Device1, Channel -1)
@@ -424,7 +459,9 @@ class TestMidiRecorder(unittest.TestCase):
             self.assertEqual(
                 recorder.midi_files[key_sys_dev1].tracks[0].name, "TestDevice1_chsys"
             )
-            self.assertEqual(recorder.midi_files[key_sys_dev1].tracks[0], [msg3_sys_dev1])
+            self.assertEqual(
+                recorder.midi_files[key_sys_dev1].tracks[0], [msg3_sys_dev1]
+            )
 
             # Test 4: Callback when not active
             recorder.active = False
@@ -490,7 +527,9 @@ class TestMidiRecorder(unittest.TestCase):
             if hasattr(call_arg[0][0], "midi_data"):  # Heuristic for MidiFile mock
                 added_midi_file = call_arg[0][0]
                 break
-        self.assertIsNotNone(added_midi_file, "MidiFile record not found in session.add calls")
+        self.assertIsNotNone(
+            added_midi_file, "MidiFile record not found in session.add calls"
+        )
         if added_midi_file:
             self.assertEqual(added_midi_file.midi_capture_session_id, recorder.capture_session.id)  # type: ignore
             self.assertEqual(added_midi_file.midi_device_id, self.mock_found_device.id)
@@ -532,7 +571,9 @@ class TestMidiRecorder(unittest.TestCase):
         self.assertEqual(recorder.capture_session.status, "completed_empty")  # type: ignore
 
         midi_file_add_calls = [
-            c for c in self.mock_db_session.add.call_args_list if hasattr(c[0][0], "midi_data")
+            c
+            for c in self.mock_db_session.add.call_args_list
+            if hasattr(c[0][0], "midi_data")
         ]
         self.assertEqual(len(midi_file_add_calls), 0)
         # Add is called once for the session status update
@@ -596,7 +637,9 @@ class TestMidiRecorder(unittest.TestCase):
         self.assertEqual(recorder.capture_session.status, "completed_empty")  # type: ignore
 
         midi_file_add_calls = [
-            c for c in self.mock_db_session.add.call_args_list if hasattr(c[0][0], "midi_data")
+            c
+            for c in self.mock_db_session.add.call_args_list
+            if hasattr(c[0][0], "midi_data")
         ]
         self.assertEqual(len(midi_file_add_calls), 0)
         # Add is called once for session status update

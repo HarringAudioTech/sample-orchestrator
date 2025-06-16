@@ -70,7 +70,10 @@ class SlicingStage(AudioProcessingStage):
         }
 
     def process(
-        self, data: str, params: Dict[str, Any], context: Optional[Dict[str, Any]] = None
+        self,
+        data: str,
+        params: Dict[str, Any],
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """Processes an audio file: detects onsets, slices them, and saves them.
 
@@ -115,12 +118,18 @@ class SlicingStage(AudioProcessingStage):
         # project_id: int = context["project_id"] # Currently unused directly by stage logic but good for context
 
         recording: Optional[RecordingModel] = (
-            db_session.query(RecordingModel).filter(RecordingModel.id == recording_id).first()
+            db_session.query(RecordingModel)
+            .filter(RecordingModel.id == recording_id)
+            .first()
         )
-        if not recording:  # Should be RecordingModel | None from query, so check for None
+        if (
+            not recording
+        ):  # Should be RecordingModel | None from query, so check for None
             # This is a critical error, as we need the recording to associate samples.
             # No db commit needed here as it's a read operation that failed to find the target.
-            raise ValueError(f"Recording with id {recording_id} not found in the database.")
+            raise ValueError(
+                f"Recording with id {recording_id} not found in the database."
+            )
 
         if not os.path.exists(data):
             recording.status = "slicing_failed"
@@ -129,7 +138,9 @@ class SlicingStage(AudioProcessingStage):
 
         recording.status = "slicing_active"
         db_session.commit()  # Commit status change
-        logger.info(f"[{self.name}] Recording {recording_id} status set to 'slicing_active'.")
+        logger.info(
+            f"[{self.name}] Recording {recording_id} status set to 'slicing_active'."
+        )
 
         created_samples_info: List[Dict[str, Any]] = []
         try:
@@ -151,7 +162,10 @@ class SlicingStage(AudioProcessingStage):
             # Merge user params with stage defaults for librosa_onset_params
             default_onset_params: Dict[str, Any] = self.default_params.get("librosa_onset_params", {})  # type: ignore
             user_onset_params: Dict[str, Any] = params.get("librosa_onset_params", {})
-            final_onset_params: Dict[str, Any] = {**default_onset_params, **user_onset_params}
+            final_onset_params: Dict[str, Any] = {
+                **default_onset_params,
+                **user_onset_params,
+            }
 
             # Ensure units is 'samples' for direct use
             final_onset_params["units"] = "samples"
@@ -164,8 +178,12 @@ class SlicingStage(AudioProcessingStage):
             )
 
             if not onset_samples.any():
-                recording.status = "slicing_completed"  # No onsets is a valid completed state
-                logger.info(f"[{self.name}] No onsets found for recording {recording_id}.")
+                recording.status = (
+                    "slicing_completed"  # No onsets is a valid completed state
+                )
+                logger.info(
+                    f"[{self.name}] No onsets found for recording {recording_id}."
+                )
                 db_session.commit()  # Commit status change
                 return []
 
@@ -216,7 +234,9 @@ class SlicingStage(AudioProcessingStage):
                 sample_filename: str = (
                     f"rec_{recording_id}_sample_{i+1}_onset_S{start_sample}.wav"
                 )
-                output_sample_path: str = os.path.join(output_sample_dir, sample_filename)
+                output_sample_path: str = os.path.join(
+                    output_sample_dir, sample_filename
+                )
 
                 try:
                     sf.write(output_sample_path, audio_slice, actual_samplerate)

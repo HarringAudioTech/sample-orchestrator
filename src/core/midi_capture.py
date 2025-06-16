@@ -88,7 +88,9 @@ def list_available_midi_devices(db: Session) -> list[MidiDevice]:
                 db.query(MidiDevice).filter(MidiDevice.name == name).first()
             )
             if device:
-                logger.debug(f"MIDI device '{name}' found in database. Updating timestamp.")
+                logger.debug(
+                    f"MIDI device '{name}' found in database. Updating timestamp."
+                )
                 device.updated_at = datetime.datetime.utcnow()
                 db.add(device)
             else:
@@ -230,7 +232,9 @@ class MidiRecorder:
 
         try:
             project: ProjectModel | None = (
-                db.query(ProjectModel).filter(ProjectModel.id == self.project_id).first()
+                db.query(ProjectModel)
+                .filter(ProjectModel.id == self.project_id)
+                .first()
             )
             if not project:
                 logger.error(f"Project with ID {self.project_id} not found.")
@@ -324,7 +328,9 @@ class MidiRecorder:
             )
 
         session_part: str = sanitize_filename(self.capture_session.name)
-        if not session_part:  # Fallback to ID if name sanitization results in empty string
+        if (
+            not session_part
+        ):  # Fallback to ID if name sanitization results in empty string
             session_part = str(self.capture_session.id)
 
         path: str = os.path.join(
@@ -386,7 +392,9 @@ class MidiRecorder:
         device_specific_dir: str = os.path.join(output_dir, sanitized_device_name)
         try:
             os.makedirs(device_specific_dir, exist_ok=True)
-            logger.debug(f"Ensured device-specific directory exists: {device_specific_dir}")
+            logger.debug(
+                f"Ensured device-specific directory exists: {device_specific_dir}"
+            )
         except OSError as e:
             logger.error(
                 f"Failed to create device-specific directory {device_specific_dir}: {e}"
@@ -438,12 +446,16 @@ class MidiRecorder:
             logger.error(
                 "Cannot start recording: MidiRecorder not properly initialized (no capture session)."
             )
-            raise ValueError("MidiRecorder not properly initialized (no capture session).")
+            raise ValueError(
+                "MidiRecorder not properly initialized (no capture session)."
+            )
         if not self.target_devices:
             logger.warning("No target devices configured for recording. Cannot start.")
             return
 
-        logger.info(f"Starting MIDI recording for session ID: {self.capture_session.id}")
+        logger.info(
+            f"Starting MIDI recording for session ID: {self.capture_session.id}"
+        )
         opened_ports_count: int = 0
         try:
             for device_model in self.target_devices:
@@ -467,7 +479,9 @@ class MidiRecorder:
                 self.capture_session.updated_at = datetime.datetime.utcnow()  # type: ignore
                 db.add(self.capture_session)
                 db.commit()
-                logger.error("No MIDI input ports could be opened. Recording cannot start.")
+                logger.error(
+                    "No MIDI input ports could be opened. Recording cannot start."
+                )
                 return
 
             self.capture_session.start_time = datetime.datetime.utcnow()  # type: ignore
@@ -604,15 +618,21 @@ class MidiRecorder:
                        other unexpected critical errors.
         """
         if not self.active:
-            logger.warning("Stop recording called but recording is not currently active.")
+            logger.warning(
+                "Stop recording called but recording is not currently active."
+            )
             return
         if not self.capture_session:
             logger.error(
                 "Cannot stop recording: MidiRecorder not properly initialized (no capture session)."
             )
-            raise ValueError("MidiRecorder not properly initialized (no capture session).")
+            raise ValueError(
+                "MidiRecorder not properly initialized (no capture session)."
+            )
 
-        logger.info(f"Stopping MIDI recording for session ID: {self.capture_session.id}")
+        logger.info(
+            f"Stopping MIDI recording for session ID: {self.capture_session.id}"
+        )
         try:
             for device_name, port in self.midi_inputs.items():
                 try:
