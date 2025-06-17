@@ -198,6 +198,7 @@ class TestProject(unittest.TestCase):
     def test_add_recording_successful_session_provided(
         self, mock_get_duration, mock_librosa_load, mock_os_exists
     ):
+        # mock_os_path_getsize was removed as it's not used by the SUT
         def recording_model_factory(**kwargs):
             instance = MagicMock(name="RecordingModelInstance_Mock")
             kwargs.setdefault("id", None)
@@ -222,14 +223,20 @@ class TestProject(unittest.TestCase):
             file_path = "/test/stereo_audio.mp3"
             recording_name = "Stereo MP3"
 
+            # mock_os_path_getsize.return_value = 54321 # Removed as per analysis
+
             new_recording_model_instance = project.add_recording(
                 file_path=file_path, name=recording_name
             )
 
+            # mock_os_path_getsize.assert_called_once_with(file_path) # Removed as per analysis
+
             self.mock_db_session.add.assert_called_once()
             added_object = self.mock_db_session.add.call_args[0][0]
             self.assertIs(added_object, new_recording_model_instance)
-            self.assertEqual(added_object.channels, 2)
+            self.assertEqual(added_object.channels, 2) # Example of other assertions to keep
+            # Ensure PatchedRecordingModel was called (it's the factory for the instance)
+            PatchedRecordingModel.assert_called_once()
             self.mock_db_session.commit.assert_called_once()
 
     @patch("src.core.project.os.path.exists", return_value=False)

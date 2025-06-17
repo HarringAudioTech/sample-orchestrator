@@ -11,23 +11,55 @@ ui_bp = Blueprint(
     static_url_path="/ui/static",  # URL path for these static files
 )
 
-
+# New General Dashboard Overview
 @ui_bp.route("/dashboard")
-def dashboard() -> str:
-    """Renders the main application dashboard page.
+def dashboard_overview() -> str:
+    """Renders the main dashboard overview page, listing all projects."""
+    db_gen = get_db()
+    db = next(db_gen)
+    try:
+        projects = db.query(ProjectModel).order_by(ProjectModel.name).all()
+        return render_template(
+            "dashboard.html",
+            title="Main Dashboard",
+            projects=projects,
+            is_overview=True
+        )
+    finally:
+        next(db_gen, None)
 
-    This route serves the primary user interface page, typically displaying
-    an overview of projects, activities, or other key information.
-    It utilizes the "dashboard.html" template.
+# Renamed and Modified Original Dashboard Route (now Project-Specific View)
+@ui_bp.route("/projects/<int:project_id>/dashboard_view")
+def project_dashboard_page(project_id: int) -> str:
+    """Renders the dashboard page for a specific project.
+
+    This route serves as the dashboard for a single project, displaying
+    project-specific information.
+    It utilizes the "dashboard.html" template (or a specific "project_dashboard.html").
 
     Args:
-        None.
+        project_id (int): The ID of the project.
 
     Returns:
-        str: The rendered HTML content of the dashboard page. The page title
-             is set to "Dashboard".
+        str: The rendered HTML content of the project dashboard page.
     """
-    return render_template("dashboard.html", title="Dashboard")
+    db_gen = get_db()
+    db = next(db_gen)
+    try:
+        project = db.query(ProjectModel).filter(ProjectModel.id == project_id).first()
+        if not project:
+            abort(404, description=f"Project with ID {project_id} not found.")
+
+        # Assuming "dashboard.html" can also display a single project's view
+        # or you might use a different template like "project_dashboard.html"
+        return render_template(
+            "dashboard.html",
+            title=f"Project Dashboard - {project.name}",
+            project=project, # Pass the specific project
+            is_overview=False # Flag to differentiate from general dashboard
+        )
+    finally:
+        next(db_gen, None)
 
 
 # Optional: Add a root route for the UI blueprint if desired,
@@ -36,21 +68,10 @@ def dashboard() -> str:
 def index() -> str:
     """Renders the main entry page for the UI blueprint.
 
-    Currently, this route renders the "dashboard.html" template, effectively
-    making the dashboard the landing page for the `/ui/` URL prefix.
-    In the future, this could be changed to render a dedicated welcome or
-    index page for the UI section.
-
-    Args:
-        None.
-
-    Returns:
-        str: The rendered HTML content of the dashboard page, with the page
-             title set to "Welcome".
+    Currently, this route renders the general dashboard overview.
     """
-    # For now, let's also point the UI root to the dashboard.
-    # Alternatively, this could be a separate landing page.
-    return render_template("dashboard.html", title="Welcome")
+    # Point the UI root to the new general dashboard overview.
+    return dashboard_overview()
 
 
 @ui_bp.route("/projects/new", methods=["GET"])

@@ -1,9 +1,80 @@
 {% extends "base.html" %}
 
-{% block title %}Dashboard - Orchestrator UI{% endblock %}
+{% block title %}
+    {% if is_overview %}
+        Main Dashboard - All Projects
+    {% elif project %}
+        Project Dashboard - {{ project.name }}
+    {% else %}
+        Dashboard
+    {% endif %}
+{% endblock %}
 
 {% block content %}
-<h2>Dashboard</h2>
-<p>Welcome to the orchestrator dashboard. This page will provide an overview of your sampling projects and their statuses.</p>
-<p><em>(Content to be added in future tasks)</em></p>
+    {% if is_overview %}
+        <h2>Projects Overview</h2>
+        {% if projects %}
+            <ul class="project-list">
+                {% for p in projects %}
+                    <li>
+                        <h3>{{ p.name }} <span class="project-id">(ID: {{ p.id }})</span></h3>
+                        <p>{{ p.description|truncate(100, True) if p.description else "No description available." }}</p>
+                        <ul class="project-actions">
+                            <li><a href="{{ url_for('ui_bp.project_dashboard_page', project_id=p.id) }}">View Project Dashboard</a></li>
+                            <li><a href="{{ url_for('ui_bp.project_progress', project_id=p.id) }}">View Progress</a></li>
+                            <li><a href="{{ url_for('ui_bp.sample_mapping_ui', project_id=p.id) }}">Sample Mapping</a></li>
+                            <li><a href="{{ url_for('ui_bp.import_project_audio_ui', project_id=p.id) }}">Import Audio</a></li>
+                        </ul>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>No projects found. <a href="{{ url_for('ui_bp.create_project_form') }}">Create a new project</a>.</p>
+        {% endif %}
+    {% elif project %} {# Project-Specific View #}
+        <h2>Project Dashboard: {{ project.name }}</h2>
+        <p>Details and actions for project ID: {{ project.id }}</p>
+
+        {% if project.description %}
+            <p><strong>Description:</strong> {{ project.description }}</p>
+        {% endif %}
+
+        {# Displaying counts requires relationships to be loaded or queried separately #}
+        {# For simplicity, we'll assume these attributes might be available if loaded by the ORM #}
+        {# In a real app, you might need to query these counts if not eagerly loaded #}
+        <p>
+            Recordings:
+            {% if project.recordings is defined and project.recordings|length > 0 %}
+                {{ project.recordings|length }}
+            {% elif project.recordings is defined %}
+                0
+            {% else %}
+                (N/A - Eager load recordings to see count)
+            {% endif %}
+        </p>
+        <p>
+            Sample Mappings:
+            {% if project.sample_mappings is defined and project.sample_mappings|length > 0 %}
+                {{ project.sample_mappings|length }}
+            {% elif project.sample_mappings is defined %}
+                0
+            {% else %}
+                (N/A - Eager load sample_mappings to see count)
+            {% endif %}
+        </p>
+
+        <h4>Project Tools:</h4>
+        <ul class="project-actions">
+            <li><a href="{{ url_for('ui_bp.project_progress', project_id=project.id) }}">View Progress</a></li>
+            <li><a href="{{ url_for('ui_bp.sample_mapping_ui', project_id=project.id) }}">Sample Mapping</a></li>
+            <li><a href="{{ url_for('ui_bp.import_project_audio_ui', project_id=project.id) }}">Import Audio</a></li>
+            {# Add other relevant links for a specific project #}
+        </ul>
+        <hr>
+        <p><a href="{{ url_for('ui_bp.dashboard_overview') }}">Back to Projects Overview</a></p>
+    {% else %}
+        <h2>Dashboard</h2>
+        <p>Welcome. Something went wrong, as no project data or overview flag was provided.</p>
+        <p><a href="{{ url_for('ui_bp.dashboard_overview') }}">Go to Projects Overview</a></p>
+    {% endif %}
 {% endblock %}
