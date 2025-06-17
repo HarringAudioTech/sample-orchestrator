@@ -1,9 +1,38 @@
 {% extends "base.html" %}
 
-{% block title %}Dashboard - Orchestrator UI{% endblock %}
+{% block title %}Dashboard - {{ project.name if project else 'Orchestrator UI' }}{% endblock %}
 
 {% block content %}
-<h2>Dashboard</h2>
-<p>Welcome to the orchestrator dashboard. This page will provide an overview of your sampling projects and their statuses.</p>
-<p><em>(Content to be added in future tasks)</em></p>
+<h1>Project Dashboard: {{ project.name if project else "Unknown Project" }}</h1>
+
+<p>This page provides an overview of the project, including its imported audio files and their metadata.</p>
+
+{% if recordings %}
+    <h2>Imported Audio Files</h2>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Filename</th>
+                <th>Filesize (bytes)</th>
+                <th>Duration (s)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for recording in recordings %}
+            <tr>
+                <td>{{ recording.name }}</td>
+                <td>{{ recording.filesize if recording.filesize is not none else 'N/A' }}</td>
+                <td>{{ recording.duration_seconds if recording.duration_seconds is not none else 'N/A' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <p>No audio files have been imported for this project yet.</p>
+{% endif %}
+
+<hr>
+<p><a href="{{ url_for('ui_bp.import_project_audio_ui', project_id=project.id) }}" class="btn btn-primary">Import New Audio File</a></p>
+<p><a href="{{ url_for('ui_bp.index') }}" class="btn btn-secondary">Back to Project List (Placeholder)</a></p>
+
 {% endblock %}

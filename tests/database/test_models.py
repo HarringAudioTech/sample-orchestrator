@@ -158,6 +158,47 @@ def test_create_recording(db_session: SQLAlchemySession) -> None:
         assert recording.project.name == "Project For Recordings"
 
 
+def test_create_recording_with_filesize(db_session: SQLAlchemySession) -> None:
+    """Test creating a Recording model instance with a filesize.
+
+    Args:
+        db_session: The SQLAlchemy session fixture.
+    """
+    project = Project(name="Project For Recording With Filesize")
+    db_session.add(project)
+    db_session.commit()
+    db_session.refresh(project)
+
+    recording = Recording(
+        project_id=project.id,  # type: ignore
+        name="Test Recording With Filesize",
+        file_path="/path/to/recording_with_filesize.wav",
+        filesize=1024768,  # Example filesize in bytes
+        duration_seconds=180.2,
+        samplerate=48000,
+        channels=1,
+        status="processed",
+    )
+    db_session.add(recording)
+    db_session.commit()
+    db_session.refresh(recording)
+
+    assert recording.id is not None
+    assert recording.project_id == project.id
+    assert recording.name == "Test Recording With Filesize"
+    assert recording.file_path == "/path/to/recording_with_filesize.wav"
+    assert recording.filesize == 1024768
+    assert recording.status == "processed"
+
+    retrieved_recording: Recording | None = (
+        db_session.query(Recording).filter(Recording.id == recording.id).first()
+    )
+    assert retrieved_recording is not None
+    if retrieved_recording:  # For type checker
+        assert retrieved_recording.filesize == 1024768
+        assert retrieved_recording.name == "Test Recording With Filesize"
+
+
 def test_update_recording_status(db_session: SQLAlchemySession) -> None:
     """Test updating the status of a Recording model instance.
 

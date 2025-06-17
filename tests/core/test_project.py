@@ -124,12 +124,13 @@ class TestProject(unittest.TestCase):
         # self.mock_db_session.close.assert_called_once() # If applicable
 
     @patch("src.core.project.os.path.exists", return_value=True)
+    @patch("src.core.project.os.path.getsize") # Added mock for getsize
     @patch("src.core.project.librosa.load")
     @patch("src.core.project.librosa.get_duration")
     # Patched RecordingModel will be handled by the side_effect setup
     @patch("src.core.project.get_db")
     def test_add_recording_successful_no_session_provided(
-        self, mock_get_db_rec, mock_get_duration, mock_librosa_load, mock_os_exists
+        self, mock_get_db_rec, mock_get_duration, mock_librosa_load, mock_os_path_getsize, mock_os_exists
     ):
         # Setup RecordingModel mock to return instances with attributes from kwargs
         def recording_model_factory(**kwargs):
@@ -155,6 +156,9 @@ class TestProject(unittest.TestCase):
             mock_get_db_rec.reset_mock()
             mock_get_db_rec.return_value = iter([self.mock_db_session])
 
+            # Configure mock for os.path.getsize BEFORE the call
+            mock_os_path_getsize.return_value = 12345 # Example file size in bytes
+
             dummy_audio_data = np.array([0.1, 0.2, 0.1])  # Mono
             sample_rate = 44100
             duration = 1.5
@@ -169,20 +173,41 @@ class TestProject(unittest.TestCase):
             )
 
             mock_os_exists.assert_called_once_with(file_path)
+            mock_os_path_getsize.assert_called_once_with(file_path) # Check getsize was called
             mock_librosa_load.assert_called_once_with(file_path, sr=None, mono=False)
             mock_get_duration.assert_called_once_with(y=dummy_audio_data, sr=sample_rate)
 
             self.mock_db_session.add.assert_called_once()
             added_object = self.mock_db_session.add.call_args[0][0]
 
-            self.assertIs(added_object, new_recording_model_instance)
-            self.assertEqual(added_object.project_id, self.project_id)
-            self.assertEqual(added_object.name, recording_name)
-            self.assertEqual(added_object.file_path, file_path)
-            self.assertEqual(added_object.duration_seconds, duration)
-            self.assertEqual(added_object.samplerate, sample_rate)
-            self.assertEqual(added_object.channels, 1)
-            self.assertEqual(added_object.status, "pending")
+            self.assertIs(added_object, new_recording_model_instance) # new_recording_model_instance is the return of project.add_recording
+            # The actual RecordingModel instance created inside add_recording is what's passed to db_session.add
+            # and its attributes are set based on the factory.
+            # So, we check the arguments passed to the factory.
+
+            # Check arguments passed to PatchedRecordingModel constructor
+            PatchedRecordingModel.assert_called_once_with(
+                project_id=self.project_id,
+                name=recording_name,
+                file_path=file_path,
+                filesize=12345, # Expected filesize
+                duration_seconds=duration,
+                samplerate=sample_rate,
+                channels=1, # Based on dummy_audio_data shape
+                status="pending",
+            )
+
+            # new_recording_model_instance is the object returned by project.add_recording,
+            # which IS the instance created by PatchedRecordingModel factory.
+            # So we can assert its attributes directly.
+            self.assertEqual(new_recording_model_instance.project_id, self.project_id)
+            self.assertEqual(new_recording_model_instance.name, recording_name)
+            self.assertEqual(new_recording_model_instance.file_path, file_path)
+            self.assertEqual(new_recording_model_instance.filesize, 12345) # Assert filesize on the returned instance
+            self.assertEqual(new_recording_model_instance.duration_seconds, duration)
+            self.assertEqual(new_recording_model_instance.samplerate, sample_rate)
+            self.assertEqual(new_recording_model_instance.channels, 1)
+            self.assertEqual(new_recording_model_instance.status, "pending")
 
             self.mock_db_session.commit.assert_called_once()
             self.mock_db_session.refresh.assert_called_once_with(added_object)
@@ -192,11 +217,12 @@ class TestProject(unittest.TestCase):
             )  # After reset_mock, add_recording calls it once.
 
     @patch("src.core.project.os.path.exists", return_value=True)
+    @patch("src.core.project.os.path.getsize") # Added mock for getsize
     @patch("src.core.project.librosa.load")
     @patch("src.core.project.librosa.get_duration")
     # Patched RecordingModel will be handled by the side_effect setup
     def test_add_recording_successful_session_provided(
-        self, mock_get_duration, mock_librosa_load, mock_os_exists
+        self, mock_get_duration, mock_librosa_load, mock_os_path_getsize, mock_os_exists
     ):
         def recording_model_factory(**kwargs):
             instance = MagicMock(name="RecordingModelInstance_Mock")
@@ -213,6 +239,9 @@ class TestProject(unittest.TestCase):
             project = Project(project_id=self.project_id, db_session=self.mock_db_session)
             self.mock_db_session.reset_mock()
 
+            # Configure mock for os.path.getsize BEFORE the call
+            mock_os_path_getsize.return_value = 54321 # Different filesize for this test
+
             stereo_audio_data = np.array([[0.1, 0.2], [0.3, 0.4]])
             sample_rate = 22050
             duration = 0.5
@@ -226,10 +255,30 @@ class TestProject(unittest.TestCase):
                 file_path=file_path, name=recording_name
             )
 
+            mock_os_path_getsize.return_value = 54321 # Different filesize for this test
+
+            new_recording_model_instance = project.add_recording(
+                file_path=file_path, name=recording_name
+            )
+
+            mock_os_path_getsize.assert_called_once_with(file_path)
+
             self.mock_db_session.add.assert_called_once()
-            added_object = self.mock_db_session.add.call_args[0][0]
-            self.assertIs(added_object, new_recording_model_instance)
-            self.assertEqual(added_object.channels, 2)
+            # Check arguments passed to PatchedRecordingModel constructor
+            PatchedRecordingModel.assert_called_once_with(
+                project_id=self.project_id,
+                name=recording_name,
+                file_path=file_path,
+                filesize=54321, # Expected filesize
+                duration_seconds=duration,
+                samplerate=sample_rate,
+                channels=2, # Based on stereo_audio_data shape
+                status="pending",
+            )
+
+            # Assert attributes on the returned instance
+            self.assertEqual(new_recording_model_instance.filesize, 54321)
+            self.assertEqual(new_recording_model_instance.channels, 2) # Existing check
             self.mock_db_session.commit.assert_called_once()
 
     @patch("src.core.project.os.path.exists", return_value=False)
