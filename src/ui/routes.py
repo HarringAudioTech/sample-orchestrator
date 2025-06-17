@@ -1,5 +1,6 @@
-from flask import Blueprint, render_template, abort
-from src.database.models import Project as ProjectModel
+from flask import Blueprint, render_template, abort, request
+from werkzeug.exceptions import HTTPException
+from src.database.models import Project as ProjectModel, Recording as RecordingModel
 from src.database.utils import get_db
 
 # Define the blueprint for UI routes
@@ -12,22 +13,41 @@ ui_bp = Blueprint(
 )
 
 
-@ui_bp.route("/dashboard")
-def dashboard() -> str:
-    """Renders the main application dashboard page.
+@ui_bp.route("/projects/<int:project_id>/dashboard")
+def dashboard(project_id: int) -> str:
+    """Renders the main application dashboard page for a specific project.
 
     This route serves the primary user interface page, typically displaying
     an overview of projects, activities, or other key information.
     It utilizes the "dashboard.html" template.
 
     Args:
-        None.
+        project_id (int): The ID of the project to display the dashboard for.
 
     Returns:
         str: The rendered HTML content of the dashboard page. The page title
-             is set to "Dashboard".
+             is set to "Dashboard - {project.name}".
     """
-    return render_template("dashboard.html", title="Dashboard")
+    db_session_generator = get_db()
+    db = next(db_session_generator)
+    try:
+        project = db.query(ProjectModel).filter(ProjectModel.id == project_id).first()
+        if not project:
+            abort(404, description=f"Project with ID {project_id} not found.")
+
+        recordings = db.query(RecordingModel).filter(RecordingModel.project_id == project_id).all()
+
+        return render_template(
+            "dashboard.html",
+            title=f"Dashboard - {project.name}",
+            project=project,
+            recordings=recordings,
+        )
+    finally:
+        try:
+            next(db_session_generator)  # Ensure the finally block in get_db is executed
+        except StopIteration:
+            pass
 
 
 # Optional: Add a root route for the UI blueprint if desired,
@@ -145,16 +165,65 @@ def import_project_audio_ui(project_id: int) -> str:
     Returns:
         str: Rendered HTML page for audio import.
     """
-    db = get_db()
+    db_session_generator = get_db()
+    db = next(db_session_generator)
     project = db.query(ProjectModel).filter(ProjectModel.id == project_id).first()
 
-    if not project:
-        abort(404, description=f"Project with ID {project_id} not found.")
+    try:
+        if not project:
+            abort(404, description=f"Project with ID {project_id} not found.")
 
-    return render_template(
-        "ui/import_audio.html",
-        project_id=project.id,
-        project_name=project.name,
-        error=None,  # Initially no error
-        success_message=None,  # Initially no success message
-    )
+        return render_template(
+            "import_audio.html", # Corrected path based on template folder structure
+            project_id=project.id,
+            project_name=project.name,
+            error=None,  # Initially no error
+            success_message=None,  # Initially no success message
+        )
+    finally:
+        try:
+            next(db_session_generator) # Ensure the finally block in get_db is executed
+        except StopIteration:
+            pass
+
+
+# --- UI Blueprint Error Handler ---
+@ui_bp.errorhandler(HTTPException)
+def handle_ui_exception(e: HTTPException):
+    """Return HTML for HTTP errors on the UI blueprint routes.
+    This ensures that if abort() is called or an exception derived from
+    HTTPException occurs during the handling of a UI route, the user
+    is shown a user-friendly HTML error page instead of a default
+    JSON or plain text error.
+    """
+    # Get the standard response object for the exception
+    response = e.get_response()
+
+    # Check if the client prefers HTML content.
+    # The ui_bp routes are primarily for user-facing HTML, so we prioritize HTML error pages.
+    # This condition can be adjusted if some UI routes might be called by clients
+    # that don't prefer HTML (e.g., htmx requests not specifically asking for HTML snippets).
+    if "text/html" in request.accept_mimetypes:
+        # If HTML is preferred, render the custom error template.
+        # The 'error' object (the exception 'e') is passed to the template,
+        # which can then access 'e.code' and 'e.description'.
+        return render_template("error.html", error=e), e.code
+
+    # If the client does not prefer HTML (e.g., an API client mistakenly hitting a UI route,
+    # or an htmx request that doesn't set Accept: text/html),
+    # return the default response from the exception (often JSON or plain text).
+    return response
+
+
+@ui_bp.errorhandler(404)
+def handle_ui_404_error(e):
+    """Return a custom HTML page for 404 Not Found errors on the UI blueprint.
+    Ensures that users always see a user-friendly HTML page for 404s
+    originating from UI routes. The exception 'e' (a NotFound instance)
+    contains 'code' and 'description' attributes that are passed to the
+    error template.
+    """
+    # Note: e.code will be 404.
+    # e.description will be the message from abort(404, description="...")
+    # or a default "Not Found" message if no description was provided.
+    return render_template("error.html", error=e), 404

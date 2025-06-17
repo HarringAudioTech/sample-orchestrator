@@ -206,10 +206,19 @@ class Project:
                     exc_info=True,
                 )
 
+            filesize: int | None = None
+            try:
+                filesize = os.path.getsize(file_path)
+                logger.info(f"Retrieved file size for {file_path}: {filesize} bytes")
+            except OSError as e:
+                logger.error(f"Could not get file size for {file_path}: {e}. Recording will be added without filesize.", exc_info=True)
+
+
             new_recording: RecordingModel = RecordingModel(
                 project_id=self.project_id,
                 name=name,
                 file_path=file_path,
+                filesize=filesize,
                 duration_seconds=duration_seconds,
                 samplerate=samplerate,
                 channels=channels,

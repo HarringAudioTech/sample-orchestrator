@@ -56,6 +56,7 @@ class Recording(Base):
     project_id: Mapped[int] = mapped_column(Integer, ForeignKey("projects.id"), nullable=False)
     name: Mapped[str] = mapped_column(String, nullable=False)
     file_path: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    filesize: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     duration_seconds: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     samplerate: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     channels: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
