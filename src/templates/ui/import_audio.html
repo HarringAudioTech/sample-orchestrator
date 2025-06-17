@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}Import Audio - Orchestrator UI{% endblock %}
+
+{% block content %}
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <ul class=flashes>
+      {% for category, message in messages %}
+        <li class="{{ category }}">{{ message }}</li>
+      {% endfor %}
+      </ul>
+    {% endif %}
+  {% endwith %}
+
+<h2>Import Audio File for Project: {{ project_name }} (ID: {{ project_id }})</h2>
+<form method="post" enctype="multipart/form-data" action="{{ url_for('projects_bp.upload_project_audio', project_id=project_id) }}">
+    <input type="hidden" name="project_id" value="{{ project_id }}">
+    <div>
+        <label for="recording_name">Recording Name:</label>
+        <input type="text" id="recording_name" name="recording_name" required>
+    </div>
+    <div>
+        <label for="audio_file">Audio File (WAV, AIFF):</label>
+        <input type="file" id="audio_file" name="audio_file" accept=".wav,.aiff,.wave,.aif" required>
+    </div>
+    <button type="submit">Upload Audio</button>
+</form>
+
+<p><a href="{{ url_for('ui_bp.view_project', project_id=project_id) }}">Back to Project</a></p>
+{% endblock %}

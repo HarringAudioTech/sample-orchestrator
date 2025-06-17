@@ -1,4 +1,6 @@
-from flask import Blueprint, render_template
+from flask import Blueprint, render_template, abort
+from src.database.models import Project as ProjectModel
+from src.database.utils import get_db
 
 # Define the blueprint for UI routes
 ui_bp = Blueprint(
@@ -130,4 +132,29 @@ def project_progress(project_id: str) -> str:
     # In the future, you would fetch project details using project_id
     return render_template(
         "project_progress.html", title=f"Project {project_id}", project_id=project_id
+    )
+
+
+@ui_bp.route("/projects/<int:project_id>/import_audio", methods=["GET"])
+def import_project_audio_ui(project_id: int) -> str:
+    """Renders the UI for importing an audio file to a specific project.
+
+    Args:
+        project_id (int): The ID of the project to import audio for.
+
+    Returns:
+        str: Rendered HTML page for audio import.
+    """
+    db = get_db()
+    project = db.query(ProjectModel).filter(ProjectModel.id == project_id).first()
+
+    if not project:
+        abort(404, description=f"Project with ID {project_id} not found.")
+
+    return render_template(
+        "ui/import_audio.html",
+        project_id=project.id,
+        project_name=project.name,
+        error=None,  # Initially no error
+        success_message=None,  # Initially no success message
     )
