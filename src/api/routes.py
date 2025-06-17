@@ -5,7 +5,7 @@ Each set of routes is organized into its own Blueprint.
 """
 
 import os
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify, current_app, flash, redirect, url_for
 from werkzeug.utils import secure_filename
 from sqlalchemy.orm import Session
 
@@ -17,10 +17,11 @@ from src.database.models import (
     Sample as SampleModel,
 )
 from src.core.project import Project as CoreProject
+from src.core.project_manager import ProjectManager
 
 # --- Configuration ---
-# Default paths for uploads and generated samples if not set in app config.
-DEFAULT_UPLOAD_BASE_DIR = "data/uploads"
+# Default paths for generated samples if not set in app config.
+# DEFAULT_UPLOAD_BASE_DIR is now managed by ProjectManager
 DEFAULT_SAMPLES_BASE_DIR = "data/projects"
 
 
@@ -44,7 +45,7 @@ samples_bp = Blueprint("samples", __name__, url_prefix="/samples")
 
 
 # --- Helper Functions ---
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, Set
 from flask import Response
 
 
@@ -217,8 +218,7 @@ def add_project_recording(project_id: int) -> Response:
     if file.filename == "":
         return jsonify({"error": "No selected file (filename is empty)"}), 400
 
-    upload_folder_base = current_app.config.get("UPLOAD_FOLDER", DEFAULT_UPLOAD_BASE_DIR)
-    project_upload_dir = os.path.join(upload_folder_base, f"project_{project_id}")
+    project_upload_dir = ProjectManager.get_project_upload_dir(project_id, current_app.config)
 
     if not os.path.exists(project_upload_dir):
         try:
@@ -299,6 +299,111 @@ def list_project_recordings(project_id: int) -> Response:
 
     recordings: List[RecordingModel] = core_proj.list_recordings()
     return jsonify([model_to_dict(r) for r in recordings]), 200
+
+
+ALLOWED_EXTENSIONS: Set[str] = {'wav', 'aiff', 'wave', 'aif'}
+
+def allowed_file(filename: str) -> bool:
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+@projects_bp.route("/<int:project_id>/upload_audio", methods=["POST"])
+def upload_project_audio(project_id: int) -> Response:
+    """Handles audio file uploads for a specific project.
+
+    Expects 'multipart/form-data' with 'audio_file' and 'recording_name'.
+    Validates file type and saves the file, then adds recording metadata to DB.
+    This is similar to 'add_project_recording' but intended for use with
+    the UI form that specifies 'audio_file' and 'recording_name'.
+
+    Args:
+        project_id (int): The ID of the project to associate the audio with.
+
+    Returns:
+        flask.Response: Redirects to the import audio UI page with flash messages.
+                        Returns JSON error for critical issues like project not found.
+    """
+    try:
+        # Validate project existence early. If project not found, UI context is lost.
+        core_proj = CoreProject(project_id=project_id)
+    except ValueError as e:
+        current_app.logger.info(f"Project ID {project_id} not found for audio upload: {e}")
+        # For this error, a JSON response is appropriate as the page context is invalid.
+        return jsonify({"error": f"Project with ID {project_id} not found."}), 404
+
+    redirect_url = url_for('ui_bp.import_project_audio_ui', project_id=project_id)
+
+    if 'audio_file' not in request.files:
+        flash("No audio_file part in the request.", "error")
+        return redirect(redirect_url)
+
+    file = request.files['audio_file']
+    recording_name: Optional[str] = request.form.get("recording_name")
+
+    if not recording_name:
+        flash("Recording name ('recording_name') is required in form data.", "error")
+        return redirect(redirect_url)
+    if not file.filename:
+        flash("No selected file (filename is empty).", "error")
+        return redirect(redirect_url)
+
+    if not allowed_file(file.filename):
+        flash(f"File type not allowed. Allowed extensions: {', '.join(ALLOWED_EXTENSIONS)}", "error")
+        return redirect(redirect_url)
+
+    project_upload_dir = ProjectManager.get_project_upload_dir(project_id, current_app.config)
+
+    if not os.path.exists(project_upload_dir):
+        try:
+            os.makedirs(project_upload_dir)
+            current_app.logger.info(f"Created upload directory: {project_upload_dir}")
+        except OSError as e:
+            current_app.logger.error(
+                f"Error creating upload directory {project_upload_dir}: {e}", exc_info=True,
+            )
+            flash(f"Could not create upload directory: {e.strerror}", "error")
+            return redirect(redirect_url)
+
+    filename = secure_filename(file.filename)
+    file_path = os.path.join(project_upload_dir, filename)
+
+    try:
+        file.save(file_path)
+        current_app.logger.info(f"Audio file saved to {file_path} for project {project_id}")
+    except Exception as e:
+        current_app.logger.error(
+            f"Error saving uploaded audio file to {file_path}: {e}", exc_info=True
+        )
+        flash(f"Could not save uploaded audio file: {str(e)}", "error")
+        return redirect(redirect_url)
+
+    try:
+        new_recording_model = core_proj.add_recording(file_path=file_path, name=recording_name)
+        current_app.logger.info(
+            f"Recording '{new_recording_model.name}' (ID: {new_recording_model.id}) "
+            f"added to project {project_id} via upload_project_audio endpoint."
+        )
+        flash(f"Audio '{new_recording_model.name}' uploaded successfully!", "success")
+        flash(f"Recording ID: {new_recording_model.id}, Name: {new_recording_model.name}, File: {new_recording_model.file_path}", "info")
+        return redirect(redirect_url)
+    except FileNotFoundError as e: # Should be rare
+        current_app.logger.error(
+            f"File not found during add_recording call for {file_path}: {e}", exc_info=True
+        )
+        if os.path.exists(file_path): # Attempt cleanup
+            try: os.remove(file_path)
+            except OSError as rm_e: current_app.logger.error(f"Error cleaning up {file_path}: {rm_e}")
+        flash(f"File operation error after save: {str(e)}", "error")
+        return redirect(redirect_url)
+    except Exception as e: # General DB or other core logic errors
+        current_app.logger.error(
+            f"Error adding recording DB entry for {file_path}: {e}", exc_info=True
+        )
+        if os.path.exists(file_path): # Attempt cleanup
+            try: os.remove(file_path)
+            except OSError as rm_e: current_app.logger.error(f"Error cleaning up {file_path}: {rm_e}")
+        flash(f"Could not add recording to database: {str(e)}", "error")
+        return redirect(redirect_url)
 
 
 # --- Standalone Recording and Sample Endpoints ---
