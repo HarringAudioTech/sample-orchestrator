@@ -82,7 +82,10 @@ def test_dashboard_project_not_exists(client: FlaskClient):
     """Test dashboard returns 404 for a non-existent project."""
     response = client.get("/ui/projects/99999/dashboard")
     assert response.status_code == 404
+    # Check for content from the error.html template
+    assert b"Error 404" in response.data
     assert b"Project with ID 99999 not found" in response.data
+    assert b"Go to Homepage" in response.data # Link from error.html
 
 
 def test_dashboard_project_exists_no_recordings(client: FlaskClient, db_session: SQLAlchemySession):

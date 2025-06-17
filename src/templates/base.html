@@ -11,7 +11,7 @@
         <h1>Orchestrator Dashboard</h1>
         <nav>
             <ul>
-                <li><a href="{{ url_for('ui_bp.dashboard') }}">Dashboard</a></li>
+                <li>{% if project and project.id %}<a href="{{ url_for('ui_bp.dashboard', project_id=project.id) }}">Project Dashboard</a>{% else %}<a href="{{ url_for('ui_bp.index') }}">Home</a>{% endif %}</li>
                 <li><a href="{{ url_for('ui_bp.create_project_form') }}">Create New Project</a></li>
                 <!-- Add more links here as new pages are created -->
             </ul>

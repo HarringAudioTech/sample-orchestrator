@@ -255,12 +255,6 @@ class TestProject(unittest.TestCase):
                 file_path=file_path, name=recording_name
             )
 
-            mock_os_path_getsize.return_value = 54321 # Different filesize for this test
-
-            new_recording_model_instance = project.add_recording(
-                file_path=file_path, name=recording_name
-            )
-
             mock_os_path_getsize.assert_called_once_with(file_path)
 
             self.mock_db_session.add.assert_called_once()

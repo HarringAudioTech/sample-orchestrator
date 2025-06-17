@@ -1,4 +1,5 @@
-from flask import Blueprint, render_template, abort
+from flask import Blueprint, render_template, abort, request
+from werkzeug.exceptions import HTTPException
 from src.database.models import Project as ProjectModel, Recording as RecordingModel
 from src.database.utils import get_db
 
@@ -173,7 +174,7 @@ def import_project_audio_ui(project_id: int) -> str:
             abort(404, description=f"Project with ID {project_id} not found.")
 
         return render_template(
-            "ui/import_audio.html", # This was "ui/import_audio.html" but should be "import_audio.html" given the template folder structure. Correcting this is out of scope.
+            "import_audio.html", # Corrected path based on template folder structure
             project_id=project.id,
             project_name=project.name,
             error=None,  # Initially no error
@@ -184,3 +185,31 @@ def import_project_audio_ui(project_id: int) -> str:
             next(db_session_generator) # Ensure the finally block in get_db is executed
         except StopIteration:
             pass
+
+
+# --- UI Blueprint Error Handler ---
+@ui_bp.errorhandler(HTTPException)
+def handle_ui_exception(e: HTTPException):
+    """Return HTML for HTTP errors on the UI blueprint routes.
+    This ensures that if abort() is called or an exception derived from
+    HTTPException occurs during the handling of a UI route, the user
+    is shown a user-friendly HTML error page instead of a default
+    JSON or plain text error.
+    """
+    # Get the standard response object for the exception
+    response = e.get_response()
+
+    # Check if the client prefers HTML content.
+    # The ui_bp routes are primarily for user-facing HTML, so we prioritize HTML error pages.
+    # This condition can be adjusted if some UI routes might be called by clients
+    # that don't prefer HTML (e.g., htmx requests not specifically asking for HTML snippets).
+    if "text/html" in request.accept_mimetypes:
+        # If HTML is preferred, render the custom error template.
+        # The 'error' object (the exception 'e') is passed to the template,
+        # which can then access 'e.code' and 'e.description'.
+        return render_template("error.html", error=e), e.code
+
+    # If the client does not prefer HTML (e.g., an API client mistakenly hitting a UI route,
+    # or an htmx request that doesn't set Accept: text/html),
+    # return the default response from the exception (often JSON or plain text).
+    return response
