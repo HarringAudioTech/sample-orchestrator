@@ -229,7 +229,7 @@ def test_dashboard_project_exists_with_recordings(client: FlaskClient, db_sessio
 # to ensure it's rendered safely by Jinja2 (which it does by default).
 def test_dashboard_project_name_with_special_chars(client: FlaskClient, db_session: SQLAlchemySession):
     """Test project name with special HTML characters is displayed correctly (escaped)."""
-    special_name = "Project with <script>alert('XSS')</script> & \"quotes\""
+    special_name = "Project with <script>alert('XSS')</script> & \"quotes\"" # Restored original
     project = ProjectModel(name=special_name)
     db_session.add(project)
     db_session.commit()
@@ -239,14 +239,36 @@ def test_dashboard_project_name_with_special_chars(client: FlaskClient, db_sessi
     assert response.status_code == 200
     response_data = response.data.decode("utf-8")
 
-    # Jinja2 auto-escapes by default, so these should be escaped in the HTML
-    assert "Project Dashboard: Project with &lt;script&gt;alert('XSS')&lt;/script&gt; &amp; &quot;quotes&quot;" in response_data
-    # Also check the title
-    assert "<title>Dashboard - Project with &lt;script&gt;alert('XSS')&lt;/script&gt; &amp; &quot;quotes&quot;</title>" in response_data
+    # Based on DEBUG_OUTPUT:
+    # & -> &amp;
+    # < -> &lt;
+    # > -> &gt;
+    # " -> &#34;  (Note: not &quot;)
+    # ' -> &#39;
+    escaped_name = "Project with &lt;script&gt;alert(&#39;XSS&#39;)&lt;/script&gt; &amp; &#34;quotes&#34;"
 
-    # Ensure the raw special characters are NOT present (which would indicate lack of escaping)
+    expected_h1_content = f"<h1>Project Dashboard: {escaped_name}</h1>"
+    expected_title_content = f"<title>Dashboard - {escaped_name}</title>"
+
+    # Normalize whitespace for robust comparison
+    normalized_response_data = ' '.join(response_data.split())
+
+    # Check for the core escaped string content first
+    core_escaped_name_part = escaped_name
+    assert core_escaped_name_part in normalized_response_data
+
+    # If the core part is found, then check the full H1 and title structure
+    normalized_expected_h1 = ' '.join(expected_h1_content.split())
+    normalized_expected_title = ' '.join(expected_title_content.split())
+
+    assert normalized_expected_h1 in normalized_response_data
+    assert normalized_expected_title in normalized_response_data
+
+    # Ensure the raw special_name string is NOT present in the response_data
+    assert special_name not in response_data
+    # Also ensure common problematic substrings from the original raw string are not present if they imply lack of escaping
     assert "<script>alert('XSS')</script>" not in response_data
-    assert " \"quotes\"" not in response_data # Check raw quotes if they were part of an attribute value without proper quoting
+    assert " & \"quotes\"" not in response_data
 
 # Test project name with non-ASCII characters (Unicode)
 def test_dashboard_project_name_with_unicode_chars(client: FlaskClient, db_session: SQLAlchemySession):

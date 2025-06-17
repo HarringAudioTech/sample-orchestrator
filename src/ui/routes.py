@@ -213,3 +213,17 @@ def handle_ui_exception(e: HTTPException):
     # or an htmx request that doesn't set Accept: text/html),
     # return the default response from the exception (often JSON or plain text).
     return response
+
+
+@ui_bp.errorhandler(404)
+def handle_ui_404_error(e):
+    """Return a custom HTML page for 404 Not Found errors on the UI blueprint.
+    Ensures that users always see a user-friendly HTML page for 404s
+    originating from UI routes. The exception 'e' (a NotFound instance)
+    contains 'code' and 'description' attributes that are passed to the
+    error template.
+    """
+    # Note: e.code will be 404.
+    # e.description will be the message from abort(404, description="...")
+    # or a default "Not Found" message if no description was provided.
+    return render_template("error.html", error=e), 404
