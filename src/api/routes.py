@@ -15,6 +15,8 @@ from src.database.models import (
     Project as ProjectModel,
     Recording as RecordingModel,
     Sample as SampleModel,
+    SampleMapping,
+    SampleMappingItem,
 )
 from src.core.project import Project as CoreProject
 from src.core.project_manager import ProjectManager
@@ -34,6 +36,8 @@ recordings_bp = Blueprint("recordings", __name__, url_prefix="/recordings")
 # Blueprint for sample-related operations (those not directly under a
 # recording).
 samples_bp = Blueprint("samples", __name__, url_prefix="/samples")
+sample_mappings_bp = Blueprint("sample_mappings", __name__, url_prefix="/sample_mappings")
+sample_mapping_items_bp = Blueprint("sample_mapping_items", __name__, url_prefix="/sample_mapping_items")
 
 
 # --- Database Session Management ---
@@ -733,5 +737,307 @@ def get_sample_details(sample_id: int) -> Response:
         if not sample:
             return jsonify({"error": "Sample not found"}), 404
         return jsonify(model_to_dict(sample)), 200
+    finally:
+        next(db_gen, None)
+
+
+# --- Project-Scoped Sample Mapping Endpoints ---
+@projects_bp.route("/<int:project_id>/sample_mappings", methods=["POST"])
+def create_project_sample_mapping(project_id: int) -> Response:
+    """Creates a new SampleMapping associated with the given project_id."""
+    data = request.get_json()
+    if not data or not data.get("name"):
+        return jsonify({"error": "Sample mapping name is required"}), 400
+
+    db_gen = get_db()
+    db: Session = next(db_gen)
+    try:
+        project = db.query(ProjectModel).filter(ProjectModel.id == project_id).first()
+        if not project:
+            return jsonify({"error": "Project not found"}), 404
+
+        new_mapping = SampleMapping(
+            project_id=project_id,
+            name=data["name"],
+            mapping_type=data.get("mapping_type"),
+        )
+        db.add(new_mapping)
+        db.commit()
+        db.refresh(new_mapping)
+        current_app.logger.info(
+            f"SampleMapping created with ID: {new_mapping.id} for project {project_id}"
+        )
+        return jsonify(model_to_dict(new_mapping)), 201
+    except Exception as e:
+        db.rollback()
+        current_app.logger.error(f"Error creating sample mapping: {e}", exc_info=True)
+        return (
+            jsonify({"error": "Could not create sample mapping due to an internal error"}),
+            500,
+        )
+    finally:
+        next(db_gen, None)
+
+
+@projects_bp.route("/<int:project_id>/sample_mappings", methods=["GET"])
+def list_project_sample_mappings(project_id: int) -> Response:
+    """Lists all SampleMapping instances associated with the project_id."""
+    db_gen = get_db()
+    db: Session = next(db_gen)
+    try:
+        project = db.query(ProjectModel).filter(ProjectModel.id == project_id).first()
+        if not project:
+            return jsonify({"error": "Project not found"}), 404
+
+        mappings = (
+            db.query(SampleMapping)
+            .filter(SampleMapping.project_id == project_id)
+            .all()
+        )
+        return jsonify([model_to_dict(m) for m in mappings]), 200
+    finally:
+        next(db_gen, None)
+
+
+# --- General Sample Mapping Endpoints ---
+@sample_mappings_bp.route("/<int:mapping_id>", methods=["GET"])
+def get_sample_mapping(mapping_id: int) -> Response:
+    """Retrieves a specific SampleMapping by its mapping_id."""
+    db_gen = get_db()
+    db: Session = next(db_gen)
+    try:
+        mapping = (
+            db.query(SampleMapping).filter(SampleMapping.id == mapping_id).first()
+        )
+        if not mapping:
+            return jsonify({"error": "Sample mapping not found"}), 404
+        return jsonify(model_to_dict(mapping)), 200
+    finally:
+        next(db_gen, None)
+
+
+@sample_mappings_bp.route("/<int:mapping_id>", methods=["PUT"])
+def update_sample_mapping(mapping_id: int) -> Response:
+    """Updates an existing SampleMapping."""
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Request body must be JSON"}), 400
+
+    db_gen = get_db()
+    db: Session = next(db_gen)
+    try:
+        mapping = (
+            db.query(SampleMapping).filter(SampleMapping.id == mapping_id).first()
+        )
+        if not mapping:
+            return jsonify({"error": "Sample mapping not found"}), 404
+
+        if "name" in data:
+            mapping.name = data["name"]
+        if "mapping_type" in data:
+            mapping.mapping_type = data["mapping_type"]
+
+        db.commit()
+        db.refresh(mapping)
+        current_app.logger.info(f"SampleMapping updated with ID: {mapping.id}")
+        return jsonify(model_to_dict(mapping)), 200
+    except Exception as e:
+        db.rollback()
+        current_app.logger.error(f"Error updating sample mapping: {e}", exc_info=True)
+        return (
+            jsonify({"error": "Could not update sample mapping due to an internal error"}),
+            500,
+        )
+    finally:
+        next(db_gen, None)
+
+
+@sample_mappings_bp.route("/<int:mapping_id>", methods=["DELETE"])
+def delete_sample_mapping(mapping_id: int) -> Response:
+    """Deletes a SampleMapping by its mapping_id."""
+    db_gen = get_db()
+    db: Session = next(db_gen)
+    try:
+        mapping = (
+            db.query(SampleMapping).filter(SampleMapping.id == mapping_id).first()
+        )
+        if not mapping:
+            return jsonify({"error": "Sample mapping not found"}), 404
+
+        db.delete(mapping)
+        db.commit()
+        current_app.logger.info(f"SampleMapping deleted with ID: {mapping_id}")
+        return jsonify({"message": "Sample mapping deleted successfully"}), 200
+    except Exception as e:
+        db.rollback()
+        current_app.logger.error(f"Error deleting sample mapping: {e}", exc_info=True)
+        return (
+            jsonify({"error": "Could not delete sample mapping due to an internal error"}),
+            500,
+        )
+    finally:
+        next(db_gen, None)
+
+
+# --- Sample Mapping Item Endpoints ---
+@sample_mappings_bp.route("/<int:mapping_id>/items", methods=["POST"])
+def add_sample_mapping_item(mapping_id: int) -> Response:
+    """Adds a new SampleMappingItem to the specified SampleMapping."""
+    data = request.get_json()
+    if not data or not data.get("sample_id"):
+        return jsonify({"error": "Sample ID is required"}), 400
+
+    db_gen = get_db()
+    db: Session = next(db_gen)
+    try:
+        mapping = (
+            db.query(SampleMapping).filter(SampleMapping.id == mapping_id).first()
+        )
+        if not mapping:
+            return jsonify({"error": "Sample mapping not found"}), 404
+
+        sample = db.query(SampleModel).filter(SampleModel.id == data["sample_id"]).first()
+        if not sample:
+            return jsonify({"error": "Sample not found"}), 404
+
+        # Validate that the sample belongs to the same project as the mapping
+        if sample.project_id != mapping.project_id:
+            return jsonify({"error": "Sample must belong to the same project as the mapping"}), 400
+
+        new_item = SampleMappingItem(
+            sample_mapping_id=mapping_id,
+            sample_id=data["sample_id"],
+            key_range_start=data.get("key_range_start"),
+            key_range_end=data.get("key_range_end"),
+            velocity_range_start=data.get("velocity_range_start"),
+            velocity_range_end=data.get("velocity_range_end"),
+        )
+        db.add(new_item)
+        db.commit()
+        db.refresh(new_item)
+        current_app.logger.info(
+            f"SampleMappingItem created with ID: {new_item.id} for mapping {mapping_id}"
+        )
+        return jsonify(model_to_dict(new_item)), 201
+    except Exception as e:
+        db.rollback()
+        current_app.logger.error(f"Error adding sample mapping item: {e}", exc_info=True)
+        return (
+            jsonify({"error": "Could not add sample mapping item due to an internal error"}),
+            500,
+        )
+    finally:
+        next(db_gen, None)
+
+
+@sample_mappings_bp.route("/<int:mapping_id>/items", methods=["GET"])
+def list_sample_mapping_items(mapping_id: int) -> Response:
+    """Lists all SampleMappingItem instances for a given mapping_id."""
+    db_gen = get_db()
+    db: Session = next(db_gen)
+    try:
+        mapping = (
+            db.query(SampleMapping).filter(SampleMapping.id == mapping_id).first()
+        )
+        if not mapping:
+            return jsonify({"error": "Sample mapping not found"}), 404
+
+        items = (
+            db.query(SampleMappingItem)
+            .filter(SampleMappingItem.sample_mapping_id == mapping_id)
+            .all()
+        )
+        return jsonify([model_to_dict(i) for i in items]), 200
+    finally:
+        next(db_gen, None)
+
+
+# --- Single Sample Mapping Item Endpoints ---
+@sample_mapping_items_bp.route("/<int:item_id>", methods=["GET"])
+def get_sample_mapping_item(item_id: int) -> Response:
+    """Retrieves a specific SampleMappingItem by its item_id."""
+    db_gen = get_db()
+    db: Session = next(db_gen)
+    try:
+        item = (
+            db.query(SampleMappingItem)
+            .filter(SampleMappingItem.id == item_id)
+            .first()
+        )
+        if not item:
+            return jsonify({"error": "Sample mapping item not found"}), 404
+        return jsonify(model_to_dict(item)), 200
+    finally:
+        next(db_gen, None)
+
+
+@sample_mapping_items_bp.route("/<int:item_id>", methods=["PUT"])
+def update_sample_mapping_item(item_id: int) -> Response:
+    """Updates an existing SampleMappingItem."""
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Request body must be JSON"}), 400
+
+    db_gen = get_db()
+    db: Session = next(db_gen)
+    try:
+        item = (
+            db.query(SampleMappingItem)
+            .filter(SampleMappingItem.id == item_id)
+            .first()
+        )
+        if not item:
+            return jsonify({"error": "Sample mapping item not found"}), 404
+
+        if "key_range_start" in data:
+            item.key_range_start = data["key_range_start"]
+        if "key_range_end" in data:
+            item.key_range_end = data["key_range_end"]
+        if "velocity_range_start" in data:
+            item.velocity_range_start = data["velocity_range_start"]
+        if "velocity_range_end" in data:
+            item.velocity_range_end = data["velocity_range_end"]
+        # Potentially add sample_id update if allowed, with validation
+
+        db.commit()
+        db.refresh(item)
+        current_app.logger.info(f"SampleMappingItem updated with ID: {item.id}")
+        return jsonify(model_to_dict(item)), 200
+    except Exception as e:
+        db.rollback()
+        current_app.logger.error(f"Error updating sample mapping item: {e}", exc_info=True)
+        return (
+            jsonify({"error": "Could not update sample mapping item due to an internal error"}),
+            500,
+        )
+    finally:
+        next(db_gen, None)
+
+
+@sample_mapping_items_bp.route("/<int:item_id>", methods=["DELETE"])
+def delete_sample_mapping_item(item_id: int) -> Response:
+    """Deletes a SampleMappingItem by its item_id."""
+    db_gen = get_db()
+    db: Session = next(db_gen)
+    try:
+        item = (
+            db.query(SampleMappingItem)
+            .filter(SampleMappingItem.id == item_id)
+            .first()
+        )
+        if not item:
+            return jsonify({"error": "Sample mapping item not found"}), 404
+
+        db.delete(item)
+        db.commit()
+        current_app.logger.info(f"SampleMappingItem deleted with ID: {item_id}")
+        return jsonify({"message": "Sample mapping item deleted successfully"}), 200
+    except Exception as e:
+        db.rollback()
+        current_app.logger.error(f"Error deleting sample mapping item: {e}", exc_info=True)
+        return (
+            jsonify({"error": "Could not delete sample mapping item due to an internal error"}),
+            500,
+        )
     finally:
         next(db_gen, None)

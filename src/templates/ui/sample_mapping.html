@@ -1,0 +1,780 @@
+{% extends "base.html" %}
+
+{% block title %}Sample Mapping - {{ project_name }}{% endblock %}
+
+{% block content %}
+<h1>Sample Mapping for Project: {{ project_name }} (ID: {{ project_id }})</h1>
+
+<div id="mapping-status-messages" style="margin-bottom: 15px; padding: 10px; border: 1px solid transparent; border-radius: 4px;">
+    <!-- Messages will be displayed here by JavaScript -->
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 20px;">
+
+    <!-- Left Column: Sample List Panel -->
+    <div id="sample-list-panel" style="flex: 1; min-width: 300px; padding: 15px; border: 1px solid #ddd; border-radius: 5px;">
+        <h2>Available Samples</h2>
+        <p id="samples-loading-message">Loading samples...</p>
+        <ul id="available-samples-container" style="list-style-type: none; padding: 0;">
+            <!-- Sample items will be populated here by JavaScript -->
+            <!-- Example: <li data-sample-id="1">Sample Name (ID: 1)</li> -->
+        </ul>
+    </div>
+
+    <!-- Right Column: Mapping Configuration Panel -->
+    <div id="mapping-config-panel" style="flex: 2; min-width: 400px; padding: 15px; border: 1px solid #ddd; border-radius: 5px;">
+        <h2>Mapping Configuration</h2>
+
+        <div id="mapping-selection-creation" style="margin-bottom: 20px;">
+            <label for="sample-mapping-selector">Select Existing Mapping:</label>
+            <select id="sample-mapping-selector" style="margin-right: 10px;">
+                <option value="">-- Select a Mapping --</option>
+                <!-- Mapping options will be populated here -->
+            </select>
+            <button id="load-mapping-button">Load Mapping</button>
+            <hr style="margin: 15px 0;">
+            <label for="new-mapping-name-input">Or Create New Mapping:</label>
+            <input type="text" id="new-mapping-name-input" placeholder="Enter new mapping name" style="margin-right: 10px;">
+            <button id="create-new-mapping-button">Create New Mapping</button>
+        </div>
+
+        <div id="current-mapping-display" style="margin-bottom: 20px;">
+            <h3 id="current-mapping-name-display">No Mapping Loaded</h3>
+            <p id="current-mapping-id-display"></p>
+        </div>
+
+        <div id="midi-map-visualizer" style="margin-bottom: 20px;">
+            <h4>MIDI Map Visualizer</h4>
+            <div id="keyboard-container" style="height: 200px; border: 1px solid #ccc; margin-top: 10px; padding:10px; background-color: #f9f9f9; overflow-x: auto; display: flex; align-items: center; justify-content: center;">
+                <p>Keyboard/Grid representation will appear here.</p>
+                <!-- This area will be dynamically populated by JavaScript -->
+            </div>
+        </div>
+
+        <div id="mapping-item-editor-container">
+            <h4>Edit Mapping Item</h4>
+            <div class="mapping-item-editor" style="padding: 10px; border: 1px solid #eee; border-radius: 4px; display:none;">
+                <h5>Edit Mapping for <span id="selected-sample-name-title">N/A</span> (Sample ID: <span id="selected-sample-id-title">N/A</span>)</h5>
+                <input type="hidden" id="current-editing-item-id"> <!-- To store ID of item being edited -->
+
+                <label for="key-range-start">Key Range Start:</label>
+                <input type="number" id="key-range-start" min="0" max="127" style="width: 60px;">
+                <label for="key-range-end">Key Range End:</label>
+                <input type="number" id="key-range-end" min="0" max="127" style="width: 60px;">
+                <br><br>
+                <label for="velocity-range-start">Velocity Start:</label>
+                <input type="number" id="velocity-range-start" min="0" max="127" style="width: 60px;">
+                <label for="velocity-range-end">Velocity End:</label>
+                <input type="number" id="velocity-range-end" min="0" max="127" style="width: 60px;">
+                <br><br>
+                <button id="save-mapping-item-button">Save/Update Item</button>
+                <button id="remove-mapping-item-button" style="display:none;">Remove Item from Mapping</button>
+                <button id="clear-mapping-item-editor-button">Clear/Cancel Edit</button>
+            </div>
+        </div>
+
+        <div id="mapping-items-list" style="margin-top: 20px;">
+             <h4>Items in Current Mapping: <span id="mapping-item-count">(0)</span></h4>
+             <ul id="current-mapping-items-container" style="list-style-type: none; padding: 0;">
+                <!-- Dynamically populated list of mapping items -->
+                <!-- Example: <li>SampleX (C1-G1, Vel 64-127) <button class="edit-item" data-item-id="1">Edit</button></li> -->
+             </ul>
+        </div>
+
+        <div id="mapping-actions" style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ccc;">
+            <button id="save-mapping-button" disabled>Save Entire Mapping</button>
+            <button id="delete-mapping-button" disabled style="background-color: #dc3545; color:white;">Delete Entire Mapping</button>
+        </div>
+
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+{{ super() }} {# Includes scripts from base.html if any #}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const projectId = {{ project_id | tojson }}; // Ensure project_id is safely passed to JS
+        const projectName = {{ project_name | tojson }};
+        console.log('Sample Mapping UI Loaded. Project ID: ' + projectId + ', Project Name: ' + projectName);
+
+        // DOM Elements
+        const availableSamplesContainer = document.getElementById('available-samples-container');
+        const samplesLoadingMessage = document.getElementById('samples-loading-message');
+        const sampleMappingSelector = document.getElementById('sample-mapping-selector');
+        const loadMappingButton = document.getElementById('load-mapping-button');
+        const createNewMappingButton = document.getElementById('create-new-mapping-button');
+        const newMappingNameInput = document.getElementById('new-mapping-name-input');
+        const keyboardContainer = document.getElementById('keyboard-container');
+        const mappingItemEditor = document.querySelector('.mapping-item-editor');
+        const selectedSampleNameTitle = document.getElementById('selected-sample-name-title');
+        const selectedSampleIdTitle = document.getElementById('selected-sample-id-title');
+        const currentEditingItemIdInput = document.getElementById('current-editing-item-id');
+        const keyRangeStartInput = document.getElementById('key-range-start');
+        const keyRangeEndInput = document.getElementById('key-range-end');
+        const velocityRangeStartInput = document.getElementById('velocity-range-start');
+        const velocityRangeEndInput = document.getElementById('velocity-range-end');
+        const saveMappingItemButton = document.getElementById('save-mapping-item-button');
+        const removeMappingItemButton = document.getElementById('remove-mapping-item-button');
+        const clearMappingItemEditorButton = document.getElementById('clear-mapping-item-editor-button');
+        const saveMappingButton = document.getElementById('save-mapping-button');
+        const deleteMappingButton = document.getElementById('delete-mapping-button');
+        const mappingStatusMessages = document.getElementById('mapping-status-messages');
+        const currentMappingNameDisplay = document.getElementById('current-mapping-name-display');
+        const currentMappingIdDisplay = document.getElementById('current-mapping-id-display');
+        const currentMappingItemsContainer = document.getElementById('current-mapping-items-container');
+        const mappingItemCount = document.getElementById('mapping-item-count');
+
+
+        let currentMappingId = null;
+        let currentMappingData = null; // To store the full data of the loaded mapping
+        let samplesData = []; // To store fetched samples
+
+        // --- Utility Functions ---
+        function showStatusMessage(message, isError = false) {
+            mappingStatusMessages.textContent = message;
+            mappingStatusMessages.style.borderColor = isError ? '#dc3545' : '#28a745';
+            mappingStatusMessages.style.color = isError ? '#dc3545' : '#28a745';
+            mappingStatusMessages.style.backgroundColor = isError ? '#f8d7da' : '#d4edda';
+            mappingStatusMessages.style.display = 'block';
+            setTimeout(() => {
+                mappingStatusMessages.style.display = 'none';
+            }, 5000);
+        }
+
+        function clearStatusMessage() {
+            mappingStatusMessages.textContent = '';
+            mappingStatusMessages.style.display = 'none';
+        }
+
+        function resetMappingItemEditor() {
+            mappingItemEditor.style.display = 'none';
+            selectedSampleNameTitle.textContent = 'N/A';
+            selectedSampleIdTitle.textContent = 'N/A';
+            currentEditingItemIdInput.value = '';
+            keyRangeStartInput.value = '';
+            keyRangeEndInput.value = '';
+            velocityRangeStartInput.value = '';
+            velocityRangeEndInput.value = '';
+            removeMappingItemButton.style.display = 'none';
+            saveMappingItemButton.textContent = 'Save/Update Item';
+        }
+
+        // --- API Fetch Functions ---
+        async function fetchSamplesForProject() {
+            samplesLoadingMessage.textContent = 'Loading samples...';
+            try {
+                const response = await fetch(`/projects/${projectId}/recordings`);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const recordings = await response.json();
+
+                let allSamples = [];
+                for (const recording of recordings) {
+                    const samplesResponse = await fetch(`/recordings/${recording.id}/samples`);
+                    if (!samplesResponse.ok) throw new Error(`HTTP error! status: ${samplesResponse.status} for recording ${recording.id}`);
+                    const samples = await samplesResponse.json();
+                    samples.forEach(s => s.recording_name = recording.name); // Add recording name for context
+                    allSamples.push(...samples);
+                }
+                samplesData = allSamples;
+                renderSamplesList(samplesData);
+                samplesLoadingMessage.textContent = samplesData.length > 0 ? '' : 'No samples found for this project.';
+                if(samplesData.length === 0) samplesLoadingMessage.style.display = 'block';
+                else samplesLoadingMessage.style.display = 'none';
+
+            } catch (error) {
+                console.error('Error fetching samples:', error);
+                samplesLoadingMessage.textContent = 'Error loading samples.';
+                showStatusMessage('Error fetching samples: ' + error.message, true);
+            }
+        }
+
+        async function fetchSampleMappingsForProject() {
+            try {
+                const response = await fetch(`/projects/${projectId}/sample_mappings`);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const mappings = await response.json();
+                renderSampleMappingSelector(mappings);
+            } catch (error) {
+                console.error('Error fetching sample mappings:', error);
+                showStatusMessage('Error fetching existing mappings: ' + error.message, true);
+            }
+        }
+
+        async function fetchMappingDetails(mappingId) {
+            try {
+                const response = await fetch(`/sample_mappings/${mappingId}`);
+                if (!response.ok) {
+                     if(response.status === 404) throw new Error('Mapping not found.');
+                     throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                currentMappingData = await response.json();
+
+                const itemsResponse = await fetch(`/sample_mappings/${mappingId}/items`);
+                if (!itemsResponse.ok) throw new Error(`HTTP error! status: ${itemsResponse.status} fetching items`);
+                currentMappingData.items = await itemsResponse.json();
+
+                currentMappingId = mappingId;
+                updateUIAfterLoadingMapping();
+                showStatusMessage(`Mapping "${currentMappingData.name}" loaded successfully.`, false);
+            } catch (error) {
+                console.error('Error fetching mapping details:', error);
+                showStatusMessage('Error loading mapping: ' + error.message, true);
+                currentMappingId = null;
+                currentMappingData = null;
+                updateUIAfterLoadingMapping(); // Reset UI
+            }
+        }
+
+        // --- Rendering Functions ---
+        function renderSamplesList(samples) {
+            availableSamplesContainer.innerHTML = ''; // Clear existing
+            if (!samples || samples.length === 0) {
+                availableSamplesContainer.innerHTML = '<li>No samples available.</li>';
+                return;
+            }
+            samples.forEach(sample => {
+                const li = document.createElement('li');
+                li.textContent = `${sample.name || 'Unnamed Sample'} (ID: ${sample.id}, Rec: ${sample.recording_name || 'N/A'})`;
+                li.dataset.sampleId = sample.id;
+                li.dataset.sampleName = sample.name || 'Unnamed Sample';
+                li.draggable = true; // Make it draggable
+                li.style.cursor = 'grab';
+                li.style.padding = '5px';
+                li.style.borderBottom = '1px solid #eee';
+
+                li.addEventListener('dragstart', (event) => {
+                    event.dataTransfer.setData('text/plain', JSON.stringify({
+                        sampleId: sample.id,
+                        sampleName: sample.name || 'Unnamed Sample'
+                    }));
+                    event.dataTransfer.effectAllowed = 'copy';
+                    li.style.cursor = 'grabbing';
+                });
+
+                li.addEventListener('dragend', () => {
+                    li.style.cursor = 'grab';
+                });
+
+                // Also allow click to select for editor (existing functionality)
+                li.addEventListener('click', () => handleSampleSelection(sample));
+                availableSamplesContainer.appendChild(li);
+            });
+        }
+
+        function renderSampleMappingSelector(mappings) {
+            sampleMappingSelector.innerHTML = '<option value="">-- Select a Mapping --</option>'; // Clear existing
+            if (mappings && mappings.length > 0) {
+                mappings.forEach(mapping => {
+                    const option = document.createElement('option');
+                    option.value = mapping.id;
+                    option.textContent = `${mapping.name} (ID: ${mapping.id})`;
+                    sampleMappingSelector.appendChild(option);
+                });
+            }
+        }
+
+        function renderMappingItemsList() {
+            currentMappingItemsContainer.innerHTML = ''; // Clear
+            if (currentMappingData && currentMappingData.items && currentMappingData.items.length > 0) {
+                mappingItemCount.textContent = `(${currentMappingData.items.length})`;
+                currentMappingData.items.forEach(item => {
+                    const sample = samplesData.find(s => s.id === item.sample_id);
+                    const sampleName = sample ? sample.name : 'Unknown Sample';
+
+                    const li = document.createElement('li');
+                    li.style.padding = '8px';
+                    li.style.border = '1px solid #eee';
+                    li.style.marginBottom = '5px';
+                    li.style.borderRadius = '4px';
+                    li.innerHTML = `
+                        <strong>Sample:</strong> ${sampleName} (ID: ${item.sample_id}) <br>
+                        <strong>Key Range:</strong> ${item.key_range_start !== null ? item.key_range_start : 'Any'} - ${item.key_range_end !== null ? item.key_range_end : 'Any'} <br>
+                        <strong>Velocity Range:</strong> ${item.velocity_range_start !== null ? item.velocity_range_start : 'Any'} - ${item.velocity_range_end !== null ? item.velocity_range_end : 'Any'}
+                        <button class="edit-mapping-item-btn" data-item-id="${item.id}" style="margin-left: 10px; padding: 3px 6px; font-size: 0.9em;">Edit</button>
+                        <button class="remove-mapping-item-btn-list" data-item-id="${item.id}" style="margin-left: 5px; padding: 3px 6px; font-size: 0.9em; background-color: #ffdddd;">Remove</button>
+                    `;
+                    li.querySelector('.edit-mapping-item-btn').addEventListener('click', () => populateEditorWithItem(item.id));
+                    li.querySelector('.remove-mapping-item-btn-list').addEventListener('click', (e) => {
+                         e.stopPropagation(); // Prevent triggering other listeners
+                         handleRemoveMappingItem(item.id, true); // true to indicate it's from the list directly
+                    });
+                    currentMappingItemsContainer.appendChild(li);
+                });
+            } else {
+                mappingItemCount.textContent = '(0)';
+                currentMappingItemsContainer.innerHTML = '<li>No items in this mapping yet. Select a sample and configure its mapping.</li>';
+            }
+            renderKeyboard(); // Update keyboard visualization
+        }
+
+        function renderKeyboard() {
+            keyboardContainer.innerHTML = ''; // Clear previous
+            const pianoRoll = document.createElement('div');
+            pianoRoll.style.display = 'flex';
+            pianoRoll.style.position = 'relative'; // For absolute positioning of mapped regions
+            pianoRoll.style.height = '100%';
+            pianoRoll.style.alignItems = 'flex-end'; // Keys at the bottom
+
+            const keyWidth = 15; // px
+            const whiteKeyHeight = 100; // px
+            const blackKeyHeight = 60; // px
+            const blackKeyWidth = 10; // px
+            const blackKeyOffsetRatio = 0.6; // How much black key overlaps white key
+            const numOctaves = 7;
+            const notesInOctave = 12;
+            const startingMidiNote = 24; // C1
+
+            const keyPattern = [0,1,0,1,0,0,1,0,1,0,1,0]; // 0 for white (natural), 1 for black (sharp/flat)
+            let currentKeyIndex = 0;
+
+            for (let octave = 0; octave < numOctaves; octave++) {
+                for (let note = 0; note < notesInOctave; note++) {
+                    const midiNote = startingMidiNote + (octave * 12) + note;
+                    if (midiNote > 108) break; // Max MIDI note C8
+
+                    const keyType = keyPattern[note];
+                    const key = document.createElement('div');
+                    key.classList.add('midi-key');
+                    key.dataset.midiNote = midiNote;
+                    key.style.border = '1px solid #666';
+                    key.style.boxSizing = 'border-box';
+                    key.style.cursor = 'pointer';
+
+                    let position;
+                    if (keyType === 0) { // White key
+                        key.classList.add('white-key');
+                        key.style.width = `${keyWidth}px`;
+                        key.style.height = `${whiteKeyHeight}px`;
+                        key.style.backgroundColor = 'white';
+                        key.style.marginLeft = (currentKeyIndex > 0 && keyPattern[note-1 < 0 ? 11 : note-1] === 1) ? `-${blackKeyWidth/2}px` : '0px'; // Indent if previous was black
+                        position = currentKeyIndex * keyWidth;
+                         if (note > 0 && keyPattern[note-1] === 1) { // If previous key was black, adjust position
+                            position -= blackKeyWidth / 2;
+                        }
+                        if (note < 11 && keyPattern[note+1] === 1) { // If next key is black, adjust width or margin for overlap
+                             // key.style.marginRight = `-${blackKeyWidth/2}px`;
+                        }
+                        key.style.zIndex = '1';
+                        currentKeyIndex++;
+                    } else { // Black key
+                        key.classList.add('black-key');
+                        key.style.width = `${blackKeyWidth}px`;
+                        key.style.height = `${blackKeyHeight}px`;
+                        key.style.backgroundColor = 'black';
+                        key.style.position = 'absolute';
+                        // Position black key relative to the previous white key's start
+                        position = (currentKeyIndex * keyWidth) - (blackKeyWidth / 2) -1; // -1 for border
+                        key.style.left = `${position}px`;
+                        key.style.zIndex = '2';
+                    }
+
+                    key.addEventListener('click', () => handleKeyClick(midiNote));
+
+                    // Add dragover and drop listeners to each key
+                    key.addEventListener('dragover', (event) => {
+                        event.preventDefault();
+                        event.dataTransfer.dropEffect = 'copy';
+                        key.style.backgroundColor = '#e0e0e0'; // Highlight on drag over
+                    });
+                    key.addEventListener('dragleave', () => {
+                         key.style.backgroundColor = (keyType===0) ? 'white' : 'black'; // Reset color
+                    });
+                    key.addEventListener('drop', (event) => {
+                        event.preventDefault();
+                        key.style.backgroundColor = (keyType===0) ? 'white' : 'black'; // Reset color
+                        const sampleDataString = event.dataTransfer.getData('text/plain');
+                        if (sampleDataString) {
+                            const sampleData = JSON.parse(sampleDataString);
+                            handleSampleDropOnKey(sampleData, midiNote);
+                        }
+                    });
+                    pianoRoll.appendChild(key);
+                }
+            }
+            keyboardContainer.appendChild(pianoRoll);
+            drawMappedRegionsOverlay(pianoRoll, keyWidth, startingMidiNote);
+        }
+
+        function drawMappedRegionsOverlay(pianoRollElement, keyWidthUnit, startMidi) {
+             // Remove existing overlays
+            pianoRollElement.querySelectorAll('.mapped-region-overlay').forEach(el => el.remove());
+
+            if (currentMappingData && currentMappingData.items) {
+                currentMappingData.items.forEach((item, index) => {
+                    const startKey = item.key_range_start !== null ? item.key_range_start : startMidi;
+                    const endKey = item.key_range_end !== null ? item.key_range_end : (startMidi + (7*12) -1) ; // Approx end of 7 octaves
+
+                    // Calculate visual position and width
+                    // This needs to map MIDI notes to the visual layout of white keys primarily
+                    let visualStart = 0;
+                    let visualEnd = 0;
+                    let whiteKeyCounter = 0;
+
+                    for(let i=startMidi; i <= (startMidi + (7*12) -1); i++){
+                        if(i === startKey) visualStart = whiteKeyCounter * keyWidthUnit;
+                        if(i === endKey) visualEnd = (whiteKeyCounter+1) * keyWidthUnit;
+
+                        const noteInOctave = (i - startMidi) % 12;
+                        if([0,2,4,5,7,9,11].includes(noteInOctave)){ // If it's a white key
+                            whiteKeyCounter++;
+                        }
+                    }
+                     if (item.key_range_end === null) visualEnd = whiteKeyCounter * keyWidthUnit;
+
+
+                    const regionDiv = document.createElement('div');
+                    regionDiv.classList.add('mapped-region-overlay');
+                    regionDiv.style.position = 'absolute';
+                    regionDiv.style.left = `${visualStart}px`;
+                    regionDiv.style.width = `${visualEnd - visualStart}px`;
+                    regionDiv.style.height = '95%';
+                    regionDiv.style.bottom = '0px';
+                    regionDiv.style.backgroundColor = `hsla(${(item.sample_id * 40) % 360}, 70%, 60%, 0.6)`;
+                    regionDiv.style.border = '1px solid blue';
+                    regionDiv.style.zIndex = '3';
+                    regionDiv.title = `Sample ID: ${item.sample_id}\nKey: ${item.key_range_start}-${item.key_range_end}\nVel: ${item.velocity_range_start}-${item.velocity_range_end}`;
+                    regionDiv.dataset.itemId = item.id;
+
+                    regionDiv.addEventListener('click', (e) => {
+                        e.stopPropagation(); // Prevent key click if on overlay
+                        populateEditorWithItem(item.id);
+                    });
+                    pianoRollElement.appendChild(regionDiv);
+                });
+            }
+        }
+
+
+        // --- Event Handlers & Logic ---
+        function handleKeyClick(midiNote) {
+            if (!currentMappingId) {
+                showStatusMessage('Please load or create a mapping first.', true);
+                return;
+            }
+            // If a sample was last selected in the list, perhaps auto-fill for that?
+            // For now, clicking a key could select it as the target for the next sample dropped
+            // or open the editor for any existing item covering this key.
+            const itemsOnKey = currentMappingData.items.filter(item =>
+                (item.key_range_start === null || item.key_range_start <= midiNote) &&
+                (item.key_range_end === null || item.key_range_end >= midiNote)
+            );
+
+            if (itemsOnKey.length > 0) {
+                // If multiple items, could show a small selection popup. For now, pick the first.
+                populateEditorWithItem(itemsOnKey[0].id);
+            } else {
+                showStatusMessage(`Key ${midiNote} clicked. Select a sample from the list to map here, or drag a sample to this key.`, false);
+                // Optionally pre-fill key_range_start/end in editor if a sample is "active"
+                 keyRangeStartInput.value = midiNote;
+                 keyRangeEndInput.value = midiNote;
+                 if (!mappingItemEditor.style.display || mappingItemEditor.style.display === 'none'){
+                    // If editor is hidden, and no sample is "active", don't just show it.
+                    // User needs to pick a sample first.
+                 } else {
+                    // If editor is already open for a sample, update its key range.
+                 }
+            }
+        }
+
+        function handleSampleDropOnKey(sampleData, midiNote) {
+            if (!currentMappingId) {
+                showStatusMessage('Please load or create a mapping first before assigning samples.', true);
+                return;
+            }
+            mappingItemEditor.style.display = 'block';
+            selectedSampleNameTitle.textContent = sampleData.sampleName;
+            selectedSampleIdTitle.textContent = sampleData.sampleId;
+
+            currentEditingItemIdInput.value = ''; // New item
+            keyRangeStartInput.value = midiNote;
+            keyRangeEndInput.value = midiNote; // Default to single key, user can expand
+            velocityRangeStartInput.value = ''; // Default or last used
+            velocityRangeEndInput.value = ''; // Default or last used
+
+            removeMappingItemButton.style.display = 'none';
+            saveMappingItemButton.textContent = 'Add Item to Mapping';
+            keyRangeStartInput.focus();
+        }
+
+        function handleSampleSelection(sample) {
+            if (!currentMappingId) {
+                showStatusMessage('Please load or create a mapping first before adding samples.', true);
+                return;
+            }
+            mappingItemEditor.style.display = 'block';
+            selectedSampleNameTitle.textContent = sample.name || 'Unnamed Sample';
+            selectedSampleIdTitle.textContent = sample.id;
+
+            // Clear previous item values, but keep sample info
+            currentEditingItemIdInput.value = '';
+            keyRangeStartInput.value = '';
+            keyRangeEndInput.value = '';
+            velocityRangeStartInput.value = '';
+            velocityRangeEndInput.value = '';
+            removeMappingItemButton.style.display = 'none';
+            saveMappingItemButton.textContent = 'Add Item to Mapping';
+
+            // Optionally, check if this sample is already in the mapping and offer to edit instead
+            const existingItem = currentMappingData.items.find(it => it.sample_id === sample.id);
+            if(existingItem) {
+                populateEditorWithItem(existingItem.id, sample);
+            }
+
+            keyRangeStartInput.focus();
+        }
+
+        function populateEditorWithItem(itemId, sampleDetails = null) {
+            const item = currentMappingData.items.find(it => it.id === itemId);
+            if (!item) {
+                showStatusMessage('Could not find item to edit.', true);
+                return;
+            }
+
+            const sample = sampleDetails || samplesData.find(s => s.id === item.sample_id);
+
+            mappingItemEditor.style.display = 'block';
+            selectedSampleNameTitle.textContent = sample ? sample.name : 'Unknown Sample';
+            selectedSampleIdTitle.textContent = item.sample_id;
+            currentEditingItemIdInput.value = item.id;
+            keyRangeStartInput.value = item.key_range_start !== null ? item.key_range_start : '';
+            keyRangeEndInput.value = item.key_range_end !== null ? item.key_range_end : '';
+            velocityRangeStartInput.value = item.velocity_range_start !== null ? item.velocity_range_start : '';
+            velocityRangeEndInput.value = item.velocity_range_end !== null ? item.velocity_range_end : '';
+
+            removeMappingItemButton.style.display = 'inline-block';
+            saveMappingItemButton.textContent = 'Update Mapping Item';
+        }
+
+        createNewMappingButton.addEventListener('click', async () => {
+            const name = newMappingNameInput.value.trim();
+            if (!name) {
+                showStatusMessage('Please enter a name for the new mapping.', true);
+                return;
+            }
+            try {
+                const response = await fetch(`/projects/${projectId}/sample_mappings`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: name, mapping_type: 'basic' }) // or other type
+                });
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const newMapping = await response.json();
+                currentMappingId = newMapping.id;
+                currentMappingData = { ...newMapping, items: [] }; // Initialize with empty items
+
+                newMappingNameInput.value = '';
+                fetchSampleMappingsForProject(); // Refresh selector
+                sampleMappingSelector.value = newMapping.id; // Select the new mapping
+                updateUIAfterLoadingMapping();
+                showStatusMessage(`New mapping "${newMapping.name}" created and loaded.`, false);
+            } catch (error) {
+                console.error('Error creating new mapping:', error);
+                showStatusMessage('Error creating mapping: ' + error.message, true);
+            }
+        });
+
+        loadMappingButton.addEventListener('click', () => {
+            const selectedId = sampleMappingSelector.value;
+            if (!selectedId) {
+                showStatusMessage('Please select a mapping to load.', true);
+                return;
+            }
+            fetchMappingDetails(parseInt(selectedId));
+        });
+
+        saveMappingButton.addEventListener('click', async () => {
+            if (!currentMappingId || !currentMappingData) {
+                showStatusMessage('No mapping loaded to save.', true);
+                return;
+            }
+            // The mapping name might have been updated, or other top-level properties
+            // For this version, we assume only items are managed after creation/load.
+            // If name change is allowed, get it from an input field.
+            // For now, items are saved individually. This button could be for overall mapping settings if any.
+            try {
+                 // Example: update mapping name if there's an input for it
+                // const updatedName = document.getElementById('current-mapping-name-input-field').value;
+                // if (updatedName && updatedName !== currentMappingData.name) {
+                //    const response = await fetch(`/sample_mappings/${currentMappingId}`, {
+                //        method: 'PUT',
+                //        headers: { 'Content-Type': 'application/json' },
+                //        body: JSON.stringify({ name: updatedName })
+                //    });
+                //    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                //    currentMappingData.name = updatedName; // Update local cache
+                //    currentMappingNameDisplay.textContent = `Current Mapping: ${currentMappingData.name} (ID: ${currentMappingId})`;
+                //    fetchSampleMappingsForProject(); // Refresh selector if names changed
+                // }
+                showStatusMessage(`Mapping "${currentMappingData.name}" and its items are managed. Use "Save/Update Item" for individual changes.`, false);
+            } catch (error) {
+                console.error('Error saving mapping details:', error);
+                showStatusMessage('Error saving mapping: ' + error.message, true);
+            }
+        });
+
+        deleteMappingButton.addEventListener('click', async () => {
+            if (!currentMappingId) {
+                showStatusMessage('No mapping loaded to delete.', true);
+                return;
+            }
+            if (!confirm(`Are you sure you want to delete mapping "${currentMappingData.name}" (ID: ${currentMappingId})? This cannot be undone.`)) {
+                return;
+            }
+            try {
+                const response = await fetch(`/sample_mappings/${currentMappingId}`, { method: 'DELETE' });
+                if (!response.ok) {
+                    if(response.status === 404) throw new Error('Mapping not found on server.');
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                showStatusMessage(`Mapping "${currentMappingData.name}" deleted successfully.`, false);
+                currentMappingId = null;
+                currentMappingData = null;
+                fetchSampleMappingsForProject(); // Refresh selector
+                updateUIAfterLoadingMapping(); // Reset UI
+            } catch (error) {
+                console.error('Error deleting mapping:', error);
+                showStatusMessage('Error deleting mapping: ' + error.message, true);
+            }
+        });
+
+        saveMappingItemButton.addEventListener('click', async () => {
+            if (!currentMappingId) {
+                showStatusMessage('No mapping loaded. Cannot save item.', true);
+                return;
+            }
+            const sampleId = parseInt(selectedSampleIdTitle.textContent);
+            if (isNaN(sampleId)) {
+                showStatusMessage('No sample selected for this item.', true);
+                return;
+            }
+
+            const itemId = currentEditingItemIdInput.value ? parseInt(currentEditingItemIdInput.value) : null;
+
+            const payload = {
+                sample_id: sampleId,
+                key_range_start: keyRangeStartInput.value !== '' ? parseInt(keyRangeStartInput.value) : null,
+                key_range_end: keyRangeEndInput.value !== '' ? parseInt(keyRangeEndInput.value) : null,
+                velocity_range_start: velocityRangeStartInput.value !== '' ? parseInt(velocityRangeStartInput.value) : null,
+                velocity_range_end: velocityRangeEndInput.value !== '' ? parseInt(velocityRangeEndInput.value) : null,
+            };
+
+            // Basic validation
+            if (payload.key_range_start !== null && payload.key_range_end !== null && payload.key_range_start > payload.key_range_end) {
+                showStatusMessage('Key Range Start cannot be greater than Key Range End.', true); return;
+            }
+            if (payload.velocity_range_start !== null && payload.velocity_range_end !== null && payload.velocity_range_start > payload.velocity_range_end) {
+                showStatusMessage('Velocity Range Start cannot be greater than Velocity Range End.', true); return;
+            }
+
+            try {
+                let response;
+                let successMessage;
+                if (itemId) { // Update existing item
+                    response = await fetch(`/sample_mapping_items/${itemId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    successMessage = 'Mapping item updated successfully.';
+                } else { // Create new item
+                    response = await fetch(`/sample_mappings/${currentMappingId}/items`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    successMessage = 'Mapping item added successfully.';
+                }
+
+                if (!response.ok) {
+                     const errorData = await response.json();
+                     throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+                }
+                const savedItem = await response.json();
+
+                // Update local cache of items
+                if (itemId) {
+                    const index = currentMappingData.items.findIndex(it => it.id === itemId);
+                    if (index !== -1) currentMappingData.items[index] = savedItem;
+                } else {
+                    currentMappingData.items.push(savedItem);
+                }
+
+                renderMappingItemsList();
+                resetMappingItemEditor();
+                showStatusMessage(successMessage, false);
+
+            } catch (error) {
+                console.error('Error saving mapping item:', error);
+                showStatusMessage('Error saving item: ' + error.message, true);
+            }
+        });
+
+        removeMappingItemButton.addEventListener('click', () => {
+            const itemId = parseInt(currentEditingItemIdInput.value);
+            if (isNaN(itemId)) {
+                showStatusMessage('No item selected in editor to remove.', true);
+                return;
+            }
+            handleRemoveMappingItem(itemId, false); // false = from editor
+        });
+
+        async function handleRemoveMappingItem(itemId, fromList = false) {
+            if (!confirm('Are you sure you want to remove this item from the mapping?')) return;
+
+            try {
+                const response = await fetch(`/sample_mapping_items/${itemId}`, { method: 'DELETE' });
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+                }
+
+                // Remove from local cache
+                currentMappingData.items = currentMappingData.items.filter(it => it.id !== itemId);
+                renderMappingItemsList();
+                if (!fromList) { // If removed from editor, reset editor
+                   resetMappingItemEditor();
+                }
+                showStatusMessage('Mapping item removed successfully.', false);
+
+            } catch (error) {
+                console.error('Error removing mapping item:', error);
+                showStatusMessage('Error removing item: ' + error.message, true);
+            }
+        }
+
+
+        clearMappingItemEditorButton.addEventListener('click', resetMappingItemEditor);
+
+        function updateUIAfterLoadingMapping() {
+            if (currentMappingData && currentMappingId) {
+                currentMappingNameDisplay.textContent = `Current Mapping: ${currentMappingData.name}`;
+                currentMappingIdDisplay.textContent = `(ID: ${currentMappingId})`;
+                saveMappingButton.disabled = false;
+                deleteMappingButton.disabled = false;
+            } else {
+                currentMappingNameDisplay.textContent = 'No Mapping Loaded';
+                currentMappingIdDisplay.textContent = '';
+                saveMappingButton.disabled = true;
+                deleteMappingButton.disabled = true;
+                currentMappingData = { items: [] }; // Ensure items is an empty array for render
+            }
+            renderMappingItemsList(); // Will show "No items" or the actual items
+            resetMappingItemEditor();
+            renderKeyboard();
+        }
+
+
+        // --- Initial Load ---
+        function initializeMappingPage() {
+            fetchSamplesForProject();
+            fetchSampleMappingsForProject();
+            updateUIAfterLoadingMapping(); // Set initial state for buttons etc.
+            renderKeyboard(); // Initial empty keyboard
+        }
+
+        initializeMappingPage();
+    });
+</script>
+{% endblock %}

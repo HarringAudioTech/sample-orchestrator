@@ -158,3 +158,31 @@ def import_project_audio_ui(project_id: int) -> str:
         error=None,  # Initially no error
         success_message=None,  # Initially no success message
     )
+
+
+@ui_bp.route("/projects/<int:project_id>/mapping", methods=["GET"])
+def sample_mapping_ui(project_id: int) -> str:
+    """Renders the sample mapping interface for a specific project.
+
+    Args:
+        project_id (int): The ID of the project for which to display the
+                          sample mapping UI.
+
+    Returns:
+        str: Rendered HTML page for sample mapping.
+    """
+    db_gen = get_db()
+    db = next(db_gen)
+    try:
+        project = db.query(ProjectModel).filter(ProjectModel.id == project_id).first()
+        if not project:
+            abort(404, description=f"Project with ID {project_id} not found.")
+
+        return render_template(
+            "sample_mapping.html",
+            project_id=project.id,
+            project_name=project.name,
+            title=f"Sample Mapping - {project.name}"
+        )
+    finally:
+        next(db_gen, None)  # Ensure session is closed

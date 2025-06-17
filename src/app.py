@@ -11,7 +11,7 @@ import os
 
 # g is not used in current session management
 from flask import Flask, jsonify, request
-from src.api.routes import projects_bp, recordings_bp, samples_bp
+from src.api.routes import projects_bp, recordings_bp, samples_bp, sample_mappings_bp, sample_mapping_items_bp
 from src.ui.routes import ui_bp  # Import the UI blueprint
 from src.database.utils import (
     init_db,
@@ -103,6 +103,8 @@ def create_app() -> Flask:
     app.register_blueprint(projects_bp)
     app.register_blueprint(recordings_bp)
     app.register_blueprint(samples_bp)
+    app.register_blueprint(sample_mappings_bp)
+    app.register_blueprint(sample_mapping_items_bp)
     app.logger.info("API Blueprints registered.")
 
     # Register UI Blueprint
