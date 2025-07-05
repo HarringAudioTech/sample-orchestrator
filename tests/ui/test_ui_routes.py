@@ -26,6 +26,7 @@ def app() -> Generator[Flask, None, None]:
             "TESTING": True,
             "DATABASE_URL": "sqlite:///:memory:",
             "WTF_CSRF_ENABLED": False,  # Disable CSRF for simpler form tests if any
+            "SERVER_NAME": "localhost", # Required for url_for to work correctly in tests
         }
     )
 
@@ -41,7 +42,8 @@ def app() -> Generator[Flask, None, None]:
 @pytest.fixture
 def client(app: Flask) -> FlaskClient:
     """A test client for the app."""
-    return app.test_client()
+    with app.app_context():
+        return app.test_client()
 
 
 @pytest.fixture(scope="function") # Changed to function scope for UI tests if DB state needs to be very specific per test

@@ -9,7 +9,7 @@
 <div class="row">
     <div class="col-md-6">
         <h3>Using a Workflow</h3>
-        <form method="post" action="{{ url_for('recordings_bp.process_recording_endpoint', recording_id=recording.id) }}">
+        <form method="post" action="{{ url_for('ui_bp.process_recording_submit', project_id=project.id, recording_id=recording.id) }}">
             <div class="form-group">
                 <label for="workflow_name">Select a Workflow:</label>
                 <select class="form-control" id="workflow_name" name="workflow_name">
@@ -116,64 +116,6 @@
 
         // Add event listener for changes to the workflow select
         workflowSelect.addEventListener('change', toggleDecentSamplerParams);
-
-        const workflowForm = document.querySelector('form[action*="/process"]');
-        if (workflowForm) {
-            workflowForm.addEventListener('submit', async function(event) {
-                event.preventDefault(); // Prevent default form submission
-
-                const workflowName = workflowSelect.value;
-                const recordingId = {{ recording.id }};
-                const apiUrl = `/recordings/${recordingId}/process`;
-
-                const payload = {
-                    workflow_name: workflowName,
-                    output_dir_suffix: `processed_by_${workflowName}_${Date.now()}` // Unique suffix
-                };
-
-                // Conditionally add parameters for decent_sampler_creation_workflow
-                if (workflowName === 'decent_sampler_creation_workflow') {
-                    payload.stages_chain = [
-                        {
-                            stage_name: "slicing",
-                            params: {}
-                        },
-                        {
-                            stage_name: "decent_sampler_export",
-                            params: {
-                                instrument_name: instrumentNameInput.value,
-                                instrument_author: instrumentAuthorInput.value
-                            }
-                        }
-                    ];
-                    // Remove workflow_name if stages_chain is provided, as per API spec
-                    delete payload.workflow_name;
-                }
-
-                try {
-                    const response = await fetch(apiUrl, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify(payload),
-                    });
-
-                    const result = await response.json();
-
-                    if (response.ok) {
-                        alert('Processing successful!\n' + result.message + '\nOutput: ' + result.output_location);
-                        // Optionally, redirect or update UI to show results
-                        window.location.href = `{{ url_for('ui_bp.dashboard', project_id=project.id) }}`;
-                    } else {
-                        alert('Processing failed: ' + (result.error || 'Unknown error'));
-                    }
-                } catch (error) {
-                    console.error('Error during fetch:', error);
-                    alert('An error occurred while trying to process the recording.');
-                }
-            });
-        }
     });
 </script>
 {% endblock %}

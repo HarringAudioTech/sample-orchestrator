@@ -250,80 +250,56 @@ def process_recording_ui(project_id: int, recording_id: int) -> str:
             pass
 
 
-# --- UI Blueprint Error Handler ---
-@ui_bp.errorhandler(HTTPException)
-def handle_ui_exception(e: HTTPException):
-    """Return HTML for HTTP errors on the UI blueprint routes.
-    This ensures that if abort() is called or an exception derived from
-    HTTPException occurs during the handling of a UI route, the user
-    is shown a user-friendly HTML error page instead of a default
-    JSON or plain text error.
+@ui_bp.route("/projects/<int:project_id>/recordings/<int:recording_id>/process", methods=["POST"])
+def process_recording_submit(project_id: int, recording_id: int) -> str:
+    """Handles the submission of the recording processing form.
+
+    This route processes the form data, constructs the API payload,
+    calls the backend API to initiate processing, and redirects the user
+    with flash messages based on the outcome.
     """
-    # Get the standard response object for the exception
-    response = e.get_response()
+    workflow_name = request.form.get('workflow_name')
+    instrument_name = request.form.get('instrument_name')
+    instrument_author = request.form.get('instrument_author')
 
-    # Check if the client prefers HTML content.
-    # The ui_bp routes are primarily for user-facing HTML, so we prioritize HTML error pages.
-    # This condition can be adjusted if some UI routes might be called by clients
-    # that don't prefer HTML (e.g., htmx requests not specifically asking for HTML snippets).
-    if "text/html" in request.accept_mimetypes:
-        # If HTML is preferred, render the custom error template.
-        # The 'error' object (the exception 'e') is passed to the template,
-        # which can then access 'e.code' and 'e.description'.
-        return render_template("error.html", error=e), e.code
+    api_url = f"http://localhost:5000/recordings/{recording_id}/process"
+    from datetime import datetime
+    payload = {
+        "output_dir_suffix": f"processed_by_{workflow_name}_{datetime.now().strftime('%Y%m%d%H%M%S')}" # Unique suffix
+    }
 
-    # If the client does not prefer HTML (e.g., an API client mistakenly hitting a UI route,
-    # or an htmx request that doesn't set Accept: text/html),
-    # return the default response from the exception (often JSON or plain text).
-    return response
+    if workflow_name == 'decent_sampler_creation_workflow':
+        payload["stages_chain"] = [
+            {
+                "stage_name": "slicing",
+                "params": {}
+            },
+            {
+                "stage_name": "decent_sampler_export",
+                "params": {
+                    "instrument_name": instrument_name,
+                    "instrument_author": instrument_author
+                }
+            }
+        ]
+    else:
+        payload["workflow_name"] = workflow_name
 
-
-@ui_bp.route("/projects/<int:project_id>/recordings/<int:recording_id>/samples", methods=["GET"])
-def view_recording_samples_ui(project_id: int, recording_id: int) -> str:
-    """Renders the UI for viewing samples associated with a specific recording.
-
-    Args:
-        project_id (int): The ID of the project.
-        recording_id (int): The ID of the recording whose samples are to be viewed.
-
-    Returns:
-        str: Rendered HTML page for viewing recording samples.
-    """
-    db_session_generator = get_db()
-    db = next(db_session_generator)
     try:
-        project = db.query(ProjectModel).filter(ProjectModel.id == project_id).first()
-        if not project:
-            abort(404, description=f"Project with ID {project_id} not found.")
-
-        recording = db.query(RecordingModel).filter(RecordingModel.id == recording_id).first()
-        if not recording or recording.project_id != project_id:
-            abort(404, description=f"Recording with ID {recording_id} not found in project {project_id}.")
-
-        samples = recording.samples # Access samples via relationship
-
-        return render_template(
-            "view_samples.html",
-            project=project,
-            recording=recording,
-            samples=samples
-        )
-    finally:
-        try:
-            next(db_session_generator)
-        except StopIteration:
-            pass
+        response = requests.post(api_url, json=payload)
+        response.raise_for_status() # Raise an exception for HTTP errors (4xx or 5xx)
+        result = response.json()
+        flash(f"Processing successful! {result.get('message', '')}", "success")
+        flash(f"Output: {result.get('output_location', '')}", "info")
+        return redirect(url_for('ui_bp.dashboard', project_id=project_id))
+    except requests.exceptions.RequestException as e:
+        current_app.logger.error(f"Error processing recording via API: {e}")
+        error_message = "Failed to process recording. Please try again."
+        if response and response.json() and 'error' in response.json():
+            error_message = response.json()['error']
+        flash(error_message, "error")
+        return redirect(url_for('ui_bp.process_recording_ui', project_id=project_id, recording_id=recording_id))
 
 
-@ui_bp.errorhandler(404)
-def handle_ui_404_error(e):
-    """Return a custom HTML page for 404 Not Found errors on the UI blueprint.
-    Ensures that users always see a user-friendly HTML page for 404s
-    originating from UI routes. The exception 'e' (a NotFound instance)
-    contains 'code' and 'description' attributes that are passed to the
-    error template.
-    """
-    # Note: e.code will be 404.
-    # e.description will be the message from abort(404, description="...")
-    # or a default "Not Found" message if no description was provided.
-    return render_template("error.html", error=e), 404
+
+
