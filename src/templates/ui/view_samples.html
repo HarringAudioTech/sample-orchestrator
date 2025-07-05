@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}Samples for {{ recording.name }} - Orchestrator UI{% endblock %}
+
+{% block content %}
+<h2>Samples for Recording: {{ recording.name }}</h2>
+<p><strong>Project:</strong> <a href="{{ url_for('ui_bp.dashboard', project_id=project.id) }}">{{ project.name }}</a></p>
+
+{% if samples %}
+    <h3>Generated Samples</h3>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>File Path</th>
+                <th>Start Time (s)</th>
+                <th>End Time (s)</th>
+                <th>MIDI Pitch</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for sample in samples %}
+            <tr>
+                <td>{{ sample.name }}</td>
+                <td>{{ sample.file_path }}</td>
+                <td>{{ "%.2f"|format(sample.start_time_seconds) }}</td>
+                <td>{{ "%.2f"|format(sample.end_time_seconds) }}</td>
+                <td>{{ sample.midi_pitch if sample.midi_pitch is not none else 'N/A' }}</td>
+                <td>
+                    <a href="{{ url_for('static', filename='../' + sample.file_path) }}" download class="btn btn-sm btn-success">Download</a>
+                    <!-- Add a play button if audio playback is implemented -->
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <p>No samples have been generated for this recording yet.</p>
+{% endif %}
+
+<hr>
+<p><a href="{{ url_for('ui_bp.dashboard', project_id=project.id) }}" class="btn btn-secondary">Back to Dashboard</a></p>
+{% endblock %}

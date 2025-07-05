@@ -20,6 +20,7 @@ from src.core.processing_stages import (
     DATA_TYPE_FILE_PATH,
     DATA_TYPE_AUDIO_BUFFER_MONO,
 )  # For __main__
+import src.core.stages.decent_sampler_export_stage # noqa: F401
 
 # --- Logger Setup ---
 logger = logging.getLogger(__name__)
@@ -215,10 +216,44 @@ class ExampleSlicingWorkflow(BaseWorkflow):
         ]
 
 
+class DecentSamplerCreationWorkflow(BaseWorkflow):
+    """Workflow for creating a Decent Sampler instrument from an audio recording.
+
+    This workflow first slices the audio recording into individual samples
+    and then exports these samples into a .dspreset file format suitable
+    for Decent Sampler.
+    """
+
+    @property
+    def name(self) -> str:
+        return "decent_sampler_creation_workflow"
+
+    @property
+    def description(self) -> str:
+        return "Slices audio and exports to a Decent Sampler (.dspreset) instrument."
+
+    @property
+    def stages_definition(self) -> List[Dict[str, Any]]:
+        return [
+            {
+                "stage_name": "slicing",
+                "params": {},
+            },
+            {
+                "stage_name": "decent_sampler_export",
+                "params": {
+                    "instrument_name": "My New Instrument",
+                    "instrument_author": "Orchestrator",
+                },
+            },
+        ]
+
+
 try:
     register_workflow(ExampleSlicingWorkflow)
+    register_workflow(DecentSamplerCreationWorkflow)
 except Exception as e:
-    logger.critical(f"Failed to register ExampleSlicingWorkflow: {e}", exc_info=True)
+    logger.critical(f"Failed to register workflows: {e}", exc_info=True)
 
 
 if __name__ == "__main__":

@@ -3,6 +3,16 @@
 {% block title %}Create New Project - Orchestrator UI{% endblock %}
 
 {% block content %}
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <ul class=flashes>
+      {% for category, message in messages %}
+        <li class="{{ category }}">{{ message }}</li>
+      {% endfor %}
+      </ul>
+    {% endif %}
+  {% endwith %}
+
 <h2>Create New Sampling Project</h2>
 <form action="{{ url_for('ui_bp.create_project_submit') }}" method="post">
     <div>
@@ -19,5 +29,4 @@
     </div>
     <button type="submit">Create Project</button>
 </form>
-<p><em>(Form submission will be handled in a future task. For now, this is a visual placeholder.)</em></p>
 {% endblock %}

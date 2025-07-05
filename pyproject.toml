@@ -14,6 +14,7 @@ pyaudio = "*"
 SQLAlchemy = ">2.0.0"
 Flask = ">3.0.0"
 numpy = ">2.0.0"
+requests = "^2.32.3"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.5"

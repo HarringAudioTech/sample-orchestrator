@@ -15,6 +15,8 @@
                 <th>Filename</th>
                 <th>Filesize (bytes)</th>
                 <th>Duration (s)</th>
+                <th>Status</th>
+                <th>Actions</th>
             </tr>
         </thead>
         <tbody>
@@ -23,6 +25,13 @@
                 <td>{{ recording.name }}</td>
                 <td>{{ recording.filesize if recording.filesize is not none else 'N/A' }}</td>
                 <td>{{ recording.duration_seconds if recording.duration_seconds is not none else 'N/A' }}</td>
+                <td>{{ recording.status }}</td>
+                <td>
+                    <a href="{{ url_for('ui_bp.process_recording_ui', project_id=project.id, recording_id=recording.id) }}" class="btn btn-sm btn-info">Process</a>
+                    {% if recording.samples %}
+                    <a href="{{ url_for('ui_bp.view_recording_samples_ui', project_id=project.id, recording_id=recording.id) }}" class="btn btn-sm btn-success">View Samples</a>
+                    {% endif %}
+                </td>
             </tr>
             {% endfor %}
         </tbody>

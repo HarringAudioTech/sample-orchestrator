@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+
+{% block title %}Process Recording - {{ recording.name }} - Orchestrator UI{% endblock %}
+
+{% block content %}
+<h2>Process Recording: {{ recording.name }}</h2>
+<p><strong>Project:</strong> <a href="{{ url_for('ui_bp.dashboard', project_id=project.id) }}">{{ project.name }}</a></p>
+
+<div class="row">
+    <div class="col-md-6">
+        <h3>Using a Workflow</h3>
+        <form method="post" action="{{ url_for('recordings_bp.process_recording_endpoint', recording_id=recording.id) }}">
+            <div class="form-group">
+                <label for="workflow_name">Select a Workflow:</label>
+                <select class="form-control" id="workflow_name" name="workflow_name">
+                    {% for name, workflow in workflows.items() %}
+                        <option value="{{ name }}">{{ workflow.name }} - {{ workflow.description }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div id="decentSamplerParams" style="display: none;">
+                <h4>Decent Sampler Instrument Details</h4>
+                <div class="form-group">
+                    <label for="instrument_name">Instrument Name:</label>
+                    <input type="text" class="form-control" id="instrument_name" name="instrument_name" value="{{ recording.name }} Instrument">
+                </div>
+                <div class="form-group">
+                    <label for="instrument_author">Author:</label>
+                    <input type="text" class="form-control" id="instrument_author" name="instrument_author" value="Orchestrator User">
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Run Workflow</button>
+        </form>
+    </div>
+    <div class="col-md-6">
+        <h3>Ad-hoc Stage Chain</h3>
+        <p><em>(Ad-hoc stage chain functionality to be implemented)</em></p>
+    </div>
+</div>
+
+<hr>
+
+<h3>Available Workflows</h3>
+<table class="table">
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Description</th>
+            <th>Stages</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for name, workflow in workflows.items() %}
+        <tr>
+            <td>{{ workflow.name }}</td>
+            <td>{{ workflow.description }}</td>
+            <td>
+                <ul>
+                    {% for stage in workflow.stages_definition %}
+                        <li>{{ stage.stage_name }}</li>
+                    {% endfor %}
+                </ul>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<h3>Available Stages</h3>
+<table class="table">
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Description</th>
+            <th>Input Type</th>
+            <th>Output Type</th>
+            <th>Default Params</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for name, stage in stages.items() %}
+        <tr>
+            <td>{{ stage.name }}</td>
+            <td>{{ stage.description }}</td>
+            <td>{{ stage.input_type }}</td>
+            <td>{{ stage.output_type }}</td>
+            <td>{{ stage.default_params }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<p><a href="{{ url_for('ui_bp.dashboard', project_id=project.id) }}">Back to Dashboard</a></p>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const workflowSelect = document.getElementById('workflow_name');
+        const decentSamplerParamsDiv = document.getElementById('decentSamplerParams');
+        const instrumentNameInput = document.getElementById('instrument_name');
+        const instrumentAuthorInput = document.getElementById('instrument_author');
+
+        function toggleDecentSamplerParams() {
+            if (workflowSelect.value === 'decent_sampler_creation_workflow') {
+                decentSamplerParamsDiv.style.display = 'block';
+            } else {
+                decentSamplerParamsDiv.style.display = 'none';
+            }
+        }
+
+        // Initial call to set visibility based on default selected option
+        toggleDecentSamplerParams();
+
+        // Add event listener for changes to the workflow select
+        workflowSelect.addEventListener('change', toggleDecentSamplerParams);
+
+        const workflowForm = document.querySelector('form[action*="/process"]');
+        if (workflowForm) {
+            workflowForm.addEventListener('submit', async function(event) {
+                event.preventDefault(); // Prevent default form submission
+
+                const workflowName = workflowSelect.value;
+                const recordingId = {{ recording.id }};
+                const apiUrl = `/recordings/${recordingId}/process`;
+
+                const payload = {
+                    workflow_name: workflowName,
+                    output_dir_suffix: `processed_by_${workflowName}_${Date.now()}` // Unique suffix
+                };
+
+                // Conditionally add parameters for decent_sampler_creation_workflow
+                if (workflowName === 'decent_sampler_creation_workflow') {
+                    payload.stages_chain = [
+                        {
+                            stage_name: "slicing",
+                            params: {}
+                        },
+                        {
+                            stage_name: "decent_sampler_export",
+                            params: {
+                                instrument_name: instrumentNameInput.value,
+                                instrument_author: instrumentAuthorInput.value
+                            }
+                        }
+                    ];
+                    // Remove workflow_name if stages_chain is provided, as per API spec
+                    delete payload.workflow_name;
+                }
+
+                try {
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(payload),
+                    });
+
+                    const result = await response.json();
+
+                    if (response.ok) {
+                        alert('Processing successful!\n' + result.message + '\nOutput: ' + result.output_location);
+                        // Optionally, redirect or update UI to show results
+                        window.location.href = `{{ url_for('ui_bp.dashboard', project_id=project.id) }}`;
+                    } else {
+                        alert('Processing failed: ' + (result.error || 'Unknown error'));
+                    }
+                } catch (error) {
+                    console.error('Error during fetch:', error);
+                    alert('An error occurred while trying to process the recording.');
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

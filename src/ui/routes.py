@@ -2,6 +2,12 @@ from flask import Blueprint, render_template, abort, request
 from werkzeug.exceptions import HTTPException
 from src.database.models import Project as ProjectModel, Recording as RecordingModel
 from src.database.utils import get_db
+from src.core.stage_runner import STAGE_REGISTRY
+from src.core.workflows import WORKFLOW_REGISTRY
+import src.core.stages.slicing_stage  # noqa: F401
+import src.core.stages.noise_reduction_stage  # noqa: F401
+import src.core.stages.vocal_chop_perfection_stage # noqa: F401
+
 
 # Define the blueprint for UI routes
 ui_bp = Blueprint(
@@ -92,39 +98,60 @@ def create_project_form() -> str:
     return render_template("create_project.html", title="Create Project")
 
 
+from flask import Blueprint, render_template, abort, request, url_for, redirect, flash, current_app
+from werkzeug.exceptions import HTTPException
+from src.database.models import Project as ProjectModel, Recording as RecordingModel
+from src.database.utils import get_db
+from src.core.stage_runner import STAGE_REGISTRY
+from src.core.workflows import WORKFLOW_REGISTRY
+import src.core.stages.slicing_stage  # noqa: F401
+import src.core.stages.noise_reduction_stage  # noqa: F401
+import src.core.stages.vocal_chop_perfection_stage # noqa: F401
+import src.core.stages.decent_sampler_export_stage # noqa: F401
+import requests # Import requests library
+
+# Define the blueprint for UI routes
+ui_bp = Blueprint(
+    "ui_bp",
+    __name__,
+    template_folder="../templates/ui",  # Points to src/templates/ui
+    static_folder="../static",  # Points to src/static
+    static_url_path="/ui/static",  # URL path for these static files
+)
+
+
 @ui_bp.route("/projects/create", methods=["POST"])
-def create_project_submit() -> tuple[str, int]:
+def create_project_submit():
     """Handles the submission of the new project creation form.
 
-    This route is intended for POST requests, typically from the form rendered
-    by `create_project_form`. It is responsible for taking the submitted
-    form data (e.g., project name, description), processing it (e.g.,
-    saving it to a database), and then usually redirecting the user to
-    another page, like the dashboard or the newly created project's page.
-
-    Note:
-        Currently, this function is a placeholder. It does not perform any
-        actual project creation or data processing. It returns a simple
-        message and an HTTP 200 status code. In a complete implementation,
-        it would interact with a backend service or database.
-
-    Args:
-        None. Expects form data in `flask.request.form`.
-
-    Returns:
-        tuple[str, int]: A tuple containing a string message and an HTTP
-                         status code. In its current placeholder state, it
-                         returns ("Project creation submitted (not yet implemented)", 200).
-                         A full implementation would typically return a redirect
-                         response or render a success/failure template.
+    This route processes the form data, calls the API to create a new project,
+    and redirects the user based on the outcome.
     """
-    # Placeholder for form submission logic
-    # In a real app, you would process form data here, e.g.:
-    # project_name = request.form.get('project_name')
-    # description = request.form.get('project_description')
-    # ... save to database ...
-    # return redirect(url_for('ui_bp.dashboard')) # Or project detail page
-    return "Project creation submitted (not yet implemented)", 200
+    project_name = request.form.get('project_name')
+    project_description = request.form.get('project_description')
+
+    if not project_name:
+        flash("Project name is required.", "error")
+        return redirect(url_for('ui_bp.create_project_form'))
+
+    api_url = f"http://localhost:5000/projects" # Assuming API runs on localhost:5000
+    payload = {"name": project_name, "description": project_description}
+
+    try:
+        response = requests.post(api_url, json=payload)
+        response.raise_for_status() # Raise an exception for HTTP errors (4xx or 5xx)
+        project_data = response.json()
+        project_id = project_data.get('id')
+        flash(f"Project '{project_name}' created successfully!", "success")
+        return redirect(url_for('ui_bp.dashboard', project_id=project_id))
+    except requests.exceptions.RequestException as e:
+        current_app.logger.error(f"Error creating project via API: {e}")
+        error_message = "Failed to create project. Please try again."
+        if response and response.json() and 'error' in response.json():
+            error_message = response.json()['error']
+        flash(error_message, "error")
+        return redirect(url_for('ui_bp.create_project_form'))
+
 
 
 @ui_bp.route("/projects/<string:project_id>/progress", methods=["GET"])
@@ -187,6 +214,42 @@ def import_project_audio_ui(project_id: int) -> str:
             pass
 
 
+@ui_bp.route("/projects/<int:project_id>/recordings/<int:recording_id>/process", methods=["GET"])
+def process_recording_ui(project_id: int, recording_id: int) -> str:
+    """Renders the UI for processing a specific recording.
+
+    Args:
+        project_id (int): The ID of the project.
+        recording_id (int): The ID of the recording to process.
+
+    Returns:
+        str: Rendered HTML page for processing a recording.
+    """
+    db_session_generator = get_db()
+    db = next(db_session_generator)
+    try:
+        project = db.query(ProjectModel).filter(ProjectModel.id == project_id).first()
+        if not project:
+            abort(404, description=f"Project with ID {project_id} not found.")
+
+        recording = db.query(RecordingModel).filter(RecordingModel.id == recording_id).first()
+        if not recording or recording.project_id != project_id:
+            abort(404, description=f"Recording with ID {recording_id} not found in project {project_id}.")
+
+        return render_template(
+            "process_recording.html",
+            project=project,
+            recording=recording,
+            workflows=WORKFLOW_REGISTRY,
+            stages=STAGE_REGISTRY
+        )
+    finally:
+        try:
+            next(db_session_generator)
+        except StopIteration:
+            pass
+
+
 # --- UI Blueprint Error Handler ---
 @ui_bp.errorhandler(HTTPException)
 def handle_ui_exception(e: HTTPException):
@@ -213,6 +276,43 @@ def handle_ui_exception(e: HTTPException):
     # or an htmx request that doesn't set Accept: text/html),
     # return the default response from the exception (often JSON or plain text).
     return response
+
+
+@ui_bp.route("/projects/<int:project_id>/recordings/<int:recording_id>/samples", methods=["GET"])
+def view_recording_samples_ui(project_id: int, recording_id: int) -> str:
+    """Renders the UI for viewing samples associated with a specific recording.
+
+    Args:
+        project_id (int): The ID of the project.
+        recording_id (int): The ID of the recording whose samples are to be viewed.
+
+    Returns:
+        str: Rendered HTML page for viewing recording samples.
+    """
+    db_session_generator = get_db()
+    db = next(db_session_generator)
+    try:
+        project = db.query(ProjectModel).filter(ProjectModel.id == project_id).first()
+        if not project:
+            abort(404, description=f"Project with ID {project_id} not found.")
+
+        recording = db.query(RecordingModel).filter(RecordingModel.id == recording_id).first()
+        if not recording or recording.project_id != project_id:
+            abort(404, description=f"Recording with ID {recording_id} not found in project {project_id}.")
+
+        samples = recording.samples # Access samples via relationship
+
+        return render_template(
+            "view_samples.html",
+            project=project,
+            recording=recording,
+            samples=samples
+        )
+    finally:
+        try:
+            next(db_session_generator)
+        except StopIteration:
+            pass
 
 
 @ui_bp.errorhandler(404)
