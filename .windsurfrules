@@ -1,0 +1,223 @@
+# Windsurf Rules for Sample Orchestrator
+
+## Table of Contents
+1. [Code Quality Standards](#code-quality-standards)
+2. [Development Workflow](#development-workflow)
+3. [Web UI Development](#web-ui-development)
+4. [Audio Processing](#audio-processing)
+5. [Workflow Engine](#workflow-engine)
+6. [Sample Librarian & ML Integration](#sample-librarian--ml-integration)
+7. [Performance Considerations](#performance-considerations)
+8. [Documentation Standards](#documentation-standards)
+
+## Code Quality Standards
+
+### General
+- **Type Hints**: All Python code must include type hints
+- **Docstrings**: All functions, classes, and modules must have Google-style docstrings
+- **Code Style**: Enforce Black formatting with 88-char line length
+- **Linting**: Use Ruff for all linting with zero warnings allowed
+- **Test Coverage**: Maintain ≥80% test coverage for all new code
+- **Dependencies**: Get explicit approval for new third-party dependencies
+
+### Python Specific
+- **Python Version**: Target Python 3.12+ compatibility
+- **Async**: Use async/await for all I/O bound operations
+- **Error Handling**: Use custom exceptions and proper error hierarchies
+- **Imports**: Group imports (standard library, third-party, local) with isort
+- **Logging**: Use structured logging with appropriate log levels
+
+## Development Workflow
+
+### Branching Strategy
+- `main`: Production-ready code only
+- `develop`: Integration branch for features
+- `feature/*`: Feature development
+- `fix/*`: Bug fixes
+- `docs/*`: Documentation updates
+
+### Commit Messages
+Follow Conventional Commits specification:
+- `feat`: New feature
+- `fix`: Bug fix
+- `docs`: Documentation changes
+- `style`: Code style changes
+- `refactor`: Code refactoring
+- `perf`: Performance improvements
+- `test`: Adding or fixing tests
+- `chore`: Maintenance tasks
+
+### Code Review
+- All changes require at least one approval
+- No direct pushes to `main` or `develop`
+- All tests must pass before merging
+- Code climate issues must be addressed
+
+## Web UI Development
+
+### Guidelines
+1. **Component Architecture**
+   - Use React with TypeScript for new UI components
+   - Follow atomic design principles
+   - Implement proper state management (Redux Toolkit)
+   - Use CSS Modules for styling
+
+2. **Accessibility**
+   - Follow WCAG 2.1 AA standards
+   - Keyboard navigation support
+   - Screen reader compatibility
+   - Color contrast compliance
+
+3. **Performance**
+   - Code splitting for routes
+   - Lazy loading of components
+   - Optimized asset loading
+   - Virtualized lists for large datasets
+
+4. **Testing**
+   - Component testing with React Testing Library
+   - E2E testing with Cypress
+   - Visual regression testing
+
+## Audio Processing
+
+### Core Principles
+1. **Modular Design**
+   - Isolate audio processing in dedicated modules
+   - Use the Chain of Responsibility pattern for effects
+   - Implement proper error handling for audio I/O
+
+2. **Performance**
+   - Use Numba for performance-critical sections
+   - Implement chunked processing for large files
+   - Support for real-time audio processing
+
+3. **Formats**
+   - Support industry standard formats (WAV, AIFF, FLAC, MP3)
+   - Preserve metadata during processing
+   - Handle different sample rates and bit depths
+
+4. **Testing**
+   - Golden master testing for audio output
+   - Property-based testing for audio transformations
+   - Performance benchmarking
+
+## Workflow Engine
+
+### Architecture
+1. **Pipeline Design**
+   - Define clear interfaces for processing nodes
+   - Support for directed acyclic graphs (DAGs)
+   - Visual editor for workflow creation
+
+2. **Execution**
+   - Support for both batch and real-time processing
+   - Progress tracking and cancellation
+   - Resource management
+
+3. **Extensibility**
+   - Plugin architecture for custom nodes
+   - Versioning for workflow definitions
+   - Import/export functionality
+
+## Sample Librarian & ML Integration
+
+### Core Features
+1. **Metadata Management**
+   - Standardized metadata schema
+   - Automatic metadata extraction
+   - Custom tagging system
+
+2. **Search & Discovery**
+   - Vector similarity search
+   - Semantic search capabilities
+   - Advanced filtering and sorting
+
+3. **ML Integration**
+   - Audio feature extraction pipeline
+   - Pre-trained models for classification
+   - Fine-tuning interface for custom models
+
+4. **Personal Style Modeling**
+   - User preference tracking
+   - Style transfer capabilities
+   - Personal tagging vocabulary
+
+## Performance Considerations
+
+### Optimization Targets
+1. **Startup Time**
+   - Lazy loading of heavy dependencies
+   - Optimized module imports
+   - Background initialization
+
+2. **Memory Usage**
+   - Streaming processing for large files
+   - Efficient data structures
+   - Memory pooling where applicable
+
+3. **Processing Speed**
+   - Parallel processing where possible
+   - GPU acceleration for ML tasks
+   - Caching of intermediate results
+
+## Documentation Standards
+
+### Code Documentation
+- Comprehensive API documentation
+- Usage examples
+- Architecture decision records (ADRs)
+
+### User Documentation
+- Getting started guide
+- Tutorials
+- API reference
+- Troubleshooting guide
+
+### ML Documentation
+- Model cards for all ML models
+- Training data documentation
+- Evaluation metrics and results
+
+## Security Guidelines
+
+### Data Protection
+- Encrypt sensitive data at rest
+- Secure API endpoints
+- Input validation and sanitization
+
+### Dependencies
+- Regular security audits
+- Pinned dependency versions
+- Automatic vulnerability scanning
+
+## Monitoring & Observability
+
+### Logging
+- Structured logging format
+- Appropriate log levels
+- Sensitive data redaction
+
+### Metrics
+- Performance metrics collection
+- Usage statistics
+- Error tracking
+
+## Future-Proofing
+
+### API Versioning
+- Semantic versioning for APIs
+- Deprecation policy
+- Backward compatibility
+
+### Tech Debt Management
+- Regular tech debt reviews
+- Documentation of technical debt
+- Scheduled refactoring sprints
+
+## Review & Updates
+This document should be reviewed and updated quarterly to reflect:
+- New development priorities
+- Technology updates
+- Process improvements
+- Team feedback
