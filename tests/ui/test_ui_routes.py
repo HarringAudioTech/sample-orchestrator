@@ -82,7 +82,7 @@ def manage_database_tables(app: Flask, db_session: SQLAlchemySession) -> Generat
 
 def test_dashboard_project_not_exists(client: FlaskClient):
     """Test dashboard returns 404 for a non-existent project."""
-    response = client.get("/ui/projects/99999/dashboard")
+    response = client.get("/ui/dashboard/99999")
     assert response.status_code == 404
     # Check for content from the error.html template
     assert b"Error 404" in response.data
@@ -98,7 +98,7 @@ def test_dashboard_project_exists_no_recordings(client: FlaskClient, db_session:
     db_session.commit()
     db_session.refresh(project)
 
-    response = client.get(f"/ui/projects/{project.id}/dashboard")
+    response = client.get(f"/ui/dashboard/{project.id}")
     assert response.status_code == 200
     response_data = response.data.decode("utf-8")
 
@@ -150,7 +150,7 @@ def test_dashboard_project_exists_with_recordings(client: FlaskClient, db_sessio
     db_session.refresh(rec2)
     db_session.refresh(rec3)
 
-    response = client.get(f"/ui/projects/{project.id}/dashboard")
+    response = client.get(f"/ui/dashboard/{project.id}")
     assert response.status_code == 200
     response_data = response.data.decode("utf-8")
 
@@ -237,7 +237,7 @@ def test_dashboard_project_name_with_special_chars(client: FlaskClient, db_sessi
     db_session.commit()
     db_session.refresh(project)
 
-    response = client.get(f"/ui/projects/{project.id}/dashboard")
+    response = client.get(f"/ui/dashboard/{project.id}")
     assert response.status_code == 200
     response_data = response.data.decode("utf-8")
 
@@ -281,7 +281,7 @@ def test_dashboard_project_name_with_unicode_chars(client: FlaskClient, db_sessi
     db_session.commit()
     db_session.refresh(project)
 
-    response = client.get(f"/ui/projects/{project.id}/dashboard")
+    response = client.get(f"/ui/dashboard/{project.id}")
     assert response.status_code == 200
     response_data = response.data.decode("utf-8") # Ensure decoding as UTF-8
 

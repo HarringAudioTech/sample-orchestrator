@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from enum import Enum as PyEnum
+from typing import List, Optional, Dict, Any
 from sqlalchemy import (
     create_engine,
     Column,
@@ -9,24 +11,72 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
-    LargeBinary,  # Added LargeBinary
+    LargeBinary,
+    Enum as SQLAlchemyEnum,
+    JSON,
+    Boolean,
+    Table,
+    CheckConstraint,
 )
 from sqlalchemy.orm import relationship, declarative_base, Mapped, mapped_column
 from sqlalchemy.sql import func
-import datetime  # For type hinting datetime columns
-from typing import List, Optional  # For type hinting relationships and nullable fields
+import datetime
 
 Base = declarative_base()
 
 
+class ProjectType(str, PyEnum):
+    """Enumeration of project types."""
+    SAMPLE_PACK = "sample_pack"
+    VIRTUAL_INSTRUMENT = "virtual_instrument"
+
+
 class Project(Base):
-    """Represents a user's project, which groups recordings and sample mappings."""
+    """Represents a user's project, which groups recordings and sample mappings.
+    
+    Attributes:
+        project_type: The type of project (sample pack or virtual instrument)
+        name: The name of the project
+        description: Optional description of the project
+        base_note: For virtual instruments, the root note (e.g., 60 for C3)
+        velocity_layers: Number of velocity layers for virtual instruments
+        round_robins: Number of round robin variations per note/velocity
+        metadata_json: Additional metadata in JSON format
+    """
 
     __tablename__ = "projects"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
+    project_type: Mapped[ProjectType] = mapped_column(
+        SQLAlchemyEnum(ProjectType, name="project_type"),
+        nullable=False,
+        default=ProjectType.SAMPLE_PACK
+    )
     name: Mapped[str] = mapped_column(String, nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Virtual instrument specific fields
+    base_note: Mapped[Optional[int]] = mapped_column(
+        Integer, 
+        nullable=True, 
+        comment="MIDI note number for the base/root note (e.g., 60 for C3)"
+    )
+    velocity_layers: Mapped[Optional[int]] = mapped_column(
+        Integer, 
+        nullable=True, 
+        default=1,
+        comment="Number of velocity layers (e.g., 1-127)"
+    )
+    round_robins: Mapped[Optional[int]] = mapped_column(
+        Integer, 
+        nullable=True, 
+        default=1,
+        comment="Number of round robin variations per note/velocity"
+    )
+    metadata_json: Mapped[Optional[dict]] = mapped_column(
+        JSON,
+        nullable=True,
+        comment="Additional metadata in JSON format"
+    )
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -40,8 +90,12 @@ class Project(Base):
     sample_mappings: Mapped[List["SampleMapping"]] = relationship(
         "SampleMapping", back_populates="project", cascade="all, delete-orphan"
     )
-    # Relationship for MidiCaptureSession added at the end of the file
-    # midi_capture_sessions: Mapped[List["MidiCaptureSession"]] # Removed this line
+    midi_capture_sessions: Mapped[List["MidiCaptureSession"]] = relationship(
+        "MidiCaptureSession", back_populates="project", cascade="all, delete-orphan"
+    )
+    sample_packs: Mapped[List["SamplePack"]] = relationship(
+        "SamplePack", back_populates="project", cascade="all, delete-orphan"
+    )
 
 
 class Recording(Base):
@@ -76,6 +130,15 @@ class Recording(Base):
     )
 
 
+class SampleType(str, PyEnum):
+    ONE_SHOT = "one_shot"
+    LOOP = "loop"
+    MULTI_SAMPLE = "multi_sample"
+    FILL = "fill"
+    EFFECT = "effect"
+    TEXTURE = "texture"
+
+
 class Sample(Base):
     """Represents a sliced audio sample extracted from a recording.
 
@@ -96,15 +159,22 @@ class Sample(Base):
     )  # Path to the individual sample's audio file
     start_time_seconds: Mapped[float] = mapped_column(Float, nullable=False)
     end_time_seconds: Mapped[float] = mapped_column(Float, nullable=False)
-    sample_type: Mapped[Optional[str]] = mapped_column(
-        String, nullable=True
-    )  # E.g., "one-shot", "loop", "multi-sample_region"
+    sample_type: Mapped[SampleType] = mapped_column(
+        SQLAlchemyEnum(SampleType, name="sample_type"),
+        nullable=False,
+        default=SampleType.ONE_SHOT
+    )
+    is_loop: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    bpm: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    key: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
     midi_pitch: Mapped[Optional[int]] = mapped_column(
         Integer, nullable=True
     )  # Detected or assigned MIDI pitch
     metadata_json: Mapped[Optional[str]] = mapped_column(
         Text, nullable=True
     )  # For additional metadata like velocity, timbre, etc.
+    is_processed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    sample_pack_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("sample_packs.id"), nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -115,6 +185,10 @@ class Sample(Base):
     recording: Mapped["Recording"] = relationship("Recording", back_populates="samples")
     sample_mapping_items: Mapped[List["SampleMappingItem"]] = relationship(
         "SampleMappingItem", back_populates="sample", cascade="all, delete-orphan"
+    )
+    sample_pack: Mapped[Optional["SamplePack"]] = relationship("SamplePack", back_populates="samples")
+    categories: Mapped[List["SampleCategory"]] = relationship(
+        "SampleCategory", secondary="sample_category_association", back_populates="samples"
     )
 
 
@@ -185,13 +259,153 @@ class SampleMappingItem(Base):
     sample: Mapped["Sample"] = relationship("Sample", back_populates="sample_mapping_items")
 
 
-# Note on cascade options:
-# "all, delete-orphan" means that when a parent object is deleted,
-# its related child objects are also deleted. If a child object is
-# disassociated from its parent (e.g., project.recordings.remove(some_recording)),
-# it will also be deleted if it's an orphan (no longer referenced by a parent).
-# This is generally useful for owned relationships like Project ->
-# Recordings -> Samples.
+# Association table for many-to-many relationship between Sample and SampleCategory
+sample_category_association = Table(
+    'sample_category_association',
+    Base.metadata,
+    Column('sample_id', Integer, ForeignKey('samples.id'), primary_key=True),
+    Column('category_id', Integer, ForeignKey('sample_categories.id'), primary_key=True)
+)
+
+
+class SamplePackStatus(str, PyEnum):
+    DRAFT = "draft"
+    IN_PROGRESS = "in_progress"
+    COMPLETE = "complete"
+    PUBLISHED = "published"
+
+
+class SamplePack(Base):
+    """Represents a collection of samples with metadata.
+    
+    A sample pack is a curated collection of audio samples, MIDI files, and related
+    assets that are distributed together.
+    """
+    __tablename__ = "sample_packs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
+    project_id: Mapped[int] = mapped_column(Integer, ForeignKey("projects.id"), nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    status: Mapped[SamplePackStatus] = mapped_column(
+        SQLAlchemyEnum(SamplePackStatus, name="sample_pack_status"),
+        nullable=False,
+        default=SamplePackStatus.DRAFT
+    )
+    bpm: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    key: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+    metadata_json: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    # Relationships
+    project: Mapped["Project"] = relationship("Project", back_populates="sample_packs")
+    samples: Mapped[List["Sample"]] = relationship("Sample", back_populates="sample_pack", cascade="all, delete-orphan")
+    categories: Mapped[List["SampleCategory"]] = relationship(
+        "SampleCategory", secondary="sample_pack_categories", back_populates="sample_packs"
+    )
+    bill_of_materials: Mapped[Optional["BillOfMaterials"]] = relationship(
+        "BillOfMaterials", back_populates="sample_pack", uselist=False, cascade="all, delete-orphan"
+    )
+    midi_files: Mapped[List["MidiFile"]] = relationship("MidiFile", back_populates="sample_pack")
+
+
+class SampleCategory(Base):
+    """Categories for organizing samples within a sample pack.
+    
+    Examples: Drums, Bass, Synths, Vocals, etc.
+    """
+    __tablename__ = "sample_categories"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    icon: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    color: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    
+    # Relationships
+    samples: Mapped[List["Sample"]] = relationship(
+        "Sample", secondary=sample_category_association, back_populates="categories"
+    )
+    sample_packs: Mapped[List["SamplePack"]] = relationship(
+        "SamplePack", secondary="sample_pack_categories", back_populates="categories"
+    )
+
+
+# Association table for many-to-many relationship between SamplePack and SampleCategory
+sample_pack_categories = Table(
+    'sample_pack_categories',
+    Base.metadata,
+    Column('sample_pack_id', Integer, ForeignKey('sample_packs.id'), primary_key=True),
+    Column('category_id', Integer, ForeignKey('sample_categories.id'), primary_key=True)
+)
+
+
+class BillOfMaterials(Base):
+    """Tracks required components for a sample pack to be considered complete."""
+    __tablename__ = "bill_of_materials"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
+    sample_pack_id: Mapped[int] = mapped_column(Integer, ForeignKey("sample_packs.id"), nullable=False, unique=True)
+    required_samples: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    required_midi: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    required_documentation: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    required_artwork: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    # Relationships
+    sample_pack: Mapped["SamplePack"] = relationship("SamplePack", back_populates="bill_of_materials")
+
+    # Stats (computed properties)
+    @property
+    def samples_completed(self) -> int:
+        return len([s for s in self.sample_pack.samples if s.is_processed])
+
+    @property
+    def midi_completed(self) -> int:
+        return len(self.sample_pack.midi_files)
+
+    @property
+    def completion_percentage(self) -> float:
+        total_required = sum([
+            self.required_samples,
+            self.required_midi,
+            1 if self.required_documentation else 0,
+            1 if self.required_artwork else 0
+        ])
+
+        completed = sum(
+            [
+                min(self.samples_completed, self.required_samples),
+                min(self.midi_completed, self.required_midi),
+                (
+                    1
+                    if not self.required_documentation
+                    or (
+                        self.sample_pack.metadata_json is not None
+                        and self.sample_pack.metadata_json.get("has_documentation")
+                    )
+                    else 0
+                ),
+                (
+                    1
+                    if not self.required_artwork
+                    or (
+                        self.sample_pack.metadata_json is not None
+                        and self.sample_pack.metadata_json.get("has_artwork")
+                    )
+                    else 0
+                ),
+            ]
+        )
+
+        return (completed / total_required) * 100 if total_required > 0 else 0.0
 
 
 class MidiDevice(Base):
@@ -263,9 +477,8 @@ class MidiFile(Base):
     midi_data: Mapped[bytes] = mapped_column(
         LargeBinary, nullable=False
     )  # Replaced file_path with midi_data
-    created_at: Mapped[datetime.datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    sample_pack_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("sample_packs.id"), nullable=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
@@ -274,9 +487,4 @@ class MidiFile(Base):
         "MidiCaptureSession", back_populates="midi_files"
     )
     device: Mapped["MidiDevice"] = relationship("MidiDevice", back_populates="midi_files")
-
-
-# Add relationship to Project model for Mypy
-Project.midi_capture_sessions = relationship(  # type: ignore[attr-defined]
-    "MidiCaptureSession", back_populates="project", cascade="all, delete-orphan"
-)
+    sample_pack: Mapped[Optional["SamplePack"]] = relationship("SamplePack", back_populates="midi_files")

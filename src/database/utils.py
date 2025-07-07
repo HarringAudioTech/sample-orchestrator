@@ -140,14 +140,48 @@ def init_db(engine_instance: Optional[Engine] = None) -> None:
     )
 
 
-def get_db(engine_instance: Optional[Engine] = None) -> Iterator[SQLAlchemySession]:
+class DBSessionContextManager:
+    """Context manager and iterator for database sessions.
+    
+    This class supports both the context manager protocol (with statement) and
+    the iterator protocol (for compatibility with existing tests that expect
+    get_db() to return an iterator).
+    """
+    
+    def __init__(self, engine_instance: Optional[Engine] = None):
+        self.engine_instance = engine_instance
+        self.db: Optional[SQLAlchemySession] = None
+        self._iterated = False
+    
+    def __enter__(self) -> SQLAlchemySession:
+        self.db = get_session_local(self.engine_instance)()
+        return self.db
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.db is not None:
+            self.db.close()
+    
+    def __iter__(self):
+        return self
+    
+    def __next__(self) -> SQLAlchemySession:
+        if self._iterated:
+            raise StopIteration
+        
+        if self.db is None:
+            self.db = get_session_local(self.engine_instance)()
+        
+        self._iterated = True
+        return self.db
+
+
+def get_db(engine_instance: Optional[Engine] = None) -> DBSessionContextManager:
     """Provides a database session within a managed context, ensuring closure.
 
-    This function is a generator designed to be used as a context manager
-    (e.g., in a `with` statement or as a FastAPI dependency). It yields a
-    SQLAlchemy `Session` object that can be used for database operations.
-    Crucially, it ensures that the session is closed after its use, whether
-    the operations within the context were successful or raised an exception.
+    This function returns a context manager that provides a SQLAlchemy `Session`
+    object that can be used for database operations. The session is automatically
+    closed when the context is exited, whether the operations within the context
+    were successful or raised an exception.
 
     The session is created using a `sessionmaker` that is bound to an engine
     determined as follows:
@@ -165,20 +199,10 @@ def get_db(engine_instance: Optional[Engine] = None) -> Iterator[SQLAlchemySessi
             the session should be bound. If `None`, the engine is resolved via
             `get_session_local()` (ultimately by `get_engine()`). Defaults to None.
 
-    Yields:
-        Iterator[SQLAlchemySession]: A generator that yields a single
-            `SQLAlchemySession` object. This session is ready for database
-            interactions.
+    Returns:
+        DBSessionContextManager: A context manager that provides a database session.
     """
-    # Create a factory using the potentially overridden engine
-    current_session_local_factory: sessionmaker[SQLAlchemySession] = get_session_local(
-        engine_instance
-    )
-    db: SQLAlchemySession = current_session_local_factory()
-    try:
-        yield db
-    finally:
-        db.close()
+    return DBSessionContextManager(engine_instance)
 
 
 # SessionLocal = get_session_local() # Removed global SessionLocal instance

@@ -129,43 +129,86 @@ def manage_database_session(app: Flask) -> Generator[None, None, None]:
 
 def test_create_project_success(client: FlaskClient) -> None:
     """Test successful project creation."""
-    response = client.post(
-        "/projects",
-        json={
-            "name": "My First API Project",
-            "description": "A project created via API test",
-        },
-    )
+    test_data = {
+        "name": "Test Project", 
+        "description": "A test project",
+        "project_type": "sample_pack"
+    }
+    response = client.post("/projects", json=test_data)
     assert response.status_code == 201
     data = response.get_json()
+    assert data["name"] == test_data["name"]
+    assert data["description"] == test_data["description"]
+    assert data["project_type"] == "sample_pack"
+    assert data["is_virtual_instrument"] is False
     assert "id" in data
-    assert data["name"] == "My First API Project"
-    assert data["description"] == "A project created via API test"
-
-    # Verify in DB (optional, but good for confidence)
-    # This requires getting a session in the test, similar to how routes do.
-    # For simplicity, we trust the route's own DB interaction for now,
-    # or we'd need to setup db_session fixture like in model tests.
-
-    # Example DB verification (if you set up a db_session fixture for API tests too):
-    # project_in_db = db_session.query(ProjectModel).filter(ProjectModel.id == data['id']).first()
-    # assert project_in_db is not None
-    # assert project_in_db.name == "My First API Project"
+    assert "created_at" in data
+    assert "updated_at" in data
 
 
 def test_create_project_missing_name(client: FlaskClient) -> None:
     """Test project creation failure when name is missing."""
-    response = client.post("/projects", json={"description": "Project without a name"})
+    response = client.post("/projects", json={"description": "No name"})
     assert response.status_code == 400
+    assert "Project name is required" in response.get_json()["error"]
+
+
+def test_create_project_missing_project_type(client: FlaskClient) -> None:
+    """Test project creation failure when project_type is missing."""
+    response = client.post("/projects", json={"name": "No type"})
+    assert response.status_code == 400
+    assert "Project type is required" in response.get_json()["error"]
+
+
+def test_create_project_invalid_project_type(client: FlaskClient) -> None:
+    """Test project creation with invalid project_type."""
+    response = client.post("/projects", json={
+        "name": "Invalid type",
+        "project_type": "invalid_type"
+    })
+    assert response.status_code == 400
+    assert "Invalid project_type" in response.get_json()["error"]
+
+
+def test_create_virtual_instrument_project(client: FlaskClient) -> None:
+    """Test creating a virtual instrument project with all fields."""
+    test_data = {
+        "name": "Piano Instrument",
+        "description": "A virtual piano instrument",
+        "project_type": "virtual_instrument",
+        "base_note": 60,
+        "velocity_layers": 3,
+        "round_robins": 2,
+        "metadata_json": {"instrument": "piano"}
+    }
+    response = client.post("/projects", json=test_data)
+    assert response.status_code == 201
     data = response.get_json()
-    assert "error" in data
-    assert "Project name is required" in data["error"]
+    assert data["name"] == test_data["name"]
+    assert data["project_type"] == "virtual_instrument"
+    assert data["is_virtual_instrument"] is True
+    assert data["base_note"] == 60
+    assert data["velocity_layers"] == 3
+    assert data["round_robins"] == 2
+    assert data["metadata_json"]["instrument"] == "piano"
+
+
+def test_create_virtual_instrument_invalid_base_note(client: FlaskClient) -> None:
+    """Test creating a virtual instrument with invalid base_note."""
+    test_data = {
+        "name": "Invalid Piano",
+        "project_type": "virtual_instrument",
+        "base_note": 200  # Invalid MIDI note
+    }
+    response = client.post("/projects", json=test_data)
+    assert response.status_code == 400
+    assert "base_note must be a valid MIDI note number" in response.get_json()["error"]
 
 
 def test_get_project_success(client: FlaskClient) -> None:
     """Test successfully retrieving an existing project."""
     # First, create a project to fetch
-    create_resp = client.post("/projects", json={"name": "Fetchable Project"})
+    create_resp = client.post("/projects", json={"name": "Fetchable Project", "project_type": "sample_pack"})
     assert create_resp.status_code == 201
     project_id = create_resp.get_json()["id"]
 
@@ -196,16 +239,38 @@ def test_list_projects_empty(client: FlaskClient) -> None:
 
 def test_list_projects_with_data(client: FlaskClient) -> None:
     """Test listing projects when multiple projects exist."""
-    client.post("/projects", json={"name": "Project Alpha"})
-    client.post("/projects", json={"name": "Project Beta"})
+    # Create test projects
+    projects = [
+        {"name": "Sample Pack 1", "project_type": "sample_pack", "description": "Test sample pack"},
+        {"name": "Piano", "project_type": "virtual_instrument", "base_note": 60, "velocity_layers": 3},
+        {"name": "Drums", "project_type": "virtual_instrument", "base_note": 36, "round_robins": 4}
+    ]
+    for project in projects:
+        client.post("/projects", json=project)
 
+    # Test listing all projects
     response = client.get("/projects")
     assert response.status_code == 200
     data = response.get_json()
-    assert isinstance(data, list)
-    assert len(data) == 2
-    project_names = sorted([p["name"] for p in data])
-    assert project_names == ["Project Alpha", "Project Beta"]
+    assert len(data) == 3
+    
+    # Test filtering by project_type
+    response = client.get("/projects?project_type=virtual_instrument")
+    assert response.status_code == 200
+    vi_projects = response.get_json()
+    assert len(vi_projects) == 2
+    assert all(p["project_type"] == "virtual_instrument" for p in vi_projects)
+    
+    # Test filtering by sample_pack
+    response = client.get("/projects?project_type=sample_pack")
+    assert response.status_code == 200
+    sample_packs = response.get_json()
+    assert len(sample_packs) == 1
+    assert sample_packs[0]["project_type"] == "sample_pack"
+    
+    # Test invalid project_type filter
+    response = client.get("/projects?project_type=invalid_type")
+    assert response.status_code == 400
 
 
 def test_root_path(client: FlaskClient) -> None:

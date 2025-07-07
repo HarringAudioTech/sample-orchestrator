@@ -3,45 +3,171 @@
 {% block title %}Dashboard - {{ project.name if project else 'Orchestrator UI' }}{% endblock %}
 
 {% block content %}
-<h1>Project Dashboard: {{ project.name if project else "Unknown Project" }}</h1>
+<div class="container mt-4">
+    <div class="row mb-4">
+        <div class="col">
+            <h1>Project: {{ project.name if project else "Unknown Project" }}</h1>
+            <p class="text-muted">{{ project.description if project.description else "No description provided" }}</p>
+        </div>
+        <div class="col-auto">
+            <a href="{{ url_for('ui_bp.import_project_audio_ui', project_id=project.id) }}" class="btn btn-primary">
+                <i class="bi bi-upload"></i> Import Audio
+            </a>
+        </div>
+    </div>
 
-<p>This page provides an overview of the project, including its imported audio files and their metadata.</p>
+    <!-- Project Info Card -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Project Information</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-4">
+                    <h6>Project Type</h6>
+                    <p>
+                        <span class="badge bg-{{ 'primary' if project.project_type == 'virtual_instrument' else 'secondary' }}">
+                            {{ project.project_type | replace('_', ' ') | title }}
+                        </span>
+                    </p>
+                </div>
+                <div class="col-md-4">
+                    <h6>Created</h6>
+                    <p>{{ project.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                </div>
+                <div class="col-md-4">
+                    <h6>Last Updated</h6>
+                    <p>{{ project.updated_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                </div>
+            </div>
+            
+            {% if project.project_type == 'virtual_instrument' %}
+            <div class="row mt-3">
+                <div class="col-12">
+                    <h6 class="border-bottom pb-2 mb-3">Virtual Instrument Settings</h6>
+                </div>
+                <div class="col-md-4">
+                    <h6>Base Note</h6>
+                    <p>{{ project.base_note if project.base_note is not none else 'Not set' }}</p>
+                </div>
+                <div class="col-md-4">
+                    <h6>Velocity Layers</h6>
+                    <p>{{ project.velocity_layers if project.velocity_layers is not none else 'Not set' }}</p>
+                </div>
+                <div class="col-md-4">
+                    <h6>Round Robin</h6>
+                    <p>{{ project.round_robin if project.round_robin is not none else 'Not set' }}</p>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
 
 {% if recordings %}
-    <h2>Imported Audio Files</h2>
-    <table class="table">
-        <thead>
-            <tr>
-                <th>Filename</th>
-                <th>Filesize (bytes)</th>
-                <th>Duration (s)</th>
-                <th>Status</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Imported Audio Files</h5>
+            <span class="badge bg-primary">{{ recordings | length }} file{% if recordings|length != 1 %}s{% endif %}</span>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Filename</th>
+                            <th>Size</th>
+                            <th>Duration</th>
+                            <th>Status</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
         <tbody>
-            {% for recording in recordings %}
-            <tr>
-                <td>{{ recording.name }}</td>
-                <td>{{ recording.filesize if recording.filesize is not none else 'N/A' }}</td>
-                <td>{{ recording.duration_seconds if recording.duration_seconds is not none else 'N/A' }}</td>
-                <td>{{ recording.status }}</td>
-                <td>
-                    <a href="{{ url_for('ui_bp.process_recording_ui', project_id=project.id, recording_id=recording.id) }}" class="btn btn-sm btn-info">Process</a>
-                    {% if recording.samples %}
-                    <a href="{{ url_for('ui_bp.view_recording_samples_ui', project_id=project.id, recording_id=recording.id) }}" class="btn btn-sm btn-success">View Samples</a>
-                    {% endif %}
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+                    <tbody>
+                        {% for recording in recordings %}
+                        <tr>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <i class="bi bi-file-earmark-music fs-4 me-2 text-primary"></i>
+                                    <div>
+                                        <div class="fw-medium">{{ recording.name }}</div>
+                                        <small class="text-muted">
+                                            {{ recording.mimetype if recording.mimetype else 'audio/*' }}
+                                        </small>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>{{ (recording.filesize / 1024 / 1024) | round(2) if recording.filesize else 'N/A' }} MB</td>
+                            <td>
+                                {% if recording.duration_seconds %}
+                                    {{ "%d:%02d" | format(recording.duration_seconds // 60, recording.duration_seconds % 60) }}
+                                {% else %}
+                                    N/A
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="badge bg-{{ 'success' if recording.status == 'processed' else 'warning' }}">
+                                    {{ recording.status | title }}
+                                </span>
+                            </td>
+                            <td class="text-end">
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <a href="{{ url_for('ui_bp.process_recording_ui', project_id=project.id, recording_id=recording.id) }}" 
+                                       class="btn btn-outline-primary" 
+                                       data-bs-toggle="tooltip" 
+                                       title="Process recording">
+                                        <i class="bi bi-gear"></i>
+                                    </a>
+                                    {% if recording.samples %}
+                                    <a href="{{ url_for('ui_bp.view_recording_samples_ui', project_id=project.id, recording_id=recording.id) }}" 
+                                       class="btn btn-outline-success"
+                                       data-bs-toggle="tooltip"
+                                       title="View samples">
+                                        <i class="bi bi-collection-play"></i>
+                                    </a>
+                                    {% endif %}
+                                    <a href="#" class="btn btn-outline-danger" data-bs-toggle="tooltip" title="Delete">
+                                        <i class="bi bi-trash"></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 {% else %}
-    <p>No audio files have been imported for this project yet.</p>
+    <div class="card">
+        <div class="card-body text-center py-5">
+            <div class="mb-4">
+                <i class="bi bi-music-note-beamed display-1 text-muted"></i>
+            </div>
+            <h5 class="mb-3">No audio files imported yet</h5>
+            <p class="text-muted mb-4">Get started by importing your first audio file to begin processing.</p>
+            <a href="{{ url_for('ui_bp.import_project_audio_ui', project_id=project.id) }}" class="btn btn-primary">
+                <i class="bi bi-upload me-2"></i>Import Audio
+            </a>
+        </div>
+    </div>
 {% endif %}
 
-<hr>
-<p><a href="{{ url_for('ui_bp.import_project_audio_ui', project_id=project.id) }}" class="btn btn-primary">Import New Audio File</a></p>
-<p><a href="{{ url_for('ui_bp.index') }}" class="btn btn-secondary">Back to Project List (Placeholder)</a></p>
+<div class="mt-4 text-center">
+    <a href="{{ url_for('ui_bp.index') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-2"></i>Back to Projects
+    </a>
+</div>
+{% endblock %}
 
+{% block scripts %}
+{{ super() }}
+<script>
+    // Enable Bootstrap tooltips
+    document.addEventListener('DOMContentLoaded', function() {
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+    });
+</script>
 {% endblock %}

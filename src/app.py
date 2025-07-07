@@ -13,6 +13,7 @@ import os
 from flask import Flask, jsonify, request
 from src.api.routes import projects_bp, recordings_bp, samples_bp
 from src.ui.routes import ui_bp  # Import the UI blueprint
+from src.ui.test_bp import test_bp  # Import the test blueprint
 from src.database.utils import (
     init_db,
     get_session_local,
@@ -104,11 +105,15 @@ def create_app() -> Flask:
     app.register_blueprint(samples_bp)
     app.logger.info("API Blueprints registered.")
 
-    # Register UI Blueprint
-    app.register_blueprint(ui_bp)
+    # Register UI Blueprint with /ui prefix
+    app.register_blueprint(ui_bp, url_prefix='/ui')
     app.logger.info(
         f"UI Blueprint registered with prefix /ui. Templates expected at {ui_bp.template_folder} relative to blueprint, and {app.template_folder} relative to app root."
     )
+    
+    # Register test blueprint
+    app.register_blueprint(test_bp)
+    app.logger.info("Test Blueprint registered with prefix /test")
 
     # --- Basic Error Handling ---
     @app.errorhandler(404)
@@ -233,5 +238,5 @@ if __name__ == "__main__":
         # Enable debug mode for development (auto-reloads, debugger)
         debug=True,
         host="0.0.0.0",  # Listen on all available network interfaces
-        port=5000,  # Standard port for Flask dev server
+        port=5001,  # Using port 5001 to avoid conflicts with AirPlay
     )
