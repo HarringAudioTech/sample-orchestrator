@@ -65,8 +65,7 @@ def create_app() -> Flask:
 
     app.logger.info(f"UPLOAD_FOLDER set to: {app.config['UPLOAD_FOLDER']}")
     app.logger.info(
-        f"SAMPLES_BASE_DIR set to: {
-            app.config['SAMPLES_BASE_DIR']}"
+        f"SAMPLES_BASE_DIR set to: {app.config['SAMPLES_BASE_DIR']}"
     )
 
     # --- Database Initialization ---
@@ -108,9 +107,7 @@ def create_app() -> Flask:
     # Register UI Blueprint
     app.register_blueprint(ui_bp, url_prefix="/ui")
     app.logger.info(
-        f"UI Blueprint registered with prefix /ui. Templates expected at {
-            ui_bp.template_folder} relative to blueprint, and {
-            app.template_folder} relative to app root."
+        f"UI Blueprint registered with prefix /ui. Templates expected at {ui_bp.template_folder} relative to blueprint, and {app.template_folder} relative to app root."
     )
 
     # --- Basic Error Handling ---
@@ -171,8 +168,7 @@ def create_app() -> Flask:
                 sensitive error details to the client.
         """
         app.logger.error(
-            f"500 Internal Server Error: {
-                request.path} (Error: {error})",
+            f"500 Internal Server Error: {request.path} (Error: {error})",
             exc_info=True,
         )
         return (
