@@ -40,8 +40,15 @@ class TestProject(unittest.TestCase):
         self.mock_project_model_instance = ProjectModel(
             id=self.project_id, name=self.project_name
         )
-        # Ensure it has a 'recordings' attribute if Project class accesses it (e.g. project.recordings)
-        self.mock_project_model_instance.recordings = []
+        # Use a MagicMock for the recordings attribute to allow method mocking
+        recordings_mock = MagicMock()
+        recordings_mock.__iter__.return_value = []
+        recordings_mock.__len__.return_value = 0
+        # Configure the mock with common list methods
+        recordings_mock.append = MagicMock()
+        recordings_mock.extend = MagicMock()
+        recordings_mock.remove = MagicMock()
+        type(self.mock_project_model_instance).recordings = recordings_mock
 
         # Mock for the database session, created fresh for each test.
         self.mock_db_session = MagicMock(name="MockDBSession")
@@ -137,6 +144,8 @@ class TestProject(unittest.TestCase):
             instance = MagicMock(name="RecordingModelInstance_Mock")
             # Set a default 'id' if not provided, as SUT might expect it after refresh
             kwargs.setdefault("id", None)
+            # Initialize projects list for many-to-many relationship
+            instance.projects = [self.mock_project_model_instance]
             instance.configure_mock(**kwargs)
             return instance
 
@@ -187,27 +196,27 @@ class TestProject(unittest.TestCase):
 
             # Check arguments passed to PatchedRecordingModel constructor
             PatchedRecordingModel.assert_called_once_with(
-                project_id=self.project_id,
                 name=recording_name,
                 file_path=file_path,
-                filesize=12345, # Expected filesize
+                file_size_bytes=12345, # Expected filesize
                 duration_seconds=duration,
-                samplerate=sample_rate,
+                sample_rate=sample_rate,
                 channels=1, # Based on dummy_audio_data shape
-                status="pending",
+                status="uploaded",
             )
 
             # new_recording_model_instance is the object returned by project.add_recording,
             # which IS the instance created by PatchedRecordingModel factory.
             # So we can assert its attributes directly.
-            self.assertEqual(new_recording_model_instance.project_id, self.project_id)
+            # Check that the recording is associated with the project via the many-to-many relationship
+            self.assertIn(self.mock_project_model_instance, new_recording_model_instance.projects)
             self.assertEqual(new_recording_model_instance.name, recording_name)
             self.assertEqual(new_recording_model_instance.file_path, file_path)
-            self.assertEqual(new_recording_model_instance.filesize, 12345) # Assert filesize on the returned instance
+            self.assertEqual(new_recording_model_instance.file_size_bytes, 12345) # Assert filesize on the returned instance
             self.assertEqual(new_recording_model_instance.duration_seconds, duration)
-            self.assertEqual(new_recording_model_instance.samplerate, sample_rate)
+            self.assertEqual(new_recording_model_instance.sample_rate, sample_rate)
             self.assertEqual(new_recording_model_instance.channels, 1)
-            self.assertEqual(new_recording_model_instance.status, "pending")
+            self.assertEqual(new_recording_model_instance.status, "uploaded")
 
             self.mock_db_session.commit.assert_called_once()
             self.mock_db_session.refresh.assert_called_once_with(added_object)
@@ -227,6 +236,8 @@ class TestProject(unittest.TestCase):
         def recording_model_factory(**kwargs):
             instance = MagicMock(name="RecordingModelInstance_Mock")
             kwargs.setdefault("id", None)
+            # Initialize projects list for many-to-many relationship
+            instance.projects = [self.mock_project_model_instance]
             instance.configure_mock(**kwargs)
             return instance
 
@@ -260,19 +271,20 @@ class TestProject(unittest.TestCase):
             self.mock_db_session.add.assert_called_once()
             # Check arguments passed to PatchedRecordingModel constructor
             PatchedRecordingModel.assert_called_once_with(
-                project_id=self.project_id,
                 name=recording_name,
                 file_path=file_path,
-                filesize=54321, # Expected filesize
+                file_size_bytes=54321, # Expected filesize
                 duration_seconds=duration,
-                samplerate=sample_rate,
+                sample_rate=sample_rate,
                 channels=2, # Based on stereo_audio_data shape
-                status="pending",
+                status="uploaded",
             )
 
             # Assert attributes on the returned instance
-            self.assertEqual(new_recording_model_instance.filesize, 54321)
+            self.assertEqual(new_recording_model_instance.file_size_bytes, 54321)
             self.assertEqual(new_recording_model_instance.channels, 2) # Existing check
+            # Check that the recording is associated with the project via the many-to-many relationship
+            self.assertIn(self.mock_project_model_instance, new_recording_model_instance.projects)
             self.mock_db_session.commit.assert_called_once()
 
     @patch("src.core.project.os.path.exists", return_value=False)
@@ -309,6 +321,8 @@ class TestProject(unittest.TestCase):
         def recording_model_factory(**kwargs):
             instance = MagicMock(name="RecordingModelInstance_Mock")
             kwargs.setdefault("id", None)
+            # Initialize projects list for many-to-many relationship
+            instance.projects = [self.mock_project_model_instance]
             instance.configure_mock(**kwargs)
             return instance
 
@@ -332,7 +346,8 @@ class TestProject(unittest.TestCase):
             added_object = self.mock_db_session.add.call_args[0][0]
             self.assertIs(new_recording, added_object)
             self.assertIsNone(added_object.duration_seconds)
-            self.assertIsNone(added_object.samplerate)
+            # Check for sample_rate instead of samplerate
+            self.assertIsNone(added_object.sample_rate)
             self.assertIsNone(added_object.channels)
             self.mock_db_session.commit.assert_called_once()
 
@@ -388,7 +403,9 @@ class TestProject(unittest.TestCase):
         mock_get_db_gr.reset_mock()  # Reset mock_get_db as well for this specific call
         mock_get_db_gr.return_value = iter([self.mock_db_session])  # For get_recording
 
-        mock_recording = RecordingModel(id=10, name="Found Rec", project_id=self.project_id)
+        mock_recording = RecordingModel(id=10, name="Found Rec")
+        # Set up the many-to-many relationship
+        mock_recording.projects = [self.mock_project_model_instance]
         # Specific mock for the RecordingModel query chain
         mock_query_rec = self.mock_db_session.query(RecordingModel)
         mock_filter_rec = mock_query_rec.filter(
@@ -411,8 +428,10 @@ class TestProject(unittest.TestCase):
         self.mock_db_session.reset_mock()  # After init
 
         mock_recording = RecordingModel(
-            id=11, name="Found Rec Session", project_id=self.project_id
+            id=11, name="Found Rec Session"
         )
+        # Set up the many-to-many relationship
+        mock_recording.projects = [self.mock_project_model_instance]
 
         mock_query_rec = self.mock_db_session.query(RecordingModel)
         mock_filter_rec = mock_query_rec.filter(ANY)
@@ -471,21 +490,24 @@ class TestProject(unittest.TestCase):
         mock_get_db_lr.reset_mock()
         mock_get_db_lr.return_value = iter([self.mock_db_session])
 
-        mock_recordings_list = [
-            RecordingModel(id=1, name="Rec A", project_id=self.project_id),
-            RecordingModel(id=2, name="Rec B", project_id=self.project_id),
-        ]
-        # Mock the chain for list_recordings
-        mock_query_rec = self.mock_db_session.query(RecordingModel)
-        mock_filter_rec = mock_query_rec.filter(
-            ANY
-        )  # SUT uses .filter(R.project_id == self.project_id)
-        mock_order_by = mock_filter_rec.order_by(ANY)
-        mock_order_by.all.return_value = mock_recordings_list
+        # Create recordings without project_id
+        mock_rec_a = RecordingModel(id=1, name="Rec A")
+        mock_rec_b = RecordingModel(id=2, name="Rec B")
+        
+        # Set up the many-to-many relationship
+        mock_rec_a.projects = [self.mock_project_model_instance]
+        mock_rec_b.projects = [self.mock_project_model_instance]
+        
+        mock_recordings_list = [mock_rec_a, mock_rec_b]
+        
+        # Set the recordings attribute directly on the project model instance
+        self.mock_project_model_instance.recordings = mock_recordings_list
 
         recordings = project.list_recordings()
+        
+        # Check that the returned recordings match our mock list
         self.assertEqual(recordings, mock_recordings_list)
-        mock_order_by.all.assert_called_once_with()
+        # Verify get_db was called once
         mock_get_db_lr.assert_called_once()
 
     @patch("src.core.project.get_db")
@@ -499,10 +521,10 @@ class TestProject(unittest.TestCase):
         mock_get_db_lr_err.reset_mock()
         mock_get_db_lr_err.return_value = iter([self.mock_db_session])
 
-        mock_query_rec = self.mock_db_session.query(RecordingModel)
-        mock_filter_rec = mock_query_rec.filter(ANY)
-        mock_order_by = mock_filter_rec.order_by(ANY)
-        mock_order_by.all.side_effect = SQLAlchemyError("ListRec DB Error")
+        # Set recordings to raise an exception when accessed
+        mock_recordings = MagicMock()
+        mock_recordings.__get__ = MagicMock(side_effect=SQLAlchemyError("ListRec DB Error"))
+        type(self.mock_project_model_instance).recordings = mock_recordings
 
         with self.assertRaisesRegex(SQLAlchemyError, "ListRec DB Error"):
             project.list_recordings()

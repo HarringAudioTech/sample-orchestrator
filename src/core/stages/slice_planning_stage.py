@@ -7,8 +7,10 @@ for one-shots, loops, or other segment types based on project requirements.
 import logging
 from typing import Dict, Any, List, Tuple, Optional, Union
 import numpy as np
+from enum import Enum
 
 from src.core.processing_stages import AudioProcessingStage, register_stage
+# ProjectType removed; use string or Enum placeholder as needed
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +45,7 @@ class SlicePlanningStage(AudioProcessingStage):
         Returns default parameters for slice planning.
         """
         return {
-            "project_type": "drum_kit",  # drum_kit, melodic_loops, vocals, etc.
+            "project_type": ProjectType.SAMPLE_PACK,
             "min_slice_duration": 0.05,  # 50ms minimum duration for a slice
             "max_slice_duration": 10.0,  # 10s maximum duration for a slice
             "min_silence_duration": 0.1,  # 100ms minimum silence between slices
@@ -170,9 +172,9 @@ class SlicePlanningStage(AudioProcessingStage):
         onset_times = [t for t in data if isinstance(t, (int, float))]
         
         # Plan slices based on project type
-        if project_type == "drum_kit":
+        if project_type == ProjectType.DRUM_KIT:
             return self._plan_drum_kit_slices(onset_times, merged_params)
-        elif project_type == "melodic_loops":
+        elif project_type == ProjectType.MELODIC_LOOPS:
             return self._plan_melodic_loops(onset_times, merged_params)
         else:
             # Default to drum kit behavior for unknown project types

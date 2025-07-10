@@ -9,8 +9,6 @@ from werkzeug.exceptions import HTTPException
 import requests
 
 # Local application imports
-from src.database.models import Project as ProjectModel, Recording as RecordingModel
-from src.database.utils import get_db
 from src.core.stage_runner import STAGE_REGISTRY
 from src.core.workflows import WORKFLOW_REGISTRY
 

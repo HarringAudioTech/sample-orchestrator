@@ -7,15 +7,6 @@ Each set of routes is organized into its own Blueprint.
 import os
 from flask import Blueprint, request, jsonify, current_app, flash, redirect, url_for
 from werkzeug.utils import secure_filename
-from sqlalchemy.orm import Session
-
-# init_db is not directly used in routes
-from src.database.utils import get_db  # Replaced SessionLocal with get_db
-from src.database.models import (
-    Project as ProjectModel,
-    Recording as RecordingModel,
-    Sample as SampleModel,
-)
 from src.core.project import Project as CoreProject
 from src.core.project_manager import ProjectManager
 
@@ -53,9 +44,8 @@ def model_to_dict(model_instance: Optional[Any]) -> Optional[Dict[str, Any]]:
     """Converts a SQLAlchemy model instance into a dictionary.
 
     This is a generic helper to serialize model instances for JSON responses.
-    It iterates over the model's table columns and retrieves their values.
-    Currently, it does not deeply serialize relationships to avoid complexity
-    and potential circular dependencies in responses.
+    It uses the __dict__ attribute to get all instance attributes, filtering out
+    private attributes and SQLAlchemy internal attributes.
 
     For ProjectModel, it adds a computed 'is_virtual_instrument' field.
 
@@ -69,18 +59,20 @@ def model_to_dict(model_instance: Optional[Any]) -> Optional[Dict[str, Any]]:
     if model_instance is None:
         return None
 
+    # Start with a dictionary of all public attributes
     result = {}
-    # Get all column names from the model's table
-    for column in model_instance.__table__.columns:
-        # Get the value of the column from the model instance
-        value = getattr(model_instance, column.name, None)
-        # Convert datetime objects to ISO format strings
-        if hasattr(value, 'isoformat'):
-            value = value.isoformat()
-        result[column.name] = value
     
-    # Add computed fields for ProjectModel
-    if hasattr(model_instance, '__tablename__') and model_instance.__tablename__ == 'projects':
+    # Get all attributes from the model instance
+    for key, value in model_instance.__dict__.items():
+        # Skip private attributes and SQLAlchemy internal attributes
+        if not key.startswith('_'):
+            # Convert datetime objects to ISO format strings
+            if hasattr(value, 'isoformat'):
+                value = value.isoformat()
+            result[key] = value
+    
+    # Add computed fields for ProjectModel and its subclasses
+    if hasattr(model_instance, 'project_type'):
         result['is_virtual_instrument'] = getattr(model_instance, 'project_type', None) == 'virtual_instrument'
 
     return result
@@ -162,16 +154,24 @@ def create_project() -> Response:
     # Use the context manager pattern for database session handling
     with get_db() as db:
         try:
-            # Create project in database with all fields
-            project = ProjectModel(
-                name=name,
-                description=description,
-                project_type=project_type,
-                base_note=data.get("base_note"),
-                velocity_layers=data.get("velocity_layers"),
-                round_robins=data.get("round_robins"),
-                metadata_json=metadata_json
-            )
+            # Create project in database with the appropriate subclass based on project_type
+            common_args = {
+                "name": name,
+                "description": description,
+                "metadata_json": metadata_json
+            }
+            
+            if project_type == ProjectType.VIRTUAL_INSTRUMENT:
+                project = VirtualInstrumentModel(
+                    **common_args,
+                    base_note=data.get("base_note"),
+                    velocity_layers=data.get("velocity_layers"),
+                    round_robins=data.get("round_robins")
+                )
+            else:  # SAMPLE_PACK
+                project = SamplePackModel(
+                    **common_args
+                )
             
             db.add(project)
             db.commit()

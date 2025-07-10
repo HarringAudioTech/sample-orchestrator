@@ -13,12 +13,8 @@ import numpy as np
 import librosa
 import soundfile as sf
 
-# Database models
-from sqlalchemy.orm import Session
-
 # Local imports
 from src.core.processing_stages import AudioProcessingStage, register_stage
-from src.database.models import Sample as SampleModel, SamplePack, Recording as RecordingModel
 from src.utils.audio_utils import is_test_environment
 
 logger = logging.getLogger(__name__)

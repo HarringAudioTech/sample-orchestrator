@@ -10,6 +10,7 @@ from typing import Dict, Any, List, Optional
 import numpy as np
 
 from src.core.processing_stages import AudioProcessingStage, register_stage
+from src.database.models import ProjectType
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +54,7 @@ class SegmentClassificationStage(AudioProcessingStage):
         Returns default parameters for segment classification.
         """
         return {
-            "project_type": "drum_kit",  # drum_kit, melodic_loops, vocals, etc.
+            "project_type": ProjectType.SAMPLE_PACK,
             "classification_rules": {
                 "max_one_shot_duration": 2.0,  # Maximum duration for one-shots
                 "min_loop_duration": 0.5,      # Minimum duration for loops
@@ -157,11 +158,11 @@ class SegmentClassificationStage(AudioProcessingStage):
                 segment["metadata"] = {}
             
             # Apply classification based on project type
-            if project_type == "drum_kit":
+            if project_type == ProjectType.SAMPLE_PACK:
                 segment = self._classify_one_shot(segment, merged_params)
-            elif project_type == "melodic_loops":
+            elif project_type == ProjectType.VIRTUAL_INSTRUMENT:
                 segment = self._classify_loop(segment, merged_params)
-            elif project_type == "ambient":
+            else:
                 segment = self._classify_ambient(segment, merged_params)
             
             # If no classification was made, mark as unknown

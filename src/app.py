@@ -14,11 +14,6 @@ from flask import Flask, jsonify, request
 from src.api.routes import projects_bp, recordings_bp, samples_bp
 from src.ui.routes import ui_bp  # Import the UI blueprint
 from src.ui.test_bp import test_bp  # Import the test blueprint
-from src.database.utils import (
-    init_db,
-    get_session_local,
-    get_engine,
-)  # Renamed SessionLocal to get_session_local
 
 
 # --- Application Factory ---

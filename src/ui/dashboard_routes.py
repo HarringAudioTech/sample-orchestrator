@@ -1,7 +1,6 @@
 """Dashboard routes for the UI blueprint."""
+import datetime
 from flask import render_template, abort
-from src.database.models import Project as ProjectModel, Recording as RecordingModel
-from src.database.utils import get_db
 
 def init_dashboard_routes(ui_bp):
     """Initialize dashboard routes for the given UI blueprint.
@@ -36,8 +35,8 @@ def init_dashboard_routes(ui_bp):
                 print(f"DEBUG: Project with id={project_id} not found")
                 abort(404, description=f"Project with ID {project_id} not found.")
 
-            print(f"DEBUG: Querying for recordings for project_id={project_id}")
-            recordings = db.query(RecordingModel).filter(RecordingModel.project_id == project_id).all()
+            print(f"DEBUG: Getting recordings from project relationship")
+            recordings = project.recordings
             print(f"DEBUG: Found {len(recordings)} recordings")
 
             return render_template(
@@ -45,6 +44,7 @@ def init_dashboard_routes(ui_bp):
                 title=f"Dashboard - {project.name}",
                 project=project,
                 recordings=recordings,
+                now=datetime.datetime.now()
             )
         except Exception as e:
             print(f"ERROR in dashboard route: {str(e)}")

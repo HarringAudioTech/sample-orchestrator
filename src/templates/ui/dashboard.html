@@ -91,12 +91,12 @@
                                     <div>
                                         <div class="fw-medium">{{ recording.name }}</div>
                                         <small class="text-muted">
-                                            {{ recording.mimetype if recording.mimetype else 'audio/*' }}
+                                            {{ recording.file_format if recording.file_format else 'audio/*' }}
                                         </small>
                                     </div>
                                 </div>
                             </td>
-                            <td>{{ (recording.filesize / 1024 / 1024) | round(2) if recording.filesize else 'N/A' }} MB</td>
+                            <td>{{ (recording.file_size_bytes / 1024 / 1024) | round(2) if recording.file_size_bytes is not none else 'N/A' }} MB</td>
                             <td>
                                 {% if recording.duration_seconds %}
                                     {{ "%d:%02d" | format(recording.duration_seconds // 60, recording.duration_seconds % 60) }}
@@ -105,8 +105,8 @@
                                 {% endif %}
                             </td>
                             <td>
-                                <span class="badge bg-{{ 'success' if recording.status == 'processed' else 'warning' }}">
-                                    {{ recording.status | title }}
+                                <span class="badge bg-{{ 'success' if recording.status.value == 'processed' else 'warning' }}">
+                                    {{ recording.status.value | title }}
                                 </span>
                             </td>
                             <td class="text-end">

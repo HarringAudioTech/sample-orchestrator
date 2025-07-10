@@ -15,13 +15,6 @@ from src.core.stages.slice_planning_stage import SlicePlanningStage
 from src.core.stages.segment_classification_stage import SegmentClassificationStage
 from src.core.stages.slicing_stage import SlicingStage
 
-# Database models
-from sqlalchemy.orm import Session
-from src.database.models import (
-    Recording as RecordingModel,
-    SamplePack,
-    SamplePackStatus,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -81,9 +74,11 @@ class SamplePackWorkflow:
 
         # Create a sample pack for this recording
         sample_pack = self._create_sample_pack(
-            name=f"Samples from {os.path.basename(recording.file_path)}",
-            project_id=project_id,
-            description=f"Auto-generated samples from {os.path.basename(recording.file_path)}",
+            id=project_id,
+            name=f"Samples from {recording.id}",
+            description=f"Auto-generated samples from {recording.id}",
+            status="draft",
+            project_type=ProjectType.SAMPLE_PACK,
         )
 
         # Prepare context for processing stages
@@ -127,7 +122,6 @@ class SamplePackWorkflow:
 
             # Update sample pack with results
             sample_pack.status = SamplePackStatus.COMPLETE
-            sample_pack.sample_count = len(samples)
             self.db_session.commit()
 
             # Update recording status
@@ -155,25 +149,27 @@ class SamplePackWorkflow:
             raise
 
     def _create_sample_pack(
-        self, name: str, project_id: int, description: str = ""
+        self, id: int, name: str, description: str = "", status: str = "draft", project_type: str = ProjectType.SAMPLE_PACK
     ) -> SamplePack:
         """
         Create a new sample pack in the database.
 
         Args:
+            id: ID of the sample pack
             name: Name of the sample pack
-            project_id: ID of the project this pack belongs to
             description: Optional description of the sample pack
+            status: Status of the sample pack
+            project_type: Type of the project
 
         Returns:
             The created SamplePack instance
         """
         sample_pack = SamplePack(
+            id=id,
             name=name,
             description=description,
-            project_id=project_id,
-            status="processing",
-            sample_count=0,
+            status=status,
+            project_type=project_type,
         )
 
         self.db_session.add(sample_pack)
