@@ -1,28 +1,162 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}My Orchestrator UI{% endblock %}</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    
+    <!-- Custom CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    
+    {% block extra_css %}{% endblock %}
 </head>
 <body>
-    <header>
-        <h1>Orchestrator Dashboard</h1>
-        <nav>
-            <ul>
-                <li>{% if project and project.id %}<a href="{{ url_for('ui_bp.dashboard', project_id=project.id) }}">Project Dashboard</a>{% else %}<a href="{{ url_for('ui_bp.index') }}">Home</a>{% endif %}</li>
-                <li><a href="{{ url_for('ui_bp.create_project_form') }}">Create New Project</a></li>
-                <!-- Add more links here as new pages are created -->
-            </ul>
-        </nav>
-    </header>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('ui_bp.index') }}">
+                <i class="bi bi-music-note-beamed me-2"></i>Sample Orchestrator
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link{% if request.endpoint == 'ui_bp.index' %} active{% endif %}" href="{{ url_for('ui_bp.index') }}">
+                            <i class="bi bi-house-door me-1"></i> Home
+                        </a>
+                    </li>
+                    {% if project and project.id %}
+                    <li class="nav-item">
+                        <a class="nav-link{% if request.endpoint == 'ui_bp.dashboard' %} active{% endif %}" href="{{ url_for('ui_bp.dashboard', project_id=project.id) }}">
+                            <i class="bi bi-speedometer2 me-1"></i> Dashboard
+                        </a>
+                    </li>
+                    {% endif %}
+                    <li class="nav-item">
+                        <a class="nav-link{% if request.endpoint == 'ui_bp.create_project_form' %} active{% endif %}" href="{{ url_for('ui_bp.create_project_form') }}">
+                            <i class="bi bi-plus-circle me-1"></i> New Project
+                        </a>
+                    </li>
+                </ul>
+                <div class="d-flex">
+                    <div class="dropdown">
+                        <button class="btn btn-outline-light dropdown-toggle" type="button" id="themeDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-sun-fill"></i> Theme
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="themeDropdown">
+                            <li><a class="dropdown-item theme-selector" href="#" data-theme="light"><i class="bi bi-sun-fill me-2"></i>Light</a></li>
+                            <li><a class="dropdown-item theme-selector" href="#" data-theme="dark"><i class="bi bi-moon-stars-fill me-2"></i>Dark</a></li>
+                            <li><a class="dropdown-item theme-selector" href="#" data-theme="auto"><i class="bi bi-circle-half me-2"></i>Auto</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
     <main>
         {% block content %}{% endblock %}
     </main>
-    <footer>
-        <p>&copy; 2024 My Orchestrator</p>
+    <footer class="bg-light py-4 mt-5">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-6">
+                    <h5>Sample Orchestrator</h5>
+                    <p class="text-muted">A powerful tool for managing and processing audio samples for virtual instruments.</p>
+                </div>
+                <div class="col-md-3">
+                    <h5>Quick Links</h5>
+                    <ul class="list-unstyled">
+                        <li><a href="{{ url_for('ui_bp.index') }}" class="text-decoration-none">Home</a></li>
+                        <li><a href="{{ url_for('ui_bp.create_project_form') }}" class="text-decoration-none">New Project</a></li>
+                        {% if project and project.id %}
+                        <li><a href="{{ url_for('ui_bp.dashboard', project_id=project.id) }}" class="text-decoration-none">Project Dashboard</a></li>
+                        {% endif %}
+                    </ul>
+                </div>
+                <div class="col-md-3">
+                    <h5>Resources</h5>
+                    <ul class="list-unstyled">
+                        <li><a href="#" class="text-decoration-none">Documentation</a></li>
+                        <li><a href="#" class="text-decoration-none">API Reference</a></li>
+                        <li><a href="#" class="text-decoration-none">GitHub Repository</a></li>
+                    </ul>
+                </div>
+            </div>
+            <hr>
+            <div class="text-center text-muted">
+                <p class="mb-0">&copy; {{ now.year }} Sample Orchestrator. All rights reserved.</p>
+            </div>
+        </div>
     </footer>
+
+    <!-- Bootstrap 5 JS Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Custom JavaScript -->
+    <script>
+        // Theme switcher functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            // Get theme buttons
+            const themeSelectors = document.querySelectorAll('.theme-selector');
+            const html = document.documentElement;
+            
+            // Set theme based on localStorage or system preference
+            function setTheme(theme) {
+                if (theme === 'auto') {
+                    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                    html.setAttribute('data-bs-theme', prefersDark ? 'dark' : 'light');
+                    localStorage.setItem('theme', 'auto');
+                } else {
+                    html.setAttribute('data-bs-theme', theme);
+                    localStorage.setItem('theme', theme);
+                }
+                
+                // Update active state of theme buttons
+                themeSelectors.forEach(selector => {
+                    selector.classList.toggle('active', selector.getAttribute('data-theme') === (theme === 'auto' ? 'auto' : theme));
+                });
+            }
+            
+            // Initialize theme
+            const savedTheme = localStorage.getItem('theme') || 'auto';
+            setTheme(savedTheme);
+            
+            // Listen for system theme changes when in auto mode
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+                if (localStorage.getItem('theme') === 'auto') {
+                    setTheme('auto');
+                }
+            });
+            
+            // Add click handlers for theme selectors
+            themeSelectors.forEach(selector => {
+                selector.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    setTheme(this.getAttribute('data-theme'));
+                });
+            });
+            
+            // Initialize tooltips
+            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl);
+            });
+            
+            // Initialize popovers
+            var popoverTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="popover"]'));
+            var popoverList = popoverTriggerList.map(function (popoverTriggerEl) {
+                return new bootstrap.Popover(popoverTriggerEl);
+            });
+        });
+    </script>
+    
     {% block scripts %}{% endblock %}
 </body>
 </html>

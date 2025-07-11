@@ -3,19 +3,6 @@ import os
 # import wave # Removed
 import logging  # Added logging
 from typing import List
-from sqlalchemy.orm import Session
-from sqlalchemy.exc import SQLAlchemyError  # To catch DB errors specifically
-import librosa  # Added
-import numpy as np  # Added
-
-from src.database.models import (
-    Project as ProjectModel,
-    Recording as RecordingModel,
-    MidiDevice as MidiDeviceModel,
-    MidiCaptureSession as MidiCaptureSessionModel,
-    MidiFile as MidiFileModel,
-)
-from src.database.utils import get_db  # Removed SessionLocal import
 from src.core.midi_capture import (
     MidiRecorder,
     list_available_midi_devices,
@@ -215,15 +202,16 @@ class Project:
 
 
             new_recording: RecordingModel = RecordingModel(
-                project_id=self.project_id,
                 name=name,
                 file_path=file_path,
-                filesize=filesize,
+                file_size_bytes=filesize,
                 duration_seconds=duration_seconds,
-                samplerate=samplerate,
+                sample_rate=samplerate,
                 channels=channels,
-                status="pending",
+                status="uploaded",
             )
+            # Add the recording to the project using the many-to-many relationship
+            self.project_model.recordings.append(new_recording)
             _db_to_use.add(new_recording)
             _db_to_use.commit()
             _db_to_use.refresh(new_recording)
@@ -284,14 +272,19 @@ class Project:
             logger.debug("Using self.db session for get_recording.")
 
         try:
+            # Query for the recording by ID first
             recording: RecordingModel | None = (
                 _db_to_use.query(RecordingModel)
-                .filter(
-                    RecordingModel.id == recording_id,
-                    RecordingModel.project_id == self.project_id,
-                )
+                .filter(RecordingModel.id == recording_id)
                 .first()
             )
+            
+            # Check if the recording belongs to this project using the many-to-many relationship
+            if recording and self.project_model not in recording.projects:
+                logger.debug(
+                    f"Recording ID {recording_id} found but does not belong to project ID {self.project_id}."
+                )
+                recording = None
             if recording:
                 logger.debug(f"Found recording: {recording.name}")
             else:
@@ -348,12 +341,8 @@ class Project:
             logger.debug("Using self.db session for list_recordings.")
 
         try:
-            recordings: List[RecordingModel] = (
-                _db_to_use.query(RecordingModel)
-                .filter(RecordingModel.project_id == self.project_id)
-                .order_by(RecordingModel.created_at.desc())  # Example ordering
-                .all()
-            )
+            # Use the relationship defined in the project model to get all recordings
+            recordings: List[RecordingModel] = self.project_model.recordings
             logger.debug(
                 f"Found {len(recordings)} recordings for project ID {self.project_id}."
             )

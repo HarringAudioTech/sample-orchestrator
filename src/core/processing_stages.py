@@ -8,7 +8,10 @@ This module includes:
 """
 
 from abc import ABC, abstractmethod
-from typing import Optional, Any, Dict, List
+from typing import Optional, Any, Dict, List, Type, TypeVar
+
+# Type variable for stage classes
+T = TypeVar('T', bound='AudioProcessingStage')
 
 # --- Data Type Constants ---
 # These constants define the expected types of data that can be passed
@@ -150,6 +153,28 @@ class AudioProcessingStage(ABC):
                        on processing errors (e.g., FileNotFoundError, processing errors).
         """
         pass
+
+
+# Dictionary to store registered stages
+_registered_stages = {}
+
+
+def register_stage(stage_class: Type[T]) -> Type[T]:
+    """
+    Decorator to register a processing stage class.
+    
+    This function should be used as a decorator on classes that inherit from
+    AudioProcessingStage. It adds the class to a registry that can be used
+    to instantiate stages by name.
+    
+    Args:
+        stage_class: The class to register.
+        
+    Returns:
+        The input class, to allow use as a decorator.
+    """
+    _registered_stages[stage_class.name] = stage_class
+    return stage_class
 
 
 if __name__ == "__main__":

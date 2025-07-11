@@ -1,13 +1,22 @@
-from flask import Blueprint, render_template, abort, request
+"""UI routes for the sample orchestrator application."""
+
+# Standard library imports
+from typing import List, Optional
+
+# Third-party imports
+from flask import Blueprint, render_template, abort, request, url_for, redirect, flash, current_app
 from werkzeug.exceptions import HTTPException
-from src.database.models import Project as ProjectModel, Recording as RecordingModel
-from src.database.utils import get_db
+import requests
+
+# Local application imports
 from src.core.stage_runner import STAGE_REGISTRY
 from src.core.workflows import WORKFLOW_REGISTRY
+
+# Import stages to ensure they're registered
 import src.core.stages.slicing_stage  # noqa: F401
 import src.core.stages.noise_reduction_stage  # noqa: F401
-import src.core.stages.vocal_chop_perfection_stage # noqa: F401
-
+import src.core.stages.vocal_chop_perfection_stage  # noqa: F401
+import src.core.stages.decent_sampler_export_stage  # noqa: F401
 
 # Define the blueprint for UI routes
 ui_bp = Blueprint(
@@ -18,46 +27,17 @@ ui_bp = Blueprint(
     static_url_path="/ui/static",  # URL path for these static files
 )
 
+# Import and initialize dashboard routes after ui_bp is defined
+from . import dashboard_routes  # noqa: E402
+dashboard_routes.init_dashboard_routes(ui_bp)
 
-@ui_bp.route("/projects/<int:project_id>/dashboard")
-def dashboard(project_id: int) -> str:
-    """Renders the main application dashboard page for a specific project.
+# Add a simple test route to check if routes are being registered
+@ui_bp.route("/test-route")
+def test_route() -> str:
+    """A simple test route to check if routes are being registered."""
+    return "Test route is working!"
 
-    This route serves the primary user interface page, typically displaying
-    an overview of projects, activities, or other key information.
-    It utilizes the "dashboard.html" template.
-
-    Args:
-        project_id (int): The ID of the project to display the dashboard for.
-
-    Returns:
-        str: The rendered HTML content of the dashboard page. The page title
-             is set to "Dashboard - {project.name}".
-    """
-    db_session_generator = get_db()
-    db = next(db_session_generator)
-    try:
-        project = db.query(ProjectModel).filter(ProjectModel.id == project_id).first()
-        if not project:
-            abort(404, description=f"Project with ID {project_id} not found.")
-
-        recordings = db.query(RecordingModel).filter(RecordingModel.project_id == project_id).all()
-
-        return render_template(
-            "dashboard.html",
-            title=f"Dashboard - {project.name}",
-            project=project,
-            recordings=recordings,
-        )
-    finally:
-        try:
-            next(db_session_generator)  # Ensure the finally block in get_db is executed
-        except StopIteration:
-            pass
-
-
-# Optional: Add a root route for the UI blueprint if desired,
-# for example, redirecting to the dashboard or showing a simple welcome page.
+# Root route for the UI blueprint
 @ui_bp.route("/")
 def index() -> str:
     """Renders the main entry page for the UI blueprint.
@@ -67,17 +47,10 @@ def index() -> str:
     In the future, this could be changed to render a dedicated welcome or
     index page for the UI section.
 
-    Args:
-        None.
-
     Returns:
-        str: The rendered HTML content of the dashboard page, with the page
-             title set to "Welcome".
+        str: The rendered HTML content of the dashboard page.
     """
-    # For now, let's also point the UI root to the dashboard.
-    # Alternatively, this could be a separate landing page.
     return render_template("dashboard.html", title="Welcome")
-
 
 @ui_bp.route("/projects/new", methods=["GET"])
 def create_project_form() -> str:
@@ -96,28 +69,6 @@ def create_project_form() -> str:
              The page title is set to "Create Project".
     """
     return render_template("create_project.html", title="Create Project")
-
-
-from flask import Blueprint, render_template, abort, request, url_for, redirect, flash, current_app
-from werkzeug.exceptions import HTTPException
-from src.database.models import Project as ProjectModel, Recording as RecordingModel
-from src.database.utils import get_db
-from src.core.stage_runner import STAGE_REGISTRY
-from src.core.workflows import WORKFLOW_REGISTRY
-import src.core.stages.slicing_stage  # noqa: F401
-import src.core.stages.noise_reduction_stage  # noqa: F401
-import src.core.stages.vocal_chop_perfection_stage # noqa: F401
-import src.core.stages.decent_sampler_export_stage # noqa: F401
-import requests # Import requests library
-
-# Define the blueprint for UI routes
-ui_bp = Blueprint(
-    "ui_bp",
-    __name__,
-    template_folder="../templates/ui",  # Points to src/templates/ui
-    static_folder="../static",  # Points to src/static
-    static_url_path="/ui/static",  # URL path for these static files
-)
 
 
 @ui_bp.route("/projects/create", methods=["POST"])

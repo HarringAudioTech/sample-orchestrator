@@ -4,18 +4,6 @@ import re
 import mido
 import logging  # Added logging
 import io  # Added io
-from sqlalchemy.orm import Session
-from sqlalchemy.exc import SQLAlchemyError
-
-from src.database.models import (
-    Project as ProjectModel,
-    MidiDevice,
-    MidiCaptureSession,
-    MidiFile,
-)
-from src.database.utils import (
-    get_db,
-)  # Removed SessionLocal, get_db is not used directly here but aligns imports
 
 # Configure basic logging
 # In a larger application, this would likely be configured in a central place.

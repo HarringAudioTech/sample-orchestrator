@@ -1,0 +1,681 @@
+"""
+Unit tests for the SlicingStage.
+"""
+
+import pytest
+import os
+import shutil
+import logging
+from unittest.mock import patch, MagicMock, ANY
+import numpy as np # type: ignore # pylint: disable=import-error
+import soundfile as sf # type: ignore # pylint: disable=import-error
+from sqlalchemy import create_engine, event, StaticPool, text  # type: ignore # pylint: disable=import-error
+from sqlalchemy.orm import sessionmaker, Session as SQLAlchemySession # type: ignore # pylint: disable=import-error
+from sqlalchemy.engine import Engine as SQLAlchemyEngine  # For typing engine # type: ignore # pylint: disable=import-error
+from typing import Generator, Dict, Any, List, Optional, Tuple, Union
+
+# pylint: disable=import-error
+try:
+    from src.core.processing_stages import (
+        DATA_TYPE_FILE_PATH,
+        DATA_TYPE_LIST_OF_SAMPLE_DATA,
+    )
+    from src.core.stages.slicing_stage import SlicingStage
+    from src.database.models import (
+        Base,
+        Recording as RecordingModel,
+        Sample as SampleModel,
+        SampleCategory,
+        Project as ProjectModel,
+        SamplePack,
+        SamplePackStatus,
+        SampleType,
+    )
+    from src.database.schemas import RecordingCreate, SampleCreate
+except ImportError:
+    from core.processing_stages import ( # type: ignore
+        DATA_TYPE_FILE_PATH,
+        DATA_TYPE_LIST_OF_SAMPLE_DATA,
+    )
+    from core.stages.slicing_stage import SlicingStage # type: ignore
+    from database.models import ( # type: ignore
+        Base,
+        Recording as RecordingModel,
+        Sample as SampleModel,
+        Project as ProjectModel,
+    )
+# pylint: enable=import-error
+
+
+logger = logging.getLogger(__name__)
+
+DUMMY_AUDIO_DIR = "tests/fixtures"
+DUMMY_AUDIO_FILENAME = "dummy_audio.wav"
+DUMMY_AUDIO_PATH = os.path.join(DUMMY_AUDIO_DIR, DUMMY_AUDIO_FILENAME)
+
+if not os.path.exists(DUMMY_AUDIO_PATH):
+    logger.warning(
+        f"Dummy audio file for testing not found at {DUMMY_AUDIO_PATH}. "
+        "Some tests may fail or be skipped."
+    )
+    try:
+        os.makedirs(DUMMY_AUDIO_DIR, exist_ok=True)
+        samplerate: int = 22050
+        duration_seconds: int = 1
+        frequency: int = 440
+        amplitude: float = 0.5
+        t_arr: np.ndarray = np.linspace(
+            0, duration_seconds, int(samplerate * duration_seconds), endpoint=False
+        )
+        wave_data: np.ndarray = amplitude * np.sin(2 * np.pi * frequency * t_arr)
+        sf.write(DUMMY_AUDIO_PATH, wave_data.astype(np.float32), samplerate)
+        logger.info(f"Created dummy audio file at {DUMMY_AUDIO_PATH}")
+    except Exception as e: # pylint: disable=broad-except
+        logger.error(f"Could not create dummy audio file {DUMMY_AUDIO_PATH}: {e}")
+
+
+@pytest.fixture(scope="session")
+def docker_compose_file(pytestconfig):
+    """Get the path to the docker-compose file for tests."""
+    return os.path.join(str(pytestconfig.rootdir), "docker-compose.test.yml")
+
+
+@pytest.fixture(scope="session")
+def test_database_url() -> str:
+    """Get the test database URL from environment or use default."""
+    return os.getenv(
+        "TEST_DATABASE_URL",
+        "postgresql://testuser:testpassword@localhost:5432/test_sample_orchestrator",
+    )
+
+
+@pytest.fixture
+def temp_output_dir_for_samples() -> Generator[str, None, None]:
+    """Creates a temporary directory for generated sample files."""
+    path: str = "/tmp/pytest_slicing_stage_samples"
+    if os.path.exists(path):
+        shutil.rmtree(path)
+    os.makedirs(path, exist_ok=True)
+    yield path
+    try:
+        shutil.rmtree(path)
+    except OSError as e:
+        logger.error(f"Error cleaning up temp output dir {path}: {e}")
+
+
+@pytest.fixture
+def setup_sample_category(db_session: SQLAlchemySession) -> SampleCategory:
+    """Creates a sample category for testing."""
+    category = SampleCategory(
+        name="Test Category", description="Category for testing", color="#FF0000"
+    )
+    db_session.add(category)
+    db_session.commit()
+    db_session.refresh(category)
+    return category
+
+
+@pytest.fixture
+def setup_test_recording(
+    db_session: SQLAlchemySession, setup_sample_category: SampleCategory
+) -> RecordingModel:  # pylint: disable=redefined-outer-name
+    """Sets up a Project, SampleCategory, and Recording in the test DB."""
+    # Create project with sample pack type
+    project = ProjectModel(
+        name="Test Slicing Project",
+        project_type="sample_pack",
+        description="Test project for slicing stage",
+    )
+    db_session.add(project)
+    db_session.commit()
+    db_session.refresh(project)
+
+    if not os.path.exists(DUMMY_AUDIO_PATH):
+        pytest.fail(
+            f"Required dummy audio file not found: {DUMMY_AUDIO_PATH}"
+        )
+
+    try:
+        info: sf._SoundFileInfo = sf.info(DUMMY_AUDIO_PATH)
+        sr: int = info.samplerate
+        channels: int = info.channels
+        duration: float = info.duration
+        frames = info.frames
+    except Exception as e: # pylint: disable=broad-except
+        pytest.fail(
+            f"Could not get audio details for dummy file {DUMMY_AUDIO_PATH}: {e}"
+        )
+
+    recording = RecordingModel(
+        project_id=project.id,
+        name="Test Recording for SlicingStage",
+        file_path=DUMMY_AUDIO_PATH,
+        sample_rate=sr,
+        duration_seconds=duration,
+        channels=channels,
+        frames=frames,
+        bit_depth=24,  # Standard for test files
+        file_format="wav",
+        status="pending",
+        metadata_json={"source": "test", "channels": channels, "sample_rate": sr},
+    )
+    db_session.add(recording)
+    db_session.commit()
+    db_session.refresh(recording)
+    return recording
+
+
+def test_slicing_stage_properties() -> None:
+    """Test the basic properties of SlicingStage."""
+    stage = SlicingStage()
+    assert stage.name == "slicing"
+    assert stage.input_type == DATA_TYPE_FILE_PATH
+    assert stage.output_type == DATA_TYPE_LIST_OF_SAMPLE_DATA
+    default_params: Dict[str, Any] = stage.default_params
+    assert "librosa_onset_params" in default_params
+    assert "min_sample_length_ms" in default_params
+    assert "max_sample_length_ms" in default_params
+
+
+@patch("src.core.stages.slicing_stage.sf.write")
+@patch("src.core.stages.slicing_stage.librosa.onset.onset_detect")
+@patch("src.core.stages.slicing_stage.librosa.load")
+def test_slicing_stage_process_success(
+    mock_librosa_load: MagicMock,
+    mock_onset_detect: MagicMock,
+    mock_sf_write: MagicMock,
+    db_session: SQLAlchemySession,
+    setup_test_recording: RecordingModel,
+    temp_output_dir_for_samples: str,
+    setup_sample_category: SampleCategory,
+) -> None:
+    """Test successful processing of an audio file into samples with the enhanced Sample model."""
+    recording: RecordingModel = setup_test_recording
+    stage = SlicingStage()
+
+    mock_samplerate: int = 22050
+    mock_audio_data_mono: np.ndarray = np.random.rand(mock_samplerate * 2).astype(
+        np.float32
+    )
+    mock_librosa_load.return_value = (mock_audio_data_mono, mock_samplerate)
+
+    onset_time_1_s: float = 0.5
+    onset_time_2_s: float = 1.2
+    mock_onset_samples: np.ndarray = np.array(
+        [int(onset_time_1_s * mock_samplerate), int(onset_time_2_s * mock_samplerate)]
+    )
+    mock_onset_detect.return_value = mock_onset_samples
+
+    stage_params: Dict[str, Any] = stage.default_params.copy()
+
+    context: Dict[str, Any] = {
+        "db_session": db_session,
+        "recording_id": recording.id,
+        "project_id": recording.project_id,
+        "output_sample_dir": temp_output_dir_for_samples,
+    }
+
+    result_samples_info: List[Dict[str, Any]] = stage.process(
+        data=recording.file_path, params=stage_params, context=context
+    )
+
+    db_session.refresh(recording)
+    assert recording.status == "slicing_completed"
+    assert len(result_samples_info) == 2
+
+    mock_librosa_load.assert_called_once_with(recording.file_path, sr=None, mono=True)
+
+    expected_call_params: Dict[str, Any] = {
+        **stage.default_params["librosa_onset_params"],
+        **(stage_params.get("librosa_onset_params", {})),
+        "units": "samples",
+    }
+    mock_onset_detect.assert_called_once_with(
+        y=mock_audio_data_mono, sr=mock_samplerate, **expected_call_params
+    )
+
+    sample1_info: Dict[str, Any] = next(
+        s
+        for s in result_samples_info
+        if s["metadata_json"] == f'{{"source_onset_samples": {mock_onset_samples[0]}}}'
+    )
+    assert sample1_info["name"].startswith(
+        f"rec_{recording.id}_sample_1_onset_S{mock_onset_samples[0]}"
+    )
+    assert sample1_info["midi_pitch"] is None
+
+    expected_start_time1: float = float(mock_onset_samples[0]) / mock_samplerate
+    max_len_samples1: int = int(
+        (stage.default_params["max_sample_length_ms"] / 1000.0) * mock_samplerate
+    )
+    calculated_end_sample1: int = min(
+        mock_onset_samples[1], mock_onset_samples[0] + max_len_samples1
+    )
+    expected_end_time1: float = float(calculated_end_sample1) / mock_samplerate
+
+    assert abs(sample1_info["start_time_seconds"] - expected_start_time1) < 1e-6
+    assert abs(sample1_info["end_time_seconds"] - expected_end_time1) < 1e-6
+
+    sample2_info: Dict[str, Any] = next(
+        s
+        for s in result_samples_info
+        if s["metadata_json"] == f'{{"source_onset_samples": {mock_onset_samples[1]}}}'
+    )
+    assert sample2_info["name"].startswith(
+        f"rec_{recording.id}_sample_2_onset_S{mock_onset_samples[1]}"
+    )
+    assert sample2_info["midi_pitch"] is None
+
+    expected_start_time2: float = float(mock_onset_samples[1]) / mock_samplerate
+    max_len_samples2: int = int(
+        (stage.default_params["max_sample_length_ms"] / 1000.0) * mock_samplerate
+    )
+    calculated_end_sample2: int = min(
+        len(mock_audio_data_mono), mock_onset_samples[1] + max_len_samples2
+    )
+    expected_end_time2: float = float(calculated_end_sample2) / mock_samplerate
+
+    assert abs(sample2_info["start_time_seconds"] - expected_start_time2) < 1e-6
+    assert abs(sample2_info["end_time_seconds"] - expected_end_time2) < 1e-6
+
+    assert mock_sf_write.call_count == 2
+    args_call1, _ = mock_sf_write.call_args_list[0]
+    assert args_call1[0] == sample1_info["file_path"]
+    assert args_call1[2] == mock_samplerate
+
+    samples = (
+        db_session.query(SampleModel).order_by(SampleModel.start_time_seconds).all()
+    )
+    assert len(samples) == 2
+
+    sample1 = samples[0]
+    assert sample1.recording_id == setup_test_recording.id
+    assert sample1.project_id == setup_test_recording.project_id
+    assert sample1.start_time_seconds == 0.0
+    assert sample1.end_time_seconds == 0.5
+    assert sample1.duration_seconds == 0.5
+    assert sample1.sample_rate == 22050
+    assert sample1.bit_depth == 24
+    assert sample1.channels == 1
+    assert sample1.status == "processed"
+    assert sample1.is_processed is True
+    assert "slice_index" in sample1.metadata_json
+    assert sample1.metadata_json["slice_index"] == 0
+
+    sample2 = samples[1]
+    assert sample2.recording_id == setup_test_recording.id
+    assert sample2.start_time_seconds == 0.5
+    assert sample2.end_time_seconds == 1.0
+    assert sample2.duration_seconds == 0.5
+    assert sample2.sample_rate == 22050
+    assert sample2.bit_depth == 24
+    assert sample2.channels == 1
+    assert sample2.status == "processed"
+    assert sample2.is_processed is True
+
+    db_session.refresh(recording)
+    assert recording.samplerate == mock_samplerate
+    assert abs(recording.duration_seconds - (len(mock_audio_data_mono) / mock_samplerate)) < 1e-6
+
+
+# pylint: disable=redefined-outer-name
+def test_slicing_stage_input_file_not_found(
+    db_session: SQLAlchemySession,
+    setup_test_recording: RecordingModel,
+    temp_output_dir_for_samples: str,
+) -> None:
+    """Test processing fails if input audio file is not found and error is properly recorded."""
+    recording: RecordingModel = setup_test_recording
+    stage = SlicingStage()
+
+    # Set a non-existent file path
+    recording.file_path = "/path/does/not/exist.wav"
+    db_session.commit()
+
+    context: Dict[str, Any] = {
+        "db_session": db_session,
+        "recording_id": recording.id,
+        "project_id": recording.project_id,
+        "output_dir": temp_output_dir_for_samples,
+    }
+
+    with pytest.raises(FileNotFoundError) as exc_info:
+        stage.process(recording.file_path, context)
+
+    # Verify the error message
+    assert "No such file or directory" in str(exc_info.value)
+
+    # Verify no files were created
+    assert not os.listdir(temp_output_dir_for_samples)
+
+    # Verify recording status was updated to reflect the failure
+    db_session.refresh(recording)
+    assert recording.status == "error"
+
+    # Verify no samples were created
+    samples = db_session.query(SampleModel).filter_by(recording_id=recording.id).all()
+    assert len(samples) == 0
+    assert recording.status == "slicing_failed"
+
+# pylint: disable=redefined-outer-name
+def test_slicing_stage_recording_not_found_in_db(
+    db_session: SQLAlchemySession, temp_output_dir_for_samples: str
+) -> None:
+    """Test processing fails if recording ID in context is not in DB and error is properly handled."""
+    stage = SlicingStage()
+    non_existent_recording_id: int = 9999
+
+    # Create a context with a non-existent recording ID
+    context: Dict[str, Any] = {
+        "db_session": db_session,
+        "recording_id": non_existent_recording_id,
+        "project_id": 1,  # This project won't exist either
+        "output_dir": temp_output_dir_for_samples,
+    }
+
+    with pytest.raises(ValueError) as exc_info:
+        stage.process(
+            data=DUMMY_AUDIO_PATH,
+            context=context,
+        )
+
+    # Verify the error message
+    assert f"Recording with id {non_existent_recording_id} not found" in str(
+        exc_info.value
+    )
+
+    # Verify no files were created
+    assert not os.listdir(temp_output_dir_for_samples)
+
+    # Verify no samples were created in the database
+    samples = db_session.query(SampleModel).all()
+    assert len(samples) == 0
+
+# pylint: disable=redefined-outer-name
+def test_slicing_stage_missing_context_keys(
+    db_session: SQLAlchemySession, setup_test_recording: RecordingModel
+) -> None:
+    """Test processing fails if required keys are missing from context with proper error handling."""
+    recording: RecordingModel = setup_test_recording
+    stage = SlicingStage()
+
+    # Test missing db_session
+    with pytest.raises(KeyError) as exc_info:
+        stage.process(
+            data=DUMMY_AUDIO_PATH,
+            context={
+                "recording_id": recording.id,
+                "project_id": recording.project_id,
+                "output_dir": "/tmp/output",
+            },
+        )
+    assert "db_session" in str(exc_info.value)
+
+    # Test missing recording_id
+    with pytest.raises(KeyError) as exc_info:
+        stage.process(
+            data=DUMMY_AUDIO_PATH,
+            context={
+                "db_session": db_session,
+                "project_id": recording.project_id,
+                "output_dir": "/tmp/output",
+            },
+        )
+    assert "recording_id" in str(exc_info.value)
+
+    # Test missing project_id
+    with pytest.raises(KeyError) as exc_info:
+        stage.process(
+            data=DUMMY_AUDIO_PATH,
+            context={
+                "db_session": db_session,
+                "recording_id": recording.id,
+                "output_dir": "/tmp/output",
+            },
+        )
+    assert "project_id" in str(exc_info.value)
+
+    # Test missing output_dir
+    with pytest.raises(KeyError) as exc_info:
+        stage.process(
+            data=DUMMY_AUDIO_PATH,
+            context={
+                "db_session": db_session,
+                "recording_id": recording.id,
+                "project_id": recording.project_id,
+            },
+        )
+    assert "output_dir" in str(exc_info.value)
+
+    # Verify no samples were created in any of these cases
+    samples = db_session.query(SampleModel).all()
+    assert len(samples) == 0
+
+    # pylint: disable=redefined-outer-name
+    with pytest.raises(ValueError, match="Context is required and was not provided."):
+        stage.process(DUMMY_AUDIO_PATH, stage.default_params, None)
+
+
+@patch("src.core.stages.slicing_stage.librosa.load")
+@patch("src.core.stages.slicing_stage.os.path.exists", return_value=True)
+def test_slicing_stage_librosa_load_error(
+    mock_path_exists: MagicMock,
+    mock_librosa_load: MagicMock,
+    db_session: SQLAlchemySession,
+    setup_test_recording: RecordingModel,
+    temp_output_dir_for_samples: str,
+) -> None:
+    """Test processing fails gracefully if librosa.load raises an error and error is properly recorded."""
+    recording: RecordingModel = setup_test_recording
+    stage = SlicingStage()
+
+    # Mock librosa.load to raise an error
+    mock_librosa_load.side_effect = RuntimeError("Simulated librosa.load failure")
+
+    context: Dict[str, Any] = {
+        "db_session": db_session,
+        "recording_id": recording.id,
+        "project_id": recording.project_id,
+        "output_dir": temp_output_dir_for_samples,
+    }
+
+    with pytest.raises(RuntimeError, match="Simulated librosa.load failure"):
+        stage.process(
+            data=recording.file_path,
+            context=context,
+        )
+
+    # Verify the recording status and error message
+    db_session.refresh(recording)
+    assert recording.status == "error"
+
+    # Verify no samples were created
+    samples = db_session.query(SampleModel).filter_by(recording_id=recording.id).all()
+    assert len(samples) == 0
+
+    # Verify librosa.load was called with the correct arguments
+    mock_librosa_load.assert_called_once_with(
+        recording.file_path,
+        sr=None,
+        mono=True,
+        offset=0.0,
+        duration=None,
+        dtype=np.float32,
+        res_type="kaiser_best",
+    )
+
+    # Verify no files were created in the output directory
+    assert not os.listdir(temp_output_dir_for_samples)
+
+
+@patch("src.core.stages.slicing_stage.sf.write")
+@patch("src.core.stages.slicing_stage.librosa.onset.onset_detect")
+@patch("src.core.stages.slicing_stage.librosa.load")
+# pylint: disable=redefined-outer-name
+def test_slicing_stage_no_onsets_detected(
+    mock_librosa_load: MagicMock,
+    mock_onset_detect: MagicMock,
+    mock_sf_write: MagicMock,
+    db_session: SQLAlchemySession,
+    setup_test_recording: RecordingModel,
+    temp_output_dir_for_samples: str,
+    setup_sample_category: SampleCategory,
+) -> None:
+    """Test processing handles case when no onsets are detected in the audio."""
+    recording: RecordingModel = setup_test_recording
+    stage = SlicingStage()
+
+    mock_samplerate: int = 22050
+    mock_audio_data_mono: np.ndarray = np.random.rand(mock_samplerate * 2).astype(
+        np.float32
+    )
+    mock_librosa_load.return_value = (mock_audio_data_mono, mock_samplerate)
+
+    onset_time_1_s: float = 0.5
+    onset_time_2_s: float = 1.2
+    mock_onset_samples: np.ndarray = np.array(
+        [int(onset_time_1_s * mock_samplerate), int(onset_time_2_s * mock_samplerate)]
+    )
+    mock_onset_detect.return_value = np.array([])
+
+    stage_params: Dict[str, Any] = stage.default_params.copy()
+
+    context: Dict[str, Any] = {
+        "db_session": db_session,
+        "recording_id": recording.id,
+        "project_id": recording.project_id,
+        "output_dir": temp_output_dir_for_samples,
+        "params": {
+            "category": setup_sample_category.name,
+            "tags": ["test", "no-onsets"],
+            "notes": "Test recording with no onsets",
+        },
+    }
+
+    result_samples_info: List[Dict[str, Any]] = stage.process(
+        data=recording.file_path, params=stage_params, context=context
+    )
+
+    db_session.refresh(recording)
+    assert recording.status == "slicing_completed"
+    assert len(result_samples_info) == 0
+    db_samples: List[SampleModel] = (
+        db_session.query(SampleModel).filter(SampleModel.recording_id == recording.id).all()
+    )
+    assert len(db_samples) == 0
+    assert not os.listdir(temp_output_dir_for_samples)
+    mock_sf_write.assert_not_called()
+
+
+@patch("src.core.stages.slicing_stage.sf.write")
+@patch("src.core.stages.slicing_stage.librosa.onset.onset_detect")
+@patch("src.core.stages.slicing_stage.librosa.load")
+# pylint: disable=redefined-outer-name
+def test_slicing_stage_min_max_sample_length(
+    mock_librosa_load: MagicMock,
+    mock_onset_detect: MagicMock,
+    mock_sf_write: MagicMock,
+    db_session: SQLAlchemySession,
+    setup_test_recording: RecordingModel,
+    temp_output_dir_for_samples: str,
+    setup_sample_category: SampleCategory,
+) -> None:
+    """Test that min_sample_length_ms and max_sample_length_ms parameters are respected with enhanced Sample model."""
+    recording: RecordingModel = setup_test_recording
+    stage = SlicingStage()
+
+    # Mock audio data - 5 seconds of audio at 22050Hz, mono
+    mock_samplerate: int = 22050
+    mock_audio_data_mono: np.ndarray = np.random.rand(mock_samplerate * 5).astype(
+        np.float32
+    )
+    mock_librosa_load.return_value = (mock_audio_data_mono, mock_samplerate)
+
+    # Define onsets in seconds: 0.5s, 0.52s (too short), 1.0s, 2.0s
+    mock_onset_seconds = np.array([0.5, 0.52, 1.0, 2.0])
+    mock_onset_samples: np.ndarray = (mock_onset_seconds * mock_samplerate).astype(int)
+    mock_onset_detect.return_value = mock_onset_seconds
+
+    # Set up mock file writing
+    written_files = []
+
+    def mock_write_side_effect(file_path, data, sr, **kwargs):
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        with open(file_path, "wb") as f:
+            f.write(b"test")  # Write a small test file
+        written_files.append(file_path)
+        return file_path
+
+    mock_sf_write.side_effect = mock_write_side_effect
+
+    # Set up stage parameters for testing min/max length
+    stage_params: Dict[str, Any] = stage.default_params.copy()
+    stage_params.update(
+        {
+            "min_sample_length_ms": 50,  # 50ms minimum
+            "max_sample_length_ms": 1000,  # 1 second maximum
+            "category": setup_sample_category.name,
+            "tags": ["test", "min-max-length"],
+            "notes": "Test recording with min/max length constraints",
+        }
+    )
+
+    context: Dict[str, Any] = {
+        "db_session": db_session,
+        "recording_id": recording.id,
+        "project_id": recording.project_id,
+        "output_dir": temp_output_dir_for_samples,
+        "params": stage_params,
+    }
+
+    # Process the recording
+    result_samples_info = stage.process(data=recording.file_path, context=context)
+
+    # Verify the results
+    db_session.refresh(recording)
+    assert recording.status == "slicing_completed"
+
+    # Should have 3 samples (one is too short and should be skipped)
+    samples = (
+        db_session.query(SampleModel)
+        .filter_by(recording_id=recording.id)
+        .order_by(SampleModel.start_time_seconds)
+        .all()
+    )
+    assert len(samples) == 3
+    assert len(result_samples_info) == 3
+    assert mock_sf_write.call_count == 3
+    assert len(written_files) == 3
+
+    # First sample: 0.5s to 1.0s (0.5s duration, within min/max)
+    assert abs(samples[0].end_time_seconds or 0 - 1.0) < 1e-6
+    assert abs(samples[0].duration_seconds or 0 - 0.5) < 1e-6
+    assert samples[0].sample_rate == mock_samplerate
+    assert samples[0].bit_depth == 24
+    assert samples[0].channels == 1
+    assert samples[0].status == "processed"
+
+    # Second sample: 1.0s to 2.0s (1.0s duration, at max length)
+    assert abs(samples[1].start_time_seconds - 1.0) < 1e-6
+    assert abs(samples[1].end_time_seconds - 2.0) < 1e-6
+    assert abs(samples[1].duration_seconds - 1.0) < 1e-6
+
+    # Third sample: 2.0s to end (3.0s duration, but should be truncated to 1.0s)
+    assert abs(samples_sorted[2].start_time_seconds - 2.0) < 1e-6
+    assert (
+        abs(samples_sorted[2].end_time_seconds - 3.0) < 1e-6
+    )  # Should be truncated to max 1s
+
+    # Verify the sample that was too short (0.02s) was skipped
+    assert not any(abs(s.start_time_seconds - 0.52) < 1e-6 for s in samples_sorted)
+
+    # Verify all samples have the correct metadata
+    for sample in samples_sorted:
+        assert sample.project_id == recording.project_id
+        assert sample.recording_id == recording.id
+        assert sample.status == "processed"
+        assert sample.is_processed is True
+        assert "slice_index" in sample.metadata_json
+        assert "source_onset_samples" in sample.metadata_json
+        assert setup_sample_category.name in [c.name for c in sample.categories]
+        assert "min-max-length" in sample.metadata_json.get("tags", [])

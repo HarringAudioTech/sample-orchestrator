@@ -7,15 +7,6 @@ Each set of routes is organized into its own Blueprint.
 import os
 from flask import Blueprint, request, jsonify, current_app, flash, redirect, url_for
 from werkzeug.utils import secure_filename
-from sqlalchemy.orm import Session
-
-# init_db is not directly used in routes
-from src.database.utils import get_db  # Replaced SessionLocal with get_db
-from src.database.models import (
-    Project as ProjectModel,
-    Recording as RecordingModel,
-    Sample as SampleModel,
-)
 from src.core.project import Project as CoreProject
 from src.core.project_manager import ProjectManager
 
@@ -53,9 +44,10 @@ def model_to_dict(model_instance: Optional[Any]) -> Optional[Dict[str, Any]]:
     """Converts a SQLAlchemy model instance into a dictionary.
 
     This is a generic helper to serialize model instances for JSON responses.
-    It iterates over the model's table columns and retrieves their values.
-    Currently, it does not deeply serialize relationships to avoid complexity
-    and potential circular dependencies in responses.
+    It uses the __dict__ attribute to get all instance attributes, filtering out
+    private attributes and SQLAlchemy internal attributes.
+
+    For ProjectModel, it adds a computed 'is_virtual_instrument' field.
 
     Args:
         model_instance: An instance of a SQLAlchemy model.
@@ -67,16 +59,23 @@ def model_to_dict(model_instance: Optional[Any]) -> Optional[Dict[str, Any]]:
     if model_instance is None:
         return None
 
-    d: Dict[str, Any] = {}
-    for column in model_instance.__table__.columns:
-        d[column.name] = getattr(model_instance, column.name)
+    # Start with a dictionary of all public attributes
+    result = {}
+    
+    # Get all attributes from the model instance
+    for key, value in model_instance.__dict__.items():
+        # Skip private attributes and SQLAlchemy internal attributes
+        if not key.startswith('_'):
+            # Convert datetime objects to ISO format strings
+            if hasattr(value, 'isoformat'):
+                value = value.isoformat()
+            result[key] = value
+    
+    # Add computed fields for ProjectModel and its subclasses
+    if hasattr(model_instance, 'project_type'):
+        result['is_virtual_instrument'] = getattr(model_instance, 'project_type', None) == 'virtual_instrument'
 
-    # Example of how relationships could be handled (currently commented out):
-    # if hasattr(model_instance, 'recordings'):
-    #     d['recordings_count'] = len(model_instance.recordings) # Or list of IDs
-    # if hasattr(model_instance, 'samples'):
-    #     d['samples_count'] = len(model_instance.samples)
-    return d
+    return result
 
 
 # --- Project Endpoints ---
@@ -87,40 +86,110 @@ def create_project() -> Response:
     Receives project information as JSON and saves it to the database.
 
     Args:
-        None: Reads 'name' and 'description' (optional) from the JSON
-              payload of the request.
-              Example: {"name": "My First Project", "description": "A test project"}
+        None: Reads project details from the JSON payload of the request.
+              Required fields: 'name', 'project_type' (one of 'sample_pack' or 'virtual_instrument')
+              Optional fields: 'description', 'base_note', 'velocity_layers', 'round_robins', 'metadata_json'
+              
+              Example for sample pack:
+              {
+                  "name": "Drum Kit",
+                  "project_type": "sample_pack",
+                  "description": "Acoustic drum samples"
+              }
+              
+              Example for virtual instrument:
+              {
+                  "name": "Piano",
+                  "project_type": "virtual_instrument",
+                  "description": "Grand piano virtual instrument",
+                  "base_note": 60,
+                  "velocity_layers": 3,
+                  "round_robins": 2,
+                  "metadata_json": {"instrument_type": "piano", "tuning": "A440"}
+              }
 
     Returns:
         flask.Response: JSON response containing the created project object and
                         HTTP status 201 if successful.
                         JSON response with an error message and HTTP status 400
-                        if the 'name' is missing in the payload.
+                        if required fields are missing or invalid.
                         JSON response with an error message and HTTP status 500
                         if an internal server error occurs.
     """
-    data: Optional[Dict[str, Any]] = request.get_json()
-    if not data or not data.get("name"):
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Request body must be JSON"}), 400
+        
+    # Validate required fields
+    if "name" not in data:
         return jsonify({"error": "Project name is required"}), 400
+        
+    if "project_type" not in data:
+        return jsonify({"error": "Project type is required"}), 400
+        
+    # Validate project_type
+    project_type = data.get("project_type")
+    if project_type not in ["sample_pack", "virtual_instrument"]:
+        return jsonify({"error": "Invalid project_type. Must be 'sample_pack' or 'virtual_instrument'"}), 400
+        
+    # Validate virtual instrument specific fields if applicable
+    if project_type == "virtual_instrument":
+        base_note = data.get("base_note")
+        if base_note is not None and (not isinstance(base_note, int) or base_note < 0 or base_note > 127):
+            return jsonify({"error": "base_note must be a valid MIDI note number (0-127)"}), 400
+            
+        velocity_layers = data.get("velocity_layers")
+        if velocity_layers is not None and (not isinstance(velocity_layers, int) or velocity_layers < 1):
+            return jsonify({"error": "velocity_layers must be a positive integer"}), 400
+            
+        round_robins = data.get("round_robins")
+        if round_robins is not None and (not isinstance(round_robins, int) or round_robins < 1):
+            return jsonify({"error": "round_robins must be a positive integer"}), 400
 
-    db_gen = get_db()
-    db = next(db_gen)
-    try:
-        new_project = ProjectModel(name=data["name"], description=data.get("description"))
-        db.add(new_project)
-        db.commit()
-        db.refresh(new_project)
-        current_app.logger.info(f"Project created with ID: {new_project.id}")
-        return jsonify(model_to_dict(new_project)), 201
-    except Exception as e:
-        db.rollback()
-        current_app.logger.error(f"Error creating project: {e}", exc_info=True)
-        return (
-            jsonify({"error": "Could not create project due to an internal error"}),
-            500,
-        )
-    finally:
-        next(db_gen, None)
+    # Extract project data
+    name = data.get("name")
+    description = data.get("description")
+    metadata_json = data.get("metadata_json")
+
+    # Use the context manager pattern for database session handling
+    with get_db() as db:
+        try:
+            # Create project in database with the appropriate subclass based on project_type
+            common_args = {
+                "name": name,
+                "description": description,
+                "metadata_json": metadata_json
+            }
+            
+            if project_type == ProjectType.VIRTUAL_INSTRUMENT:
+                project = VirtualInstrumentModel(
+                    **common_args,
+                    base_note=data.get("base_note"),
+                    velocity_layers=data.get("velocity_layers"),
+                    round_robins=data.get("round_robins")
+                )
+            else:  # SAMPLE_PACK
+                project = SamplePackModel(
+                    **common_args
+                )
+            
+            db.add(project)
+            db.commit()
+            db.refresh(project)
+
+            # Create project directory using the class method
+            project_path = ProjectManager.create_project_directory(
+                project_id=project.id,
+                project_type=project_type,
+                app_config=current_app.config
+            )
+
+            return jsonify(model_to_dict(project)), 201
+
+        except Exception as e:
+            db.rollback()
+            current_app.logger.error(f"Error creating project: {str(e)}")
+            return jsonify({"error": "Failed to create project"}), 500
 
 
 @projects_bp.route("/<int:project_id>", methods=["GET"])
@@ -128,6 +197,8 @@ def get_project(project_id: int) -> Response:
     """Retrieves a specific project by its ID.
 
     Fetches a project from the database based on the provided project ID.
+    The response includes all project fields, including virtual instrument
+    specific fields if the project is of type 'virtual_instrument'.
 
     Args:
         project_id (int): The unique identifier of the project to retrieve.
@@ -138,37 +209,74 @@ def get_project(project_id: int) -> Response:
                         JSON response with an error message and HTTP status 404
                         if the project is not found.
     """
-    db_gen = get_db()
-    db: Session = next(db_gen)
-    try:
-        project = db.query(ProjectModel).filter(ProjectModel.id == project_id).first()
-        if not project:
-            return jsonify({"error": "Project not found"}), 404
-        return jsonify(model_to_dict(project)), 200
-    finally:
-        next(db_gen, None)
+    with get_db() as db:
+        try:
+            project = db.query(ProjectModel).filter(ProjectModel.id == project_id).first()
+            if not project:
+                return jsonify({"error": "Project not found"}), 404
+                
+            # Get the project data as a dictionary
+            project_data = model_to_dict(project)
+            
+            # Add any computed fields if needed
+            if project.project_type == "virtual_instrument":
+                project_data["is_virtual_instrument"] = True
+                # Add any computed virtual instrument specific fields here
+            else:
+                project_data["is_virtual_instrument"] = False
+                
+            return jsonify(project_data), 200
+            
+        except Exception as e:
+            current_app.logger.error(f"Error retrieving project {project_id}: {str(e)}")
+            return jsonify({"error": "Internal server error"}), 500
 
 
 @projects_bp.route("", methods=["GET"])
 def list_projects() -> Response:
     """Lists all projects.
 
-    Retrieves all projects from the database.
+    Retrieves all projects from the database, including virtual instrument
+    specific fields for each project if applicable.
 
     Args:
         None.
 
+    Query Parameters:
+        project_type (str, optional): Filter projects by type ('sample_pack' or 'virtual_instrument')
+
     Returns:
         flask.Response: JSON response containing a list of all project
-                        objects and HTTP status 200.
+                        objects (filtered by type if specified) and HTTP status 200.
     """
-    db_gen = get_db()
-    db: Session = next(db_gen)
-    try:
-        projects: List[ProjectModel] = db.query(ProjectModel).all()
-        return jsonify([model_to_dict(p) for p in projects]), 200
-    finally:
-        next(db_gen, None)
+    project_type = request.args.get('project_type')
+    
+    with get_db() as db:
+        try:
+            # Start with base query
+            query = db.query(ProjectModel)
+            
+            # Apply filter if project_type is specified
+            if project_type:
+                if project_type not in ["sample_pack", "virtual_instrument"]:
+                    return jsonify({"error": "Invalid project_type. Must be 'sample_pack' or 'virtual_instrument'"}), 400
+                query = query.filter(ProjectModel.project_type == project_type)
+            
+            # Execute query and get results
+            projects = query.order_by(ProjectModel.created_at.desc()).all()
+            
+            # Convert projects to dictionary and add computed fields
+            result = []
+            for project in projects:
+                project_data = model_to_dict(project)
+                project_data["is_virtual_instrument"] = project.project_type == "virtual_instrument"
+                result.append(project_data)
+                
+            return jsonify(result), 200
+            
+        except Exception as e:
+            current_app.logger.error(f"Error listing projects: {str(e)}")
+            return jsonify({"error": "Failed to retrieve projects"}), 500
 
 
 # --- Recording Endpoints (scoped under a project) ---

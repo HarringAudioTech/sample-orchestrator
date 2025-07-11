@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  test-db:
+    image: postgres:14-alpine
+    environment:
+      POSTGRES_USER: testuser
+      POSTGRES_PASSWORD: testpassword
+      POSTGRES_DB: test_sample_orchestrator
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U testuser -d test_sample_orchestrator"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - test-db-data:/var/lib/postgresql/data
+      - ./tests/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
+    networks:
+      - test-network
+
+  test-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    depends_on:
+      test-db:
+        condition: service_healthy
+    environment:
+      - TEST_DATABASE_URL=postgresql://testuser:testpassword@test-db:5432/test_sample_orchestrator
+    volumes:
+      - .:/app
+    networks:
+      - test-network
+    working_dir: /app
+    command: >
+      sh -c "wait-for-it test-db:5432 -- pytest tests/ -v"
+
+networks:
+  test-network:
+    driver: bridge
+
+volumes:
+  test-db-data:
