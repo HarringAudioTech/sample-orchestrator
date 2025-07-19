@@ -6,9 +6,9 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "5000:5000"
+      - "8500:5001"
     volumes:
-      - .:/app  # Map current directory to /app for live code reloading
+      - ./src:/app/src  # Only mount source code, not the entire directory
       - ./data:/app/data  # Persist data in ./data directory on the host
     # --- Device Access (Platform Dependent) ---
     # Uncomment and adapt the following lines based on your OS and needs.
@@ -37,8 +37,13 @@ services:
     # Similar complexities as macOS. WSL2 backend for Docker Desktop might offer
     # some pass-through capabilities but can be involved to set up.
     environment:
-      # Ensures Flask development server reloads on code changes
+      # Flask configuration
       - FLASK_ENV=development
       - FLASK_DEBUG=1
-    # Add any other environment variables needed for development
-    # Example: - DATABASE_URL=sqlite:///./data/dev_database.db
+      - FLASK_SECRET_KEY=dev-secret-key-change-in-production
+      - API_BASE_URL=http://app:5000  # Use service name for internal Docker networking
+      
+      # Database configuration
+      - DATABASE_URL=sqlite:////app/data/database.db
+      
+      # Other environment variables

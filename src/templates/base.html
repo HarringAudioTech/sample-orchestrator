@@ -61,6 +61,20 @@
         </div>
     </nav>
     <main>
+        <!-- Flash Messages -->
+        <div class="container mt-3">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}">
+                            {{ message }}
+                            <button type="button" class="btn-close float-end" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+        </div>
+        
         {% block content %}{% endblock %}
     </main>
     <footer class="bg-light py-4 mt-5">
@@ -91,13 +105,21 @@
             </div>
             <hr>
             <div class="text-center text-muted">
-                <p class="mb-0">&copy; {{ now.year }} Sample Orchestrator. All rights reserved.</p>
+                <p class="mb-0">&copy; <span id="current-year"></span> Sample Orchestrator. All rights reserved.</p>
             </div>
         </div>
     </footer>
 
     <!-- Bootstrap 5 JS Bundle with Popper -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Set current year in footer -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Set current year in footer
+            document.getElementById('current-year').textContent = new Date().getFullYear();
+        });
+    </script>
     
     <!-- Custom JavaScript -->
     <script>

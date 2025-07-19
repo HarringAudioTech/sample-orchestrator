@@ -1,47 +1,69 @@
 # Use an official Python runtime as a parent image
-FROM python:3.13
+FROM python:3.13-slim
 
 # Set environment variables
-ENV PYTHONDONTWRITEBYTECODE 1
-ENV PYTHONUNBUFFERED 1
-ENV POETRY_VERSION=1.8.3
-ENV POETRY_HOME="/opt/poetry"
-ENV POETRY_VENV_CREATE=false
-# POETRY_VENV_CREATE=false means poetry will use the system python.
-# This is generally fine for containers.
-ENV PATH="$POETRY_HOME/bin:$PATH"
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    POETRY_VERSION=1.8.3 \
+    POETRY_HOME="/opt/poetry" \
+    POETRY_VENV_CREATE=false \
+    PATH="$POETRY_HOME/bin:$PATH"
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends libportaudio2 libportaudiocpp0 portaudio19-dev gcc curl libasound2-dev ffmpeg libsndfile1 && apt-get clean     && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libasound2-dev \
+    libportaudio2 \
+    libportaudiocpp0 \
+    portaudio19-dev \
+    gcc \
+    g++ \
+    make \
+    curl \
+    ffmpeg \
+    libsndfile1 \
+    pkg-config \
+    python3-dev \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install Poetry
-RUN curl -sSL https://install.python-poetry.org | python3 -
+ENV POETRY_HOME="/opt/poetry"
+ENV PATH="${POETRY_HOME}/bin:${PATH}"
+RUN curl -sSL https://install.python-poetry.org | python3 - \
+    && poetry --version \
+    && poetry config virtualenvs.create false
 
 # Set the working directory in the container
 WORKDIR /app
 
-# Copy only files necessary for dependency installation first to leverage Docker cache
+# Set working directory
+WORKDIR /app
+
+# Copy only the dependency files first to leverage Docker cache
 COPY pyproject.toml poetry.lock ./
 
-# Install project dependencies (without installing the project itself yet)
-# --no-root is important here so it doesn't try to build/install the local project yet
-# --no-dev is also good for production images
-RUN poetry install  --no-root --no-dev
+# Install project dependencies directly with pip to ensure they're in the system Python path
+RUN pip install flask flask-cors sqlalchemy alembic librosa mido pyaudio numpy requests
 
 # Copy the rest of the application code
 COPY src/ ./src/
-#COPY tests/ ./src/tests/
-# Install the application itself (now that the code is present)
-# This will install the 'src' package as defined in pyproject.toml
-RUN poetry install
 
-# Create the data directory - this will be mounted as a volume
-# Ensure the directory exists for the application to write to.
+# Create the data directory
 RUN mkdir -p /app/data
 
+# Set the working directory to the app directory
+WORKDIR /app
+
+# Add the app directory to PYTHONPATH
+ENV PYTHONPATH="/app:${PYTHONPATH}"
+
 # Expose the port the app runs on
-EXPOSE 5000
+EXPOSE 5001
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:5001/health || exit 1
 
 # Define the command to run the application
-# Using poetry run ensures it uses the correct environment and dependencies
-CMD ["poetry", "run", "python", "-m", "src.app"]
+CMD ["python", "-m", "src.app"]

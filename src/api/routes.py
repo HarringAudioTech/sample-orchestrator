@@ -2,37 +2,31 @@
 This module defines the API routes for the Flask application using Blueprints.
 It includes routes for managing projects, recordings, and samples.
 Each set of routes is organized into its own Blueprint.
+
+SQLITE ONLY: These routes use the new SQLite-based database models.
+Do not attempt to modify for compatibility with other database engines.
 """
 
 import os
 from flask import Blueprint, request, jsonify, current_app, flash, redirect, url_for
 from werkzeug.utils import secure_filename
-from src.core.project import Project as CoreProject
-from src.core.project_manager import ProjectManager
+
+# SQLITE ONLY: Import SQLite database models and utilities
+from src.database.models import Project, Recording, Sample, model_to_dict
+from src.database.utils import get_db
 
 # --- Configuration ---
-# Default paths for generated samples if not set in app config.
-# DEFAULT_UPLOAD_BASE_DIR is now managed by ProjectManager
+# SQLITE ONLY: Default paths for generated samples if not set in app config
 DEFAULT_SAMPLES_BASE_DIR = "data/projects"
 
 
 # --- Blueprints ---
-# Blueprint for project-related operations.
+# SQLITE ONLY: Blueprint for project-related operations
 projects_bp = Blueprint("projects", __name__, url_prefix="/projects")
-# Blueprint for recording-related operations (those not directly under a
-# project).
+# SQLITE ONLY: Blueprint for recording-related operations
 recordings_bp = Blueprint("recordings", __name__, url_prefix="/recordings")
-# Blueprint for sample-related operations (those not directly under a
-# recording).
+# SQLITE ONLY: Blueprint for sample-related operations
 samples_bp = Blueprint("samples", __name__, url_prefix="/samples")
-
-
-# --- Database Session Management ---
-# The get_db_session() helper is removed. Routes will use get_db() directly.
-
-# Note: Flask's typical pattern for request-scoped sessions involves using `g`
-# and `app.before_request`/`app.teardown_appcontext`. For simplicity in this module,
-# sessions are managed directly within each route handler using the get_db() context manager.
 
 
 # --- Helper Functions ---
@@ -40,50 +34,12 @@ from typing import Any, Dict, List, Optional, Union, Set
 from flask import Response
 
 
-def model_to_dict(model_instance: Optional[Any]) -> Optional[Dict[str, Any]]:
-    """Converts a SQLAlchemy model instance into a dictionary.
-
-    This is a generic helper to serialize model instances for JSON responses.
-    It uses the __dict__ attribute to get all instance attributes, filtering out
-    private attributes and SQLAlchemy internal attributes.
-
-    For ProjectModel, it adds a computed 'is_virtual_instrument' field.
-
-    Args:
-        model_instance: An instance of a SQLAlchemy model.
-
-    Returns:
-        A dictionary representation of the model instance,
-        or None if `model_instance` is None.
-    """
-    if model_instance is None:
-        return None
-
-    # Start with a dictionary of all public attributes
-    result = {}
-    
-    # Get all attributes from the model instance
-    for key, value in model_instance.__dict__.items():
-        # Skip private attributes and SQLAlchemy internal attributes
-        if not key.startswith('_'):
-            # Convert datetime objects to ISO format strings
-            if hasattr(value, 'isoformat'):
-                value = value.isoformat()
-            result[key] = value
-    
-    # Add computed fields for ProjectModel and its subclasses
-    if hasattr(model_instance, 'project_type'):
-        result['is_virtual_instrument'] = getattr(model_instance, 'project_type', None) == 'virtual_instrument'
-
-    return result
-
-
 # --- Project Endpoints ---
 @projects_bp.route("", methods=["POST"])
 def create_project() -> Response:
-    """Creates a new project.
+    """Creates a new project using SQLite database.
 
-    Receives project information as JSON and saves it to the database.
+    SQLITE ONLY: This route creates projects in the SQLite database.
 
     Args:
         None: Reads project details from the JSON payload of the request.
@@ -102,19 +58,14 @@ def create_project() -> Response:
                   "name": "Piano",
                   "project_type": "virtual_instrument",
                   "description": "Grand piano virtual instrument",
-                  "base_note": 60,
+                  "base_note": "C4",
                   "velocity_layers": 3,
-                  "round_robins": 2,
-                  "metadata_json": {"instrument_type": "piano", "tuning": "A440"}
+                  "round_robins": 2
               }
 
     Returns:
         flask.Response: JSON response containing the created project object and
                         HTTP status 201 if successful.
-                        JSON response with an error message and HTTP status 400
-                        if required fields are missing or invalid.
-                        JSON response with an error message and HTTP status 500
-                        if an internal server error occurs.
     """
     data = request.get_json()
     if not data:
@@ -134,10 +85,6 @@ def create_project() -> Response:
         
     # Validate virtual instrument specific fields if applicable
     if project_type == "virtual_instrument":
-        base_note = data.get("base_note")
-        if base_note is not None and (not isinstance(base_note, int) or base_note < 0 or base_note > 127):
-            return jsonify({"error": "base_note must be a valid MIDI note number (0-127)"}), 400
-            
         velocity_layers = data.get("velocity_layers")
         if velocity_layers is not None and (not isinstance(velocity_layers, int) or velocity_layers < 1):
             return jsonify({"error": "velocity_layers must be a positive integer"}), 400
@@ -146,59 +93,46 @@ def create_project() -> Response:
         if round_robins is not None and (not isinstance(round_robins, int) or round_robins < 1):
             return jsonify({"error": "round_robins must be a positive integer"}), 400
 
-    # Extract project data
-    name = data.get("name")
-    description = data.get("description")
-    metadata_json = data.get("metadata_json")
-
-    # Use the context manager pattern for database session handling
+    # SQLITE ONLY: Use SQLite database session
     with get_db() as db:
         try:
-            # Create project in database with the appropriate subclass based on project_type
-            common_args = {
-                "name": name,
-                "description": description,
-                "metadata_json": metadata_json
-            }
-            
-            if project_type == ProjectType.VIRTUAL_INSTRUMENT:
-                project = VirtualInstrumentModel(
-                    **common_args,
-                    base_note=data.get("base_note"),
-                    velocity_layers=data.get("velocity_layers"),
-                    round_robins=data.get("round_robins")
-                )
-            else:  # SAMPLE_PACK
-                project = SamplePackModel(
-                    **common_args
-                )
+            # Create project using new SQLite model
+            project = Project(
+                name=data.get("name"),
+                description=data.get("description"),
+                project_type=project_type,
+                base_note=data.get("base_note"),
+                velocity_layers=data.get("velocity_layers", 1),
+                round_robins=data.get("round_robins", 1),
+                metadata_json=data.get("metadata_json")
+            )
             
             db.add(project)
             db.commit()
             db.refresh(project)
 
-            # Create project directory using the class method
-            project_path = ProjectManager.create_project_directory(
-                project_id=project.id,
-                project_type=project_type,
-                app_config=current_app.config
-            )
+            # Create project directory structure
+            project_dir = os.path.join(current_app.config.get("SAMPLES_BASE_DIR", DEFAULT_SAMPLES_BASE_DIR), f"project_{project.id}")
+            subdirs = ["samples/raw", "samples/processed", "samples/mapped", "exports", "metadata", "presets"]
+            
+            for subdir in subdirs:
+                full_path = os.path.join(project_dir, subdir)
+                os.makedirs(full_path, exist_ok=True)
+            
+            current_app.logger.info(f"Created project directory structure: {project_dir}")
 
             return jsonify(model_to_dict(project)), 201
 
         except Exception as e:
-            db.rollback()
             current_app.logger.error(f"Error creating project: {str(e)}")
             return jsonify({"error": "Failed to create project"}), 500
 
 
 @projects_bp.route("/<int:project_id>", methods=["GET"])
 def get_project(project_id: int) -> Response:
-    """Retrieves a specific project by its ID.
+    """Retrieves a specific project by its ID from SQLite database.
 
-    Fetches a project from the database based on the provided project ID.
-    The response includes all project fields, including virtual instrument
-    specific fields if the project is of type 'virtual_instrument'.
+    SQLITE ONLY: This route fetches projects from the SQLite database.
 
     Args:
         project_id (int): The unique identifier of the project to retrieve.
@@ -206,26 +140,14 @@ def get_project(project_id: int) -> Response:
     Returns:
         flask.Response: JSON response containing the project object and HTTP
                         status 200 if found.
-                        JSON response with an error message and HTTP status 404
-                        if the project is not found.
     """
     with get_db() as db:
         try:
-            project = db.query(ProjectModel).filter(ProjectModel.id == project_id).first()
+            project = db.query(Project).filter(Project.id == project_id).first()
             if not project:
                 return jsonify({"error": "Project not found"}), 404
                 
-            # Get the project data as a dictionary
-            project_data = model_to_dict(project)
-            
-            # Add any computed fields if needed
-            if project.project_type == "virtual_instrument":
-                project_data["is_virtual_instrument"] = True
-                # Add any computed virtual instrument specific fields here
-            else:
-                project_data["is_virtual_instrument"] = False
-                
-            return jsonify(project_data), 200
+            return jsonify(model_to_dict(project)), 200
             
         except Exception as e:
             current_app.logger.error(f"Error retrieving project {project_id}: {str(e)}")
@@ -234,43 +156,34 @@ def get_project(project_id: int) -> Response:
 
 @projects_bp.route("", methods=["GET"])
 def list_projects() -> Response:
-    """Lists all projects.
+    """Lists all projects from SQLite database.
 
-    Retrieves all projects from the database, including virtual instrument
-    specific fields for each project if applicable.
-
-    Args:
-        None.
+    SQLITE ONLY: This route lists projects from the SQLite database.
 
     Query Parameters:
         project_type (str, optional): Filter projects by type ('sample_pack' or 'virtual_instrument')
 
     Returns:
-        flask.Response: JSON response containing a list of all project
-                        objects (filtered by type if specified) and HTTP status 200.
+        flask.Response: JSON response containing a list of all project objects.
     """
     project_type = request.args.get('project_type')
     
     with get_db() as db:
         try:
             # Start with base query
-            query = db.query(ProjectModel)
+            query = db.query(Project)
             
             # Apply filter if project_type is specified
             if project_type:
                 if project_type not in ["sample_pack", "virtual_instrument"]:
                     return jsonify({"error": "Invalid project_type. Must be 'sample_pack' or 'virtual_instrument'"}), 400
-                query = query.filter(ProjectModel.project_type == project_type)
+                query = query.filter(Project.project_type == project_type)
             
             # Execute query and get results
-            projects = query.order_by(ProjectModel.created_at.desc()).all()
+            projects = query.order_by(Project.created_at.desc()).all()
             
-            # Convert projects to dictionary and add computed fields
-            result = []
-            for project in projects:
-                project_data = model_to_dict(project)
-                project_data["is_virtual_instrument"] = project.project_type == "virtual_instrument"
-                result.append(project_data)
+            # Convert projects to dictionary
+            result = [model_to_dict(project) for project in projects]
                 
             return jsonify(result), 200
             
@@ -284,36 +197,24 @@ def list_projects() -> Response:
 def add_project_recording(project_id: int) -> Response:
     """Adds a new recording to a specified project by uploading an audio file.
 
+    SQLITE ONLY: This route uses SQLite database for storing recording metadata.
+
     Expects 'multipart/form-data' with 'file' (the audio file) and
     'name' (recording name).
-
-    The uploaded file is saved to a designated upload folder, and metadata
-    about the recording is stored in the database.
 
     Args:
         project_id (int): The unique identifier of the project to which the
                           recording will be added.
-                          Reads 'file' (werkzeug.datastructures.FileStorage) and
-                          'name' (str) from the multipart/form-data request.
 
     Returns:
         flask.Response: JSON response containing the created recording object
                         and HTTP status 201 if successful.
-                        JSON response with an error message and HTTP status 400
-                        if 'file' or 'name' is missing, or if the file has no
-                        filename.
-                        JSON response with an error message and HTTP status 404
-                        if the specified project is not found.
-                        JSON response with an error message and HTTP status 500
-                        if an internal server error occurs during file saving
-                        or database interaction.
     """
-    # CoreProject manages its own session for loading the project model and adding recording.
-    # No direct db session needed here for *that* part.
-    try:
-        core_proj = CoreProject(project_id=project_id)  # This might use get_db internally
-    except ValueError as e:
-        return jsonify({"error": str(e)}), 404
+    # Validate project exists
+    with get_db() as db:
+        project = db.query(Project).filter(Project.id == project_id).first()
+        if not project:
+            return jsonify({"error": "Project not found"}), 404
 
     if "file" not in request.files:
         return jsonify({"error": "No file part in the request"}), 400
@@ -326,21 +227,17 @@ def add_project_recording(project_id: int) -> Response:
     if file.filename == "":
         return jsonify({"error": "No selected file (filename is empty)"}), 400
 
-    project_upload_dir = ProjectManager.get_project_upload_dir(project_id, current_app.config)
+    # Create upload directory for project
+    upload_base = current_app.config.get("UPLOAD_FOLDER", "data/uploads")
+    project_upload_dir = os.path.join(upload_base, f"project_{project_id}")
 
     if not os.path.exists(project_upload_dir):
         try:
             os.makedirs(project_upload_dir)
             current_app.logger.info(f"Created upload directory: {project_upload_dir}")
         except OSError as e:
-            current_app.logger.error(
-                f"Error creating upload directory {project_upload_dir}: {e}",
-                exc_info=True,
-            )
-            return (
-                jsonify({"error": f"Could not create upload directory: {e.strerror}"}),
-                500,
-            )
+            current_app.logger.error(f"Error creating upload directory {project_upload_dir}: {e}")
+            return jsonify({"error": f"Could not create upload directory"}), 500
 
     filename = secure_filename(file.filename)
     file_path = os.path.join(project_upload_dir, filename)
@@ -349,128 +246,121 @@ def add_project_recording(project_id: int) -> Response:
         file.save(file_path)
         current_app.logger.info(f"File saved to {file_path}")
     except Exception as e:
-        current_app.logger.error(
-            f"Error saving uploaded file to {file_path}: {e}", exc_info=True
-        )
-        return jsonify({"error": f"Could not save uploaded file: {e}"}), 500
+        current_app.logger.error(f"Error saving uploaded file to {file_path}: {e}")
+        return jsonify({"error": "Could not save uploaded file"}), 500
 
     try:
-        # CoreProject.add_recording is expected to use get_db for its session
-        new_recording_model = core_proj.add_recording(file_path=file_path, name=recording_name)
-        current_app.logger.info(
-            f"Recording '{new_recording_model.name}' (ID: {new_recording_model.id}) added to project {project_id}."
-        )
-        return jsonify(model_to_dict(new_recording_model)), 201
-    except FileNotFoundError as e:
-        current_app.logger.error(
-            f"File not found during add_recording call: {e}", exc_info=True
-        )
-        return jsonify({"error": str(e)}), 400
+        # SQLITE ONLY: Create recording in SQLite database
+        with get_db() as db:
+            recording = Recording(
+                project_id=project_id,
+                name=recording_name,
+                file_path=file_path,
+                processing_status="pending"
+            )
+            
+            db.add(recording)
+            db.commit()
+            db.refresh(recording)
+
+            current_app.logger.info(f"Recording '{recording.name}' (ID: {recording.id}) added to project {project_id}")
+            return jsonify(model_to_dict(recording)), 201
+            
     except Exception as e:
-        current_app.logger.error(
-            f"Error adding recording DB entry for project {project_id} and file {file_path}: {e}",
-            exc_info=True,
-        )
+        current_app.logger.error(f"Error adding recording to database: {e}")
+        # Clean up uploaded file if database operation failed
         if os.path.exists(file_path):
             try:
                 os.remove(file_path)
                 current_app.logger.info(f"Cleaned up orphaned file: {file_path}")
-            except OSError as rm_e:
-                current_app.logger.error(
-                    f"Error cleaning up orphaned file {file_path}: {rm_e}",
-                    exc_info=True,
-                )
-        return jsonify({"error": f"Could not add recording to database: {e}"}), 500
+            except OSError:
+                pass
+        return jsonify({"error": "Could not add recording to database"}), 500
 
 
 @projects_bp.route("/<int:project_id>/recordings", methods=["GET"])
 def list_project_recordings(project_id: int) -> Response:
     """Lists all recordings associated with a specific project.
 
-    Retrieves metadata for all recordings linked to the given project ID.
+    SQLITE ONLY: This route lists recordings from the SQLite database.
 
     Args:
         project_id (int): The unique identifier of the project whose
                           recordings are to be listed.
 
     Returns:
-        flask.Response: JSON response containing a list of recording objects
-                        and HTTP status 200 if the project is found.
-                        JSON response with an error message and HTTP status 404
-                        if the project is not found.
+        flask.Response: JSON response containing a list of recording objects.
     """
-    # CoreProject handles its own session for loading and listing.
-    try:
-        core_proj = CoreProject(project_id=project_id)  # This might use get_db internally
-    except ValueError as e:
-        return jsonify({"error": str(e)}), 404
+    with get_db() as db:
+        try:
+            # Verify project exists
+            project = db.query(Project).filter(Project.id == project_id).first()
+            if not project:
+                return jsonify({"error": "Project not found"}), 404
 
-    recordings: List[RecordingModel] = core_proj.list_recordings()
-    return jsonify([model_to_dict(r) for r in recordings]), 200
+            # Get recordings for this project
+            recordings = db.query(Recording).filter(Recording.project_id == project_id).all()
+            return jsonify([model_to_dict(r) for r in recordings]), 200
+            
+        except Exception as e:
+            current_app.logger.error(f"Error listing recordings for project {project_id}: {str(e)}")
+            return jsonify({"error": "Failed to retrieve recordings"}), 500
 
 
 ALLOWED_EXTENSIONS: Set[str] = {'wav', 'aiff', 'wave', 'aif'}
 
 def allowed_file(filename: str) -> bool:
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+    """Check if uploaded file has an allowed extension."""
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 @projects_bp.route("/<int:project_id>/upload_audio", methods=["POST"])
 def upload_project_audio(project_id: int) -> Response:
-    """Handles audio file uploads for a specific project.
+    """Handles audio file uploads for a specific project via UI form.
 
+    SQLITE ONLY: This route uses SQLite database for recording metadata.
+    
     Expects 'multipart/form-data' with 'audio_file' and 'recording_name'.
-    Validates file type and saves the file, then adds recording metadata to DB.
-    This is similar to 'add_project_recording' but intended for use with
-    the UI form that specifies 'audio_file' and 'recording_name'.
+    Intended for use with the web UI.
 
     Args:
         project_id (int): The ID of the project to associate the audio with.
 
     Returns:
         flask.Response: Redirects to the import audio UI page with flash messages.
-                        Returns JSON error for critical issues like project not found.
     """
-    try:
-        # Validate project existence early. If project not found, UI context is lost.
-        core_proj = CoreProject(project_id=project_id)
-    except ValueError as e:
-        current_app.logger.info(f"Project ID {project_id} not found for audio upload: {e}")
-        # For this error, a JSON response is appropriate as the page context is invalid.
-        return jsonify({"error": f"Project with ID {project_id} not found."}), 404
+    # Validate project exists first
+    with get_db() as db:
+        project = db.query(Project).filter(Project.id == project_id).first()
+        if not project:
+            return jsonify({"error": f"Project with ID {project_id} not found."}), 404
 
-    redirect_url = url_for('ui_bp.import_project_audio_ui', project_id=project_id)
-
+    # For UI redirects - this would need the UI blueprint to exist
+    # For now, just return JSON responses
     if 'audio_file' not in request.files:
-        flash("No audio_file part in the request.", "error")
-        return redirect(redirect_url)
+        return jsonify({"error": "No audio_file part in the request"}), 400
 
     file = request.files['audio_file']
     recording_name: Optional[str] = request.form.get("recording_name")
 
     if not recording_name:
-        flash("Recording name ('recording_name') is required in form data.", "error")
-        return redirect(redirect_url)
+        return jsonify({"error": "Recording name ('recording_name') is required"}), 400
     if not file.filename:
-        flash("No selected file (filename is empty).", "error")
-        return redirect(redirect_url)
+        return jsonify({"error": "No selected file (filename is empty)"}), 400
 
     if not allowed_file(file.filename):
-        flash(f"File type not allowed. Allowed extensions: {', '.join(ALLOWED_EXTENSIONS)}", "error")
-        return redirect(redirect_url)
+        return jsonify({"error": f"File type not allowed. Allowed extensions: {', '.join(ALLOWED_EXTENSIONS)}"}), 400
 
-    project_upload_dir = ProjectManager.get_project_upload_dir(project_id, current_app.config)
+    # Create upload directory for project
+    upload_base = current_app.config.get("UPLOAD_FOLDER", "data/uploads")
+    project_upload_dir = os.path.join(upload_base, f"project_{project_id}")
 
     if not os.path.exists(project_upload_dir):
         try:
             os.makedirs(project_upload_dir)
             current_app.logger.info(f"Created upload directory: {project_upload_dir}")
         except OSError as e:
-            current_app.logger.error(
-                f"Error creating upload directory {project_upload_dir}: {e}", exc_info=True,
-            )
-            flash(f"Could not create upload directory: {e.strerror}", "error")
-            return redirect(redirect_url)
+            current_app.logger.error(f"Error creating upload directory {project_upload_dir}: {e}")
+            return jsonify({"error": "Could not create upload directory"}), 500
 
     filename = secure_filename(file.filename)
     file_path = os.path.join(project_upload_dir, filename)
@@ -479,318 +369,201 @@ def upload_project_audio(project_id: int) -> Response:
         file.save(file_path)
         current_app.logger.info(f"Audio file saved to {file_path} for project {project_id}")
     except Exception as e:
-        current_app.logger.error(
-            f"Error saving uploaded audio file to {file_path}: {e}", exc_info=True
-        )
-        flash(f"Could not save uploaded audio file: {str(e)}", "error")
-        return redirect(redirect_url)
+        current_app.logger.error(f"Error saving uploaded audio file to {file_path}: {e}")
+        return jsonify({"error": "Could not save uploaded audio file"}), 500
 
     try:
-        new_recording_model = core_proj.add_recording(file_path=file_path, name=recording_name)
-        current_app.logger.info(
-            f"Recording '{new_recording_model.name}' (ID: {new_recording_model.id}) "
-            f"added to project {project_id} via upload_project_audio endpoint."
-        )
-        flash(f"Audio '{new_recording_model.name}' uploaded successfully!", "success")
-        flash(f"Recording ID: {new_recording_model.id}, Name: {new_recording_model.name}, File: {new_recording_model.file_path}", "info")
-        return redirect(redirect_url)
-    except FileNotFoundError as e: # Should be rare
-        current_app.logger.error(
-            f"File not found during add_recording call for {file_path}: {e}", exc_info=True
-        )
-        if os.path.exists(file_path): # Attempt cleanup
-            try: os.remove(file_path)
-            except OSError as rm_e: current_app.logger.error(f"Error cleaning up {file_path}: {rm_e}")
-        flash(f"File operation error after save: {str(e)}", "error")
-        return redirect(redirect_url)
-    except Exception as e: # General DB or other core logic errors
-        current_app.logger.error(
-            f"Error adding recording DB entry for {file_path}: {e}", exc_info=True
-        )
-        if os.path.exists(file_path): # Attempt cleanup
-            try: os.remove(file_path)
-            except OSError as rm_e: current_app.logger.error(f"Error cleaning up {file_path}: {rm_e}")
-        flash(f"Could not add recording to database: {str(e)}", "error")
-        return redirect(redirect_url)
+        # SQLITE ONLY: Create recording in SQLite database
+        with get_db() as db:
+            recording = Recording(
+                project_id=project_id,
+                name=recording_name,
+                file_path=file_path,
+                processing_status="pending"
+            )
+            
+            db.add(recording)
+            db.commit()
+            db.refresh(recording)
+
+            current_app.logger.info(f"Recording '{recording.name}' (ID: {recording.id}) added to project {project_id}")
+            return jsonify({
+                "message": f"Audio '{recording.name}' uploaded successfully!",
+                "recording": model_to_dict(recording)
+            }), 201
+            
+    except Exception as e:
+        current_app.logger.error(f"Error adding recording to database: {e}")
+        # Clean up uploaded file if database operation failed
+        if os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+            except OSError:
+                pass
+        return jsonify({"error": "Could not add recording to database"}), 500
 
 
 # --- Standalone Recording and Sample Endpoints ---
-
 
 @recordings_bp.route("/<int:recording_id>", methods=["GET"])
 def get_recording_details(recording_id: int) -> Response:
     """Retrieves details for a specific recording by its ID.
 
-    Fetches a recording from the database based on its unique identifier.
+    SQLITE ONLY: This route fetches recordings from the SQLite database.
 
     Args:
         recording_id (int): The unique identifier of the recording to retrieve.
 
     Returns:
-        flask.Response: JSON response containing the recording object and HTTP
-                        status 200 if found.
-                        JSON response with an error message and HTTP status 404
-                        if the recording is not found.
+        flask.Response: JSON response containing the recording object.
     """
-    db_gen = get_db()
-    db: Session = next(db_gen)
-    try:
-        recording: Optional[RecordingModel] = (
-            db.query(RecordingModel).filter(RecordingModel.id == recording_id).first()
-        )
-        if not recording:
-            return jsonify({"error": "Recording not found"}), 404
-        return jsonify(model_to_dict(recording)), 200
-    finally:
-        next(db_gen, None)
+    with get_db() as db:
+        try:
+            recording = db.query(Recording).filter(Recording.id == recording_id).first()
+            if not recording:
+                return jsonify({"error": "Recording not found"}), 404
+            return jsonify(model_to_dict(recording)), 200
+        except Exception as e:
+            current_app.logger.error(f"Error retrieving recording {recording_id}: {str(e)}")
+            return jsonify({"error": "Internal server error"}), 500
 
 
 @recordings_bp.route("/<int:recording_id>/process", methods=["POST"])
 def process_recording_endpoint(recording_id: int) -> Response:
     """Initiates audio processing for a specific recording.
 
-    This endpoint allows processing of a recording using either a predefined
-    workflow or an ad-hoc chain of processing stages. The request body
-    must be JSON and specify either 'workflow_name' or 'stages_chain'.
+    SQLITE ONLY: This endpoint processes recordings using the SQLite database.
 
     Args:
         recording_id (int): The unique identifier of the recording to be processed.
-            The JSON payload can contain:
+            JSON payload can contain:
             - workflow_name (str, optional): Name of a registered workflow to run.
-            - stages_chain (List[Dict[str, Any]], optional): A list of stage
-              definitions for ad-hoc processing.
-            - output_dir_suffix (str, optional): Suffix for the output directory
-              where generated samples will be stored. Defaults to
-              "default_processing_output".
-            Example for workflow:
-            `{"workflow_name": "my_slicing_workflow"}`
-            Example for ad-hoc chain:
-            `{"stages_chain": [{"name": "slicer", "params": {"threshold": -40}}]}`
+            - stages_chain (List[Dict[str, Any]], optional): List of stage definitions.
+            - output_dir_suffix (str, optional): Output directory suffix.
 
     Returns:
-        flask.Response: JSON response with a success message, recording status,
-                        output location, and processing results (HTTP 200).
-                        JSON response with an error message (HTTP 400) for
-                        invalid request (e.g., missing JSON, bad parameters,
-                        workflow/stage not found, file issues).
-                        JSON response with an error message (HTTP 404) if the
-                        recording or its associated project is not found.
-                        JSON response with an error message (HTTP 500) for
-                        internal server errors during processing or file system
-                        operations.
+        flask.Response: JSON response with processing results.
     """
-    db_gen = get_db()
-    db: Session = next(db_gen)
-    try:
-        # --- Imports for this endpoint ---
-        from src.core.stage_runner import (
-            execute_stage_chain,
-            STAGE_REGISTRY,
-        )
-        from src.core.workflows import WORKFLOW_REGISTRY, BaseWorkflow
-        from src.core.processing_stages import DATA_TYPE_FILE_PATH
-        import src.core.stages.slicing_stage  # noqa: F401
-        import src.core.stages.noise_reduction_stage  # noqa: F401
-        import src.core.stages.decent_sampler_export_stage # noqa: F401
-
-        json_data: Optional[Dict[str, Any]] = request.get_json()
-        if not json_data:
-            return jsonify({"error": "Request body must be JSON."}), 400
-
-        workflow_name: Optional[str] = json_data.get("workflow_name")
-        stages_chain: Optional[List[Dict[str, Any]]] = json_data.get("stages_chain")
-        output_dir_suffix: str = json_data.get(
-            "output_dir_suffix", "default_processing_output"
-        )
-
-        recording: Optional[RecordingModel] = (
-            db.query(RecordingModel).filter(RecordingModel.id == recording_id).first()
-        )
-        if not recording:
-            return jsonify({"error": "Recording not found"}), 404
-        if not recording.project_id:
-            current_app.logger.error(
-                f"Recording {recording_id} is not associated with a project."
-            )
-            return (
-                jsonify(
-                    {"error": "Recording is not associated with a project, cannot process."}
-                ),
-                500,
-            )
-
-        project = (
-            db.query(ProjectModel).filter(ProjectModel.id == recording.project_id).first()
-        )
-        if not project:
-            current_app.logger.error(
-                f"Project {recording.project_id} associated with recording {recording_id} not found."
-            )
-            return (
-                jsonify({"error": f"Associated project {recording.project_id} not found."}),
-                500,
-            )
-
-        initial_data: Optional[str] = recording.file_path
-        initial_data_type: str = DATA_TYPE_FILE_PATH
-
-        if not initial_data or not os.path.exists(initial_data):
-            current_app.logger.error(
-                f"Recording file path '{initial_data}' for recording {recording_id} not found or is invalid."
-            )
-            return (
-                jsonify(
-                    {"error": f"Recording file path not found or invalid: {initial_data}"}
-                ),
-                400,
-            )
-
-        samples_base_dir = current_app.config.get("SAMPLES_BASE_DIR", DEFAULT_SAMPLES_BASE_DIR)
-        project_samples_dir = os.path.join(samples_base_dir, f"project_{recording.project_id}")
-        recording_samples_dir = os.path.join(project_samples_dir, f"recording_{recording.id}")
-        output_sample_dir_for_run = os.path.join(recording_samples_dir, output_dir_suffix)
-
+    with get_db() as db:
         try:
-            os.makedirs(output_sample_dir_for_run, exist_ok=True)
-            current_app.logger.info(
-                f"Ensured output directory exists: {output_sample_dir_for_run}"
-            )
-        except OSError as e:
-            current_app.logger.error(
-                f"Error creating output directory {output_sample_dir_for_run}: {e}",
-                exc_info=True,
-            )
-            return jsonify({"error": f"Could not create output directory: {e.strerror}"}), 500
-
-        context = {
-            "db_session": db,
-            "project_id": recording.project_id,
-            "recording_id": recording.id,
-            "output_sample_dir": output_sample_dir_for_run,
-        }
-
-        processing_result: Any = None
-        processing_type: Optional[str] = None
-
-        if workflow_name:
-            processing_type = f"workflow '{workflow_name}'"
-            WorkflowClass: Optional[type[BaseWorkflow]] = WORKFLOW_REGISTRY.get(workflow_name)
-            if not WorkflowClass:
-                available_workflows: List[str] = list(WORKFLOW_REGISTRY.keys())
-                return (
-                    jsonify(
-                        {
-                            "error": f"Workflow '{workflow_name}' not found. Available workflows: {available_workflows}"
-                        }
-                    ),
-                    400,
-                )
+            # Import audio processing modules
+            from src.core.stage_runner import execute_stage_chain, STAGE_REGISTRY
+            from src.core.workflows import WORKFLOW_REGISTRY, BaseWorkflow
+            from src.core.processing_stages import DATA_TYPE_FILE_PATH
+            
+            # Import specific stages to ensure they're registered
             try:
-                workflow_instance = WorkflowClass()
-                current_app.logger.info(
-                    f"Executing {processing_type} for recording {recording_id}."
-                )
+                import src.core.stages.slicing_stage  # noqa: F401
+                import src.core.stages.noise_reduction_stage  # noqa: F401
+                import src.core.stages.decent_sampler_export_stage  # noqa: F401
+            except ImportError as e:
+                current_app.logger.warning(f"Some processing stages could not be imported: {e}")
+
+            json_data = request.get_json()
+            if not json_data:
+                return jsonify({"error": "Request body must be JSON"}), 400
+
+            workflow_name = json_data.get("workflow_name")
+            stages_chain = json_data.get("stages_chain")
+            output_dir_suffix = json_data.get("output_dir_suffix", "default_processing_output")
+
+            # Get recording and validate
+            recording = db.query(Recording).filter(Recording.id == recording_id).first()
+            if not recording:
+                return jsonify({"error": "Recording not found"}), 404
+
+            if not recording.project_id:
+                return jsonify({"error": "Recording is not associated with a project"}), 500
+
+            # Get associated project
+            project = db.query(Project).filter(Project.id == recording.project_id).first()
+            if not project:
+                return jsonify({"error": f"Associated project {recording.project_id} not found"}), 500
+
+            # Validate file exists
+            if not recording.file_path or not os.path.exists(recording.file_path):
+                return jsonify({"error": f"Recording file not found: {recording.file_path}"}), 400
+
+            # Set up output directory
+            samples_base_dir = current_app.config.get("SAMPLES_BASE_DIR", DEFAULT_SAMPLES_BASE_DIR)
+            output_sample_dir = os.path.join(
+                samples_base_dir, 
+                f"project_{recording.project_id}",
+                f"recording_{recording.id}",
+                output_dir_suffix
+            )
+
+            try:
+                os.makedirs(output_sample_dir, exist_ok=True)
+                current_app.logger.info(f"Created output directory: {output_sample_dir}")
+            except OSError as e:
+                current_app.logger.error(f"Error creating output directory: {e}")
+                return jsonify({"error": "Could not create output directory"}), 500
+
+            # Set up processing context
+            context = {
+                "db_session": db,
+                "project_id": recording.project_id,
+                "recording_id": recording.id,
+                "output_sample_dir": output_sample_dir,
+            }
+
+            # Execute processing
+            if workflow_name:
+                workflow_class = WORKFLOW_REGISTRY.get(workflow_name)
+                if not workflow_class:
+                    available = list(WORKFLOW_REGISTRY.keys())
+                    return jsonify({
+                        "error": f"Workflow '{workflow_name}' not found. Available: {available}"
+                    }), 400
+
+                workflow_instance = workflow_class()
                 processing_result = workflow_instance.run(
-                    initial_data=initial_data,
-                    initial_data_type=initial_data_type,
-                    context=context,
+                    initial_data=recording.file_path,
+                    initial_data_type=DATA_TYPE_FILE_PATH,
+                    context=context
                 )
-            except Exception as e:
-                current_app.logger.error(
-                    f"Error executing {processing_type} for recording {recording_id}: {e}",
-                    exc_info=True,
-                )
-                return (
-                    jsonify({"error": f"Failed to execute {processing_type}: {str(e)}"}),
-                    500,
-                )
-        elif stages_chain:
-            if not isinstance(stages_chain, list):
-                return (
-                    jsonify({"error": "'stages_chain' must be a list of stage definitions."}),
-                    400,
-                )
-            processing_type = "ad-hoc stage chain"
-            try:
-                current_app.logger.info(
-                    f"Executing {processing_type} for recording {recording_id}. Chain: {stages_chain}"
-                )
-                processing_result = execute_stage_chain(
-                    initial_data=initial_data,
-                    initial_data_type=initial_data_type,
-                    chain_definition=stages_chain,
-                    context=context,
-                )
-            except ValueError as e:
-                current_app.logger.error(
-                    f"Configuration error in {processing_type} for recording {recording_id}: {e}",
-                    exc_info=True,
-                )
-                return (
-                    jsonify(
-                        {
-                            "error": f"Configuration error in stage chain: {str(e)}. Available stages: {list(STAGE_REGISTRY.keys())}"
-                        }
-                    ),
-                    400,
-                )
-            except TypeError as e:
-                current_app.logger.error(
-                    f"Type mismatch error in {processing_type} for recording {recording_id}: {e}",
-                    exc_info=True,
-                )
-                return jsonify({"error": f"Type mismatch in stage chain: {str(e)}"}), 400
-            except Exception as e:
-                current_app.logger.error(
-                    f"Error executing {processing_type} for recording {recording_id}: {e}",
-                    exc_info=True,
-                )
-                return (
-                    jsonify({"error": f"Failed to execute {processing_type}: {str(e)}"}),
-                    500,
-                )
-        else:
-            return (
-                jsonify(
-                    {
-                        "error": "Either 'workflow_name' or 'stages_chain' must be provided in the request body."
-                    }
-                ),
-                400,
-            )
+                processing_type = f"workflow '{workflow_name}'"
 
-        db.refresh(recording)
-        return (
-            jsonify(
-                {
-                    "message": f"Processing via {processing_type} completed for recording {recording_id}.",
-                    "recording_status": recording.status,
-                    "output_location": output_sample_dir_for_run,
-                    "result_summary": f"Output type: {type(processing_result).__name__}, items: {len(processing_result) if isinstance(processing_result, list) else 'N/A'}",
-                    "result": (
-                        processing_result
-                        if isinstance(processing_result, (list, dict))
-                        else str(processing_result)
-                    ),
-                }
-            ),
-            200,
-        )
-    except Exception as e:
-        current_app.logger.error(
-            f"Critical error in process_recording_endpoint for recording {recording_id}: {e}",
-            exc_info=True,
-        )
-        return jsonify({"error": f"An unexpected server error occurred: {str(e)}"}), 500
-    finally:
-        next(db_gen, None)
+            elif stages_chain:
+                if not isinstance(stages_chain, list):
+                    return jsonify({"error": "'stages_chain' must be a list"}), 400
+
+                processing_result = execute_stage_chain(
+                    initial_data=recording.file_path,
+                    initial_data_type=DATA_TYPE_FILE_PATH,
+                    chain_definition=stages_chain,
+                    context=context
+                )
+                processing_type = "ad-hoc stage chain"
+
+            else:
+                return jsonify({
+                    "error": "Either 'workflow_name' or 'stages_chain' must be provided"
+                }), 400
+
+            # Update recording status
+            recording.processing_status = "completed"
+            db.commit()
+
+            return jsonify({
+                "message": f"Processing via {processing_type} completed for recording {recording_id}",
+                "recording_status": recording.processing_status,
+                "output_location": output_sample_dir,
+                "result_summary": f"Output type: {type(processing_result).__name__}",
+                "result": processing_result if isinstance(processing_result, (list, dict)) else str(processing_result)
+            }), 200
+
+        except Exception as e:
+            current_app.logger.error(f"Error processing recording {recording_id}: {e}")
+            return jsonify({"error": f"Processing failed: {str(e)}"}), 500
 
 
 @recordings_bp.route("/<int:recording_id>/samples", methods=["GET"])
 def list_recording_samples(recording_id: int) -> Response:
     """Lists all samples associated with a specific recording.
 
-    Retrieves metadata for all samples linked to the given recording ID.
+    SQLITE ONLY: This route lists samples from the SQLite database.
 
     Args:
         recording_id (int): The unique identifier of the recording whose
@@ -802,27 +575,25 @@ def list_recording_samples(recording_id: int) -> Response:
                         JSON response with an error message and HTTP status 404
                         if the recording is not found.
     """
-    db_gen = get_db()
-    db: Session = next(db_gen)
-    try:
-        recording: Optional[RecordingModel] = (
-            db.query(RecordingModel).filter(RecordingModel.id == recording_id).first()
-        )
-        if not recording:
-            return jsonify({"error": "Recording not found"}), 404
-        samples: List[SampleModel] = (
-            db.query(SampleModel).filter(SampleModel.recording_id == recording_id).all()
-        )
-        return jsonify([model_to_dict(s) for s in samples]), 200
-    finally:
-        next(db_gen, None)
+    with get_db() as db:
+        try:
+            recording = db.query(Recording).filter(Recording.id == recording_id).first()
+            if not recording:
+                return jsonify({"error": "Recording not found"}), 404
+                
+            samples = db.query(Sample).filter(Sample.recording_id == recording_id).all()
+            return jsonify([model_to_dict(s) for s in samples]), 200
+            
+        except Exception as e:
+            current_app.logger.error(f"Error listing samples for recording {recording_id}: {str(e)}")
+            return jsonify({"error": "Failed to retrieve samples"}), 500
 
 
 @samples_bp.route("/<int:sample_id>", methods=["GET"])
 def get_sample_details(sample_id: int) -> Response:
     """Retrieves details for a specific sample by its ID.
 
-    Fetches a sample from the database based on its unique identifier.
+    SQLITE ONLY: This route fetches samples from the SQLite database.
 
     Args:
         sample_id (int): The unique identifier of the sample to retrieve.
@@ -833,14 +604,12 @@ def get_sample_details(sample_id: int) -> Response:
                         JSON response with an error message and HTTP status 404
                         if the sample is not found.
     """
-    db_gen = get_db()
-    db: Session = next(db_gen)
-    try:
-        sample: Optional[SampleModel] = (
-            db.query(SampleModel).filter(SampleModel.id == sample_id).first()
-        )
-        if not sample:
-            return jsonify({"error": "Sample not found"}), 404
-        return jsonify(model_to_dict(sample)), 200
-    finally:
-        next(db_gen, None)
+    with get_db() as db:
+        try:
+            sample = db.query(Sample).filter(Sample.id == sample_id).first()
+            if not sample:
+                return jsonify({"error": "Sample not found"}), 404
+            return jsonify(model_to_dict(sample)), 200
+        except Exception as e:
+            current_app.logger.error(f"Error retrieving sample {sample_id}: {str(e)}")
+            return jsonify({"error": "Internal server error"}), 500

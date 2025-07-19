@@ -4,6 +4,8 @@ import re
 import mido
 import logging  # Added logging
 import io  # Added io
+from sqlalchemy.orm import Session  # Added Session import
+from src.database.models import MidiDevice  # Added MidiDevice import
 
 # Configure basic logging
 # In a larger application, this would likely be configured in a central place.

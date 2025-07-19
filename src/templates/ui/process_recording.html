@@ -1,15 +1,20 @@
 {% extends "base.html" %}
 
-{% block title %}Process Recording - {{ recording.name }} - Orchestrator UI{% endblock %}
+{% block title %}Process Recording - {{ recording['name'] }} - Orchestrator UI{% endblock %}
 
 {% block content %}
-<h2>Process Recording: {{ recording.name }}</h2>
-<p><strong>Project:</strong> <a href="{{ url_for('ui_bp.dashboard', project_id=project.id) }}">{{ project.name }}</a></p>
+{% if error %}
+  <div class="alert alert-danger" role="alert">
+    {{ error }}
+  </div>
+{% endif %}
+<h2>Process Recording: {{ recording['name'] }}</h2>
+<p><strong>Project:</strong> <a href="{{ url_for('ui_bp.dashboard', project_id=project['id']) }}">{{ project['name'] }}</a></p>
 
 <div class="row">
     <div class="col-md-6">
         <h3>Using a Workflow</h3>
-        <form method="post" action="{{ url_for('ui_bp.process_recording_submit', project_id=project.id, recording_id=recording.id) }}">
+        <form method="post" action="{{ url_for('ui_bp.process_recording_submit', project_id=project['id'], recording_id=recording['id']) }}">
             <div class="form-group">
                 <label for="workflow_name">Select a Workflow:</label>
                 <select class="form-control" id="workflow_name" name="workflow_name">
@@ -23,7 +28,7 @@
                 <h4>Decent Sampler Instrument Details</h4>
                 <div class="form-group">
                     <label for="instrument_name">Instrument Name:</label>
-                    <input type="text" class="form-control" id="instrument_name" name="instrument_name" value="{{ recording.name }} Instrument">
+                    <input type="text" class="form-control" id="instrument_name" name="instrument_name" value="{{ recording['name'] }} Instrument">
                 </div>
                 <div class="form-group">
                     <label for="instrument_author">Author:</label>
@@ -92,7 +97,7 @@
     </tbody>
 </table>
 
-<p><a href="{{ url_for('ui_bp.dashboard', project_id=project.id) }}">Back to Dashboard</a></p>
+<p><a href="{{ url_for('ui_bp.dashboard', project_id=project['id']) }}">Back to Dashboard</a></p>
 {% endblock %}
 
 {% block scripts %}

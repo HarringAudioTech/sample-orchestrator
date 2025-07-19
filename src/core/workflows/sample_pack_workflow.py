@@ -8,6 +8,10 @@ organized sample packs with proper categorization and metadata.
 import os
 import logging
 from typing import Dict, Any, List, Optional
+from sqlalchemy.orm import Session
+
+# Import database models
+from src.database.models import ProjectType, SamplePack
 
 # Import processing stages
 from src.core.stages.onset_detection_stage import OnsetDetectionStage

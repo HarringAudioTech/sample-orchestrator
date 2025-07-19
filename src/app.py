@@ -4,16 +4,22 @@ It defines the application factory `create_app` which initializes the Flask app,
 configures it, sets up database connections, registers API blueprints,
 and defines basic error handlers and a root route.
 
+IMPORTANT: This application ONLY supports SQLite as the database backend.
+Do not attempt to configure PostgreSQL, MySQL, or any other database engine.
+
 The application can be run directly using `python -m src.app` for development.
 """
 
 import os
+import logging
 
-# g is not used in current session management
 from flask import Flask, jsonify, request
 from src.api.routes import projects_bp, recordings_bp, samples_bp
 from src.ui.routes import ui_bp  # Import the UI blueprint
-from src.ui.test_bp import test_bp  # Import the test blueprint
+# from src.ui.test_bp import test_bp  # Import the test blueprint - temporarily disabled
+
+# SQLITE ONLY: Import SQLite database utilities
+from src.database.utils import init_database, check_database_health
 
 
 # --- Application Factory ---
@@ -54,28 +60,42 @@ def create_app() -> Flask:
     # __file__ is src/app.py, so project_root is one level up.
     project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
+    # Flask configuration
+    app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY', 'dev-key-for-testing-only')
+    
+    # Application paths
     app.config["UPLOAD_FOLDER"] = os.path.join(project_root, "data", "uploads")
     app.config["SAMPLES_BASE_DIR"] = os.path.join(project_root, "data", "projects")
-    # Example: app.config['DATABASE_URL'] = os.environ.get('DATABASE_URL', 'sqlite:///./default.db')
-    # The actual DATABASE_URL is currently hardcoded in src/database/utils.py
-
+    
+    # SQLITE ONLY: Database configuration
+    app.config["DATABASE_PATH"] = os.path.join(project_root, "data", "database.db")
+    
+    # API configuration
+    app.config["API_BASE_URL"] = os.environ.get("API_BASE_URL", "http://localhost:5000")
+    
     app.logger.info(f"UPLOAD_FOLDER set to: {app.config['UPLOAD_FOLDER']}")
-    app.logger.info(
-        f"SAMPLES_BASE_DIR set to: {app.config['SAMPLES_BASE_DIR']}"
-    )
+    app.logger.info(f"SAMPLES_BASE_DIR set to: {app.config['SAMPLES_BASE_DIR']}")
+    app.logger.info(f"SQLite DATABASE_PATH set to: {app.config['DATABASE_PATH']}")
 
-    # --- Database Initialization ---
-    # This is called every time create_app() is run.
-    # init_db() itself is idempotent (CREATE TABLE IF NOT EXISTS).
-    # For development, this is convenient. For production, consider CLI
-    # commands.
-    #
-    # Previously, database initialization (init_db()) was called here
-    # within an app_context. This has been removed to prevent automatic
-    # database creation on app startup.
-    # Database initialization should now be handled manually,
-    # e.g., by running `python -m src.database.utils`
-    # or using a dedicated CLI command/migration tool (like Alembic).
+    # --- SQLite Database Initialization ---
+    # SQLITE ONLY: Initialize the SQLite database on application startup
+    # This is safe for development and production as init_database() is idempotent
+    try:
+        with app.app_context():
+            database_path = app.config.get("DATABASE_PATH")
+            init_database(database_path=database_path)
+            app.logger.info("SQLite database initialized successfully")
+            
+            # Verify database health
+            if check_database_health():
+                app.logger.info("SQLite database health check passed")
+            else:
+                app.logger.warning("SQLite database health check failed")
+                
+    except Exception as e:
+        app.logger.error(f"Failed to initialize SQLite database: {e}")
+        # Don't raise here to allow app to start even if DB fails
+        # Routes will handle database errors gracefully
 
     # --- Request-scoped Database Session (Alternative) ---
     # The current approach in routes.py is to create/close sessions per route.
@@ -106,9 +126,9 @@ def create_app() -> Flask:
         f"UI Blueprint registered with prefix /ui. Templates expected at {ui_bp.template_folder} relative to blueprint, and {app.template_folder} relative to app root."
     )
     
-    # Register test blueprint
-    app.register_blueprint(test_bp)
-    app.logger.info("Test Blueprint registered with prefix /test")
+    # Register test blueprint - temporarily disabled
+    # app.register_blueprint(test_bp)
+    # app.logger.info("Test Blueprint registered with prefix /test")
 
     # --- Basic Error Handling ---
     @app.errorhandler(404)

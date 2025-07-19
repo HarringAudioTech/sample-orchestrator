@@ -2,7 +2,9 @@ import os
 
 # import wave # Removed
 import logging  # Added logging
-from typing import List
+from typing import List, Optional
+from sqlalchemy.orm import Session  # Added Session import
+from src.database.models import Recording, MidiDevice, MidiCaptureSession, MidiFile  # Added model imports
 from src.core.midi_capture import (
     MidiRecorder,
     list_available_midi_devices,
@@ -100,7 +102,7 @@ class Project:
                 except StopIteration:  # Handle if generator is already exhausted
                     pass
 
-    def add_recording(self, file_path: str, name: str) -> RecordingModel:
+    def add_recording(self, file_path: str, name: str) -> Recording:
         """Adds a new audio recording to this project.
 
         This method processes a new audio file, extracts its metadata (duration,
@@ -232,7 +234,7 @@ class Project:
                 except StopIteration:
                     pass
 
-    def get_recording(self, recording_id: int) -> RecordingModel | None:
+    def get_recording(self, recording_id: int) -> Recording | None:
         """Retrieves a specific recording by its ID, ensuring it belongs to this project.
 
         This method queries the database for a `RecordingModel` that matches both
@@ -303,7 +305,7 @@ class Project:
                 except StopIteration:
                     pass
 
-    def list_recordings(self) -> list[RecordingModel]:
+    def list_recordings(self) -> list[Recording]:
         """Lists all audio recordings associated with the current project.
 
         This method queries the database for all `RecordingModel` entries that
@@ -474,7 +476,7 @@ class Project:
 
     # --- MIDI Capture Related Methods ---
 
-    def list_midi_devices(self) -> List[MidiDeviceModel]:
+    def list_midi_devices(self) -> List[MidiDevice]:
         """Lists available MIDI input devices and synchronizes them with the database.
 
         This method acts as a wrapper around `midi_capture.list_available_midi_devices`.
@@ -636,7 +638,7 @@ class Project:
                 except StopIteration:
                     pass
 
-    def list_midi_capture_sessions(self) -> List[MidiCaptureSessionModel]:
+    def list_midi_capture_sessions(self) -> List[MidiCaptureSession]:
         """Lists all MIDI capture sessions associated with the current project.
 
         This method queries the database for all `MidiCaptureSessionModel`
@@ -652,7 +654,7 @@ class Project:
             None.
 
         Returns:
-            List[MidiCaptureSessionModel]: A list of `MidiCaptureSessionModel`
+            List[MidiCaptureSession]: A list of `MidiCaptureSession`
                 SQLAlchemy instances. If no MIDI capture sessions are found for
                 the project, an empty list is returned.
 
@@ -677,10 +679,10 @@ class Project:
             logger.debug("Using self.db session for list_midi_capture_sessions.")
 
         try:
-            sessions: List[MidiCaptureSessionModel] = (
-                _db_to_use.query(MidiCaptureSessionModel)
-                .filter(MidiCaptureSessionModel.project_id == self.project_id)
-                .order_by(MidiCaptureSessionModel.created_at.desc())
+            sessions: List[MidiCaptureSession] = (
+                _db_to_use.query(MidiCaptureSession)
+                .filter(MidiCaptureSession.project_id == self.project_id)
+                .order_by(MidiCaptureSession.created_at.desc())
                 .all()
             )
             logger.debug(
@@ -702,7 +704,7 @@ class Project:
                 except StopIteration:
                     pass
 
-    def get_midi_capture_session(self, session_id: int) -> MidiCaptureSessionModel | None:
+    def get_midi_capture_session(self, session_id: int) -> Optional[MidiCaptureSession]:
         """Retrieves a specific MIDI capture session by ID, ensuring it belongs to this project.
 
         This method queries the database for a `MidiCaptureSessionModel` that
@@ -718,7 +720,7 @@ class Project:
                               to retrieve.
 
         Returns:
-            Optional[MidiCaptureSessionModel]: The `MidiCaptureSessionModel`
+            Optional[MidiCaptureSession]: The `MidiCaptureSession`
                 SQLAlchemy instance if a session with the specified ID is found
                 and is part of the current project. Returns `None` otherwise.
 
@@ -745,11 +747,11 @@ class Project:
             logger.debug("Using self.db session for get_midi_capture_session.")
 
         try:
-            session: MidiCaptureSessionModel | None = (
-                _db_to_use.query(MidiCaptureSessionModel)
+            session: Optional[MidiCaptureSession] = (
+                _db_to_use.query(MidiCaptureSession)
                 .filter(
-                    MidiCaptureSessionModel.id == session_id,
-                    MidiCaptureSessionModel.project_id == self.project_id,
+                    MidiCaptureSession.id == session_id,
+                    MidiCaptureSession.project_id == self.project_id,
                 )
                 .first()
             )
@@ -775,7 +777,7 @@ class Project:
                 except StopIteration:
                     pass
 
-    def get_midi_files_for_session(self, session_id: int) -> List[MidiFileModel]:
+    def get_midi_files_for_session(self, session_id: int) -> List[MidiFile]:
         """Retrieves all MIDI data files associated with a specific MIDI capture session.
 
         This method performs two main database queries:
@@ -799,7 +801,7 @@ class Project:
                               for which to retrieve associated MIDI files.
 
         Returns:
-            List[MidiFileModel]: A list of `MidiFileModel` SQLAlchemy instances.
+            List[MidiFile]: A list of `MidiFile` SQLAlchemy instances.
                 Each instance corresponds to a MIDI file recorded during the
                 specified session and contains the binary MIDI data. Returns an
                 empty list if the session is invalid (not found or not part of
@@ -828,11 +830,11 @@ class Project:
             logger.debug("Using self.db session for get_midi_files_for_session.")
 
         try:
-            capture_session: MidiCaptureSessionModel | None = (
-                _db_to_use.query(MidiCaptureSessionModel)
+            capture_session: Optional[MidiCaptureSession] = (
+                _db_to_use.query(MidiCaptureSession)
                 .filter(
-                    MidiCaptureSessionModel.id == session_id,
-                    MidiCaptureSessionModel.project_id == self.project_id,
+                    MidiCaptureSession.id == session_id,
+                    MidiCaptureSession.project_id == self.project_id,
                 )
                 .first()
             )

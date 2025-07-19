@@ -3,6 +3,11 @@
 {% block title %}Create New Project - Orchestrator UI{% endblock %}
 
 {% block content %}
+  {% if error %}
+    <div class="alert alert-danger" role="alert">
+      {{ error }}
+    </div>
+  {% endif %}
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
       <ul class=flashes>
