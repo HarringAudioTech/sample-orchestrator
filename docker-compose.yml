@@ -6,7 +6,7 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "5000:5000"
+      - "8000:5000"
     volumes:
       - .:/app  # Map current directory to /app for live code reloading
       - ./data:/app/data  # Persist data in ./data directory on the host

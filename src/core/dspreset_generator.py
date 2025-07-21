@@ -4,10 +4,10 @@ import shutil
 from src.core.project import Project
 from src.core.instrument_data import InstrumentData
 from src.database.models import (
-    Recording as RecordingModel,
-    Sample as SampleModel,
-    # SampleMapping as SampleMappingModel, # Not directly used in this file
-    SampleMappingItem as SampleMappingItemModel,
+    RecordingModel,
+    SampleModel,
+    # SampleMappingModel,  # Not directly used in this file
+    SampleMappingItemModel,
 )
 from typing import List, Optional  # For type hinting
 

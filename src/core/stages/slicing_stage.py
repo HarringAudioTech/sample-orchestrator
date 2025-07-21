@@ -23,9 +23,9 @@ from src.utils.audio_utils import is_test_environment
 # Local imports
 from src.core.processing_stages import AudioProcessingStage, register_stage
 from src.database.models import (
-    Sample as SampleModel,
-    SamplePack,
-    Recording as RecordingModel,
+    SampleModel,
+    SamplePackModel,
+    RecordingModel,
     SamplePackStatus,
 )
 from src.utils.audio_utils import is_test_environment
@@ -250,9 +250,9 @@ class SlicingStage(AudioProcessingStage):
 
     def _create_sample_pack(
         self, db_session: Session, project_id: int, name: str, description: str = ""
-    ) -> SamplePack:
+    ) -> SamplePackModel:
         """Create a new sample pack for the current project."""
-        sample_pack = SamplePack(
+        sample_pack = SamplePackModel(
             project_id=project_id,
             name=name,
             description=description,

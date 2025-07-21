@@ -9,6 +9,11 @@ import os
 import logging
 from typing import Dict, Any, List, Optional
 
+from sqlalchemy.orm import Session
+
+# Import models
+from src.database.models import ProjectType, SamplePackStatus, SamplePackModel
+
 # Import processing stages
 from src.core.stages.onset_detection_stage import OnsetDetectionStage
 from src.core.stages.slice_planning_stage import SlicePlanningStage
@@ -150,7 +155,7 @@ class SamplePackWorkflow:
 
     def _create_sample_pack(
         self, id: int, name: str, description: str = "", status: str = "draft", project_type: str = ProjectType.SAMPLE_PACK
-    ) -> SamplePack:
+    ) -> SamplePackModel:
         """
         Create a new sample pack in the database.
 
@@ -162,9 +167,9 @@ class SamplePackWorkflow:
             project_type: Type of the project
 
         Returns:
-            The created SamplePack instance
+            The created SamplePackModel instance
         """
-        sample_pack = SamplePack(
+        sample_pack = SamplePackModel(
             id=id,
             name=name,
             description=description,
