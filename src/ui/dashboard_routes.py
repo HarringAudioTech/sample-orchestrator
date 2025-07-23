@@ -2,6 +2,10 @@
 import datetime
 from flask import render_template, abort
 
+# Add missing imports
+from src.database.utils import get_db
+from src.database.models import ProjectModel
+
 def init_dashboard_routes(ui_bp):
     """Initialize dashboard routes for the given UI blueprint.
     
@@ -24,9 +28,9 @@ def init_dashboard_routes(ui_bp):
                  is set to "Dashboard - {project.name}".
         """
         print(f"DEBUG: Dashboard route called with project_id={project_id}")
-        db_session_generator = get_db()
-        db = next(db_session_generator)
-        try:
+        
+        # Use get_db() as a context manager
+        with get_db() as db:
             print(f"DEBUG: Querying for project with id={project_id}")
             project = db.query(ProjectModel).filter(ProjectModel.id == project_id).first()
             print(f"DEBUG: Project query result: {project}")
@@ -39,6 +43,7 @@ def init_dashboard_routes(ui_bp):
             recordings = project.recordings
             print(f"DEBUG: Found {len(recordings)} recordings")
 
+            # Return the rendered template with the project data and current datetime
             return render_template(
                 "dashboard.html",
                 title=f"Dashboard - {project.name}",
@@ -46,11 +51,3 @@ def init_dashboard_routes(ui_bp):
                 recordings=recordings,
                 now=datetime.datetime.now()
             )
-        except Exception as e:
-            print(f"ERROR in dashboard route: {str(e)}")
-            raise
-        finally:
-            try:
-                next(db_session_generator)  # Ensure the finally block in get_db is executed
-            except StopIteration:
-                pass

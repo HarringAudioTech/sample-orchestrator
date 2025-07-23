@@ -18,15 +18,20 @@ logger = logging.getLogger(__name__)
 # Define the SQLAlchemy base class for models
 Base = declarative_base()
 
-# Hardcoded database URL - this matches the comment in app.py
-DATABASE_URL = "sqlite:///./data/app.db"
+import os
+
+# Get database URL from environment variable or use default
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./data/orchestrator.db")
+
+# Ensure the directory exists
+os.makedirs(os.path.dirname(DATABASE_URL.replace("sqlite:///", "").split("?")[0]), exist_ok=True)
 
 # Create engine with connection pool settings appropriate for Flask
 engine = create_engine(
     DATABASE_URL,
     connect_args={"check_same_thread": False},  # Needed for SQLite
     pool_pre_ping=True,
-    echo=False,  # Set to True for SQL debug logging
+    echo=os.getenv("SQL_ECHO", "false").lower() == "true",  # Enable SQL logging if SQL_ECHO=true
 )
 
 # Create a sessionmaker factory that will be used to create sessions

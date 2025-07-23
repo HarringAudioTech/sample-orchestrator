@@ -9,6 +9,8 @@ from flask import Blueprint, request, jsonify, current_app, flash, redirect, url
 from werkzeug.utils import secure_filename
 from src.core.project import Project as CoreProject
 from src.core.project_manager import ProjectManager
+from src.database.utils import get_db
+from src.database.models import ProjectModel, RecordingModel, ProjectType, SamplePackModel, VirtualInstrumentModel
 
 # --- Configuration ---
 # Default paths for generated samples if not set in app config.
@@ -129,8 +131,9 @@ def create_project() -> Response:
         
     # Validate project_type
     project_type = data.get("project_type")
-    if project_type not in ["sample_pack", "virtual_instrument"]:
-        return jsonify({"error": "Invalid project_type. Must be 'sample_pack' or 'virtual_instrument'"}), 400
+    valid_types = [pt.value for pt in ProjectType]
+    if project_type not in valid_types:
+        return jsonify({"error": f"Invalid project_type. Must be one of: {', '.join(valid_types)}"}), 400
         
     # Validate virtual instrument specific fields if applicable
     if project_type == "virtual_instrument":
@@ -161,7 +164,7 @@ def create_project() -> Response:
                 "metadata_json": metadata_json
             }
             
-            if project_type == ProjectType.VIRTUAL_INSTRUMENT:
+            if project_type == ProjectType.VIRTUAL_INSTRUMENT.value:
                 project = VirtualInstrumentModel(
                     **common_args,
                     base_note=data.get("base_note"),

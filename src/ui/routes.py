@@ -2,11 +2,16 @@
 
 # Standard library imports
 from typing import List, Optional
+from datetime import datetime
 
 # Third-party imports
 from flask import Blueprint, render_template, abort, request, url_for, redirect, flash, current_app
 from werkzeug.exceptions import HTTPException
 import requests
+
+# Local application imports
+from src.database.utils import get_db
+from src.database.models import ProjectModel, RecordingModel, ProjectType
 
 # Local application imports
 from src.core.stage_runner import STAGE_REGISTRY
@@ -42,15 +47,35 @@ def test_route() -> str:
 def index() -> str:
     """Renders the main entry page for the UI blueprint.
 
-    Currently, this route renders the "dashboard.html" template, effectively
-    making the dashboard the landing page for the `/ui/` URL prefix.
-    In the future, this could be changed to render a dedicated welcome or
-    index page for the UI section.
+    This route shows a list of all projects. If there are no projects,
+    it shows a welcome message with a button to create a new project.
 
     Returns:
-        str: The rendered HTML content of the dashboard page.
+        str: The rendered HTML content of the project list page.
     """
-    return render_template("dashboard.html", title="Welcome")
+    # Import datetime at the top of the file if not already imported
+    from datetime import datetime
+    
+    # Get database session using context manager
+    with get_db() as db:
+        try:
+            # Query all projects, ordered by most recently created
+            projects = db.query(ProjectModel).order_by(ProjectModel.created_at.desc()).all()
+            return render_template(
+                "ui/project_list.html", 
+                title="My Projects", 
+                projects=projects,
+                now=datetime.utcnow()
+            )
+        except Exception as e:
+            current_app.logger.error(f"Error fetching projects: {str(e)}")
+            flash("An error occurred while loading projects. Please try again.", "error")
+            return render_template(
+                "ui/project_list.html", 
+                title="My Projects", 
+                projects=[],
+                now=datetime.utcnow()
+            )
 
 @ui_bp.route("/projects/new", methods=["GET"])
 def create_project_form() -> str:
@@ -68,7 +93,16 @@ def create_project_form() -> str:
         str: The rendered HTML content of the new project creation page.
              The page title is set to "Create Project".
     """
-    return render_template("create_project.html", title="Create Project")
+    from datetime import datetime
+    from src.database.models import ProjectType
+    
+    return render_template(
+        "create_project.html", 
+        title="Create Project",
+        now=datetime.utcnow(),
+        project_types=[t.value for t in ProjectType],
+        selected_type=ProjectType.SAMPLE_PACK.value
+    )
 
 
 @ui_bp.route("/projects/create", methods=["POST"])
@@ -83,14 +117,34 @@ def create_project_submit():
 
     if not project_name:
         flash("Project name is required.", "error")
-        return redirect(url_for('ui_bp.create_project_form'))
+        from datetime import datetime
+        return render_template(
+            "create_project.html",
+            title="Create Project",
+            now=datetime.utcnow(),
+            project_name=project_name,
+            project_description=project_description
+        )
 
-    api_url = f"http://localhost:5000/projects" # Assuming API runs on localhost:5000
-    payload = {"name": project_name, "description": project_description}
+    from datetime import datetime
+    from src.database.models import ProjectType
+    
+    # Default to SAMPLE_PACK as the project type
+    project_type = ProjectType.SAMPLE_PACK.value
+    
+    # The API is mounted at the root path, so we don't need the /api prefix
+    api_url = "http://localhost:5001/projects"
+    current_app.logger.info(f"Attempting to create project via API at {api_url}")
+    
+    payload = {
+        "name": project_name, 
+        "description": project_description,
+        "project_type": project_type
+    }
 
     try:
         response = requests.post(api_url, json=payload)
-        response.raise_for_status() # Raise an exception for HTTP errors (4xx or 5xx)
+        response.raise_for_status()  # Raise an exception for HTTP errors (4xx or 5xx)
         project_data = response.json()
         project_id = project_data.get('id')
         flash(f"Project '{project_name}' created successfully!", "success")
@@ -98,10 +152,22 @@ def create_project_submit():
     except requests.exceptions.RequestException as e:
         current_app.logger.error(f"Error creating project via API: {e}")
         error_message = "Failed to create project. Please try again."
-        if response and response.json() and 'error' in response.json():
-            error_message = response.json()['error']
+        try:
+            if hasattr(e, 'response') and e.response and e.response.json() and 'error' in e.response.json():
+                error_message = e.response.json()['error']
+        except:
+            pass
+            
         flash(error_message, "error")
-        return redirect(url_for('ui_bp.create_project_form'))
+        return render_template(
+            "create_project.html",
+            title="Create Project",
+            now=datetime.utcnow(),
+            project_name=project_name,
+            project_description=project_description,
+            project_types=[t.value for t in ProjectType],
+            selected_type=project_type
+        )
 
 
 
@@ -129,7 +195,10 @@ def project_progress(project_id: str) -> str:
     """
     # In the future, you would fetch project details using project_id
     return render_template(
-        "project_progress.html", title=f"Project {project_id}", project_id=project_id
+        "project_progress.html", 
+        title=f"Project {project_id}", 
+        project_id=project_id,
+        now=datetime.utcnow()  # Add current time for base template
     )
 
 
@@ -143,26 +212,22 @@ def import_project_audio_ui(project_id: int) -> str:
     Returns:
         str: Rendered HTML page for audio import.
     """
-    db_session_generator = get_db()
-    db = next(db_session_generator)
-    project = db.query(ProjectModel).filter(ProjectModel.id == project_id).first()
+    # Use get_db() as a context manager
+    with get_db() as db:
+        project = db.query(ProjectModel).filter(ProjectModel.id == project_id).first()
 
-    try:
         if not project:
             abort(404, description=f"Project with ID {project_id} not found.")
 
+        # Add now variable to match other templates
         return render_template(
-            "import_audio.html", # Corrected path based on template folder structure
+            "import_audio.html",
             project_id=project.id,
             project_name=project.name,
             error=None,  # Initially no error
             success_message=None,  # Initially no success message
+            now=datetime.utcnow()  # Add current time for base template
         )
-    finally:
-        try:
-            next(db_session_generator) # Ensure the finally block in get_db is executed
-        except StopIteration:
-            pass
 
 
 @ui_bp.route("/projects/<int:project_id>/recordings/<int:recording_id>/process", methods=["GET"])
@@ -176,9 +241,8 @@ def process_recording_ui(project_id: int, recording_id: int) -> str:
     Returns:
         str: Rendered HTML page for processing a recording.
     """
-    db_session_generator = get_db()
-    db = next(db_session_generator)
-    try:
+    # Use get_db() as a context manager
+    with get_db() as db:
         project = db.query(ProjectModel).filter(ProjectModel.id == project_id).first()
         if not project:
             abort(404, description=f"Project with ID {project_id} not found.")
@@ -192,13 +256,9 @@ def process_recording_ui(project_id: int, recording_id: int) -> str:
             project=project,
             recording=recording,
             workflows=WORKFLOW_REGISTRY,
-            stages=STAGE_REGISTRY
+            stages=STAGE_REGISTRY,
+            now=datetime.utcnow()  # Add current time for base template
         )
-    finally:
-        try:
-            next(db_session_generator)
-        except StopIteration:
-            pass
 
 
 @ui_bp.route("/projects/<int:project_id>/recordings/<int:recording_id>/process", methods=["POST"])
@@ -213,8 +273,10 @@ def process_recording_submit(project_id: int, recording_id: int) -> str:
     instrument_name = request.form.get('instrument_name')
     instrument_author = request.form.get('instrument_author')
 
-    api_url = f"http://localhost:5000/recordings/{recording_id}/process"
     from datetime import datetime
+    # Use the correct API URL with the proper port (5001 as defined in docker-compose.yml)
+    api_url = f"http://localhost:5001/recordings/{recording_id}/process"
+    current_app.logger.info(f"Processing recording via API at {api_url}")
     payload = {
         "output_dir_suffix": f"processed_by_{workflow_name}_{datetime.now().strftime('%Y%m%d%H%M%S')}" # Unique suffix
     }
@@ -250,7 +312,3 @@ def process_recording_submit(project_id: int, recording_id: int) -> str:
             error_message = response.json()['error']
         flash(error_message, "error")
         return redirect(url_for('ui_bp.process_recording_ui', project_id=project_id, recording_id=recording_id))
-
-
-
-

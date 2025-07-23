@@ -5,6 +5,7 @@ import logging  # Added logging
 from typing import List
 from sqlalchemy.orm import Session  # Added Session for type hints
 from src.database.models import ProjectModel, RecordingModel, SampleModel, MidiDeviceModel, MidiCaptureSessionModel, MidiFileModel  # Added model imports
+from src.database.utils import get_db  # Import get_db function
 from src.core.midi_capture import (
     MidiRecorder,
     list_available_midi_devices,
@@ -73,34 +74,38 @@ class Project:
             logger.debug(
                 "No db_session provided, creating local session for Project initialization."
             )
-            db_gen = get_db()  # get_db() can now use app.config if in app context
-            _db_to_use = next(db_gen)
-            _manage_session_locally = True
+            # Use get_db as a context manager
+            with get_db() as session:
+                _db_to_use = session
+                _manage_session_locally = False  # No need to manage session as context manager handles it
+                
+                # Fetch the project within the context manager
+                self.project_model = _db_to_use.query(ProjectModel).filter(ProjectModel.id == project_id).first()
+                
+                if not self.project_model:
+                    raise ValueError(f"No project found with ID {project_id}")
+                
+                logger.info(f"Successfully loaded project: {self.project_model.name} (ID: {project_id})")
+                return  # Exit the method early as we've completed our work within the context manager
 
-        try:
-            project_model: ProjectModel | None = (
-                _db_to_use.query(ProjectModel).filter(ProjectModel.id == project_id).first()
-            )
-            if not project_model:
-                logger.error(f"Project with id {project_id} not found in database.")
-                raise ValueError(f"Project with id {project_id} not found")
-            self.project_model = project_model
-            logger.info(
-                f"Successfully initialized Project core for project: {self.project_model.name}"
-            )
-        except SQLAlchemyError as e:
-            logger.error(
-                f"Database error during Project initialization for project_id {project_id}: {e}"
-            )
-            raise
-        finally:
-            if _manage_session_locally and db_gen:
-                try:
-                    # Ensure generator is exhausted and session closed if created locally
-                    next(db_gen, None)
-                    logger.debug("Closed locally managed session for Project initialization.")
-                except StopIteration:  # Handle if generator is already exhausted
-                    pass
+        # This code only runs if we're using a provided session (not our own context manager)
+        if self.db:  # Only execute this block if we're using a provided session
+            try:
+                project_model: ProjectModel | None = (
+                    _db_to_use.query(ProjectModel).filter(ProjectModel.id == project_id).first()
+                )
+                if not project_model:
+                    logger.error(f"Project with id {project_id} not found in database.")
+                    raise ValueError(f"Project with id {project_id} not found")
+                self.project_model = project_model
+                logger.info(
+                    f"Successfully initialized Project core for project: {self.project_model.name}"
+                )
+            except SQLAlchemyError as e:
+                logger.error(
+                    f"Database error during Project initialization for project_id {project_id}: {e}"
+                )
+                raise
 
     def add_recording(self, file_path: str, name: str) -> RecordingModel:
         """Adds a new audio recording to this project.
