@@ -4,6 +4,8 @@ import re
 import mido
 import logging  # Added logging
 import io  # Added io
+from sqlalchemy.orm import Session  # Added Session for type hints
+from src.database.models import MidiDeviceModel, MidiCaptureSessionModel, MidiFileModel, ProjectModel  # Import required database models
 
 # Configure basic logging
 # In a larger application, this would likely be configured in a central place.
@@ -34,24 +36,24 @@ def sanitize_filename(name: str) -> str:
     return name
 
 
-def list_available_midi_devices(db: Session) -> list[MidiDevice]:
+def list_available_midi_devices(db: Session) -> list[MidiDeviceModel]:
     """Lists available MIDI input devices and synchronizes them with the database.
 
     This function retrieves the names of all MIDI input devices currently
     recognized by the `mido` library. It then iterates through these names,
-    checking if each device already exists in the `MidiDevice` table in the
+    checking if each device already exists in the `MidiDeviceModel` table in the
     database.
     - If a device is found, its `updated_at` timestamp is refreshed.
-    - If a device is not found, a new `MidiDevice` record is created and added
+    - If a device is not found, a new `MidiDeviceModel` record is created and added
       to the database.
     All changes are committed to the database session provided.
 
     Args:
         db (Session): The SQLAlchemy database session to use for querying and
-                      updating `MidiDevice` records.
+                      updating `MidiDeviceModel` records.
 
     Returns:
-        list[MidiDevice]: A list of `MidiDevice` SQLAlchemy model instances. This
+        list[MidiDeviceModel]: A list of `MidiDeviceModel` SQLAlchemy model instances. This
                           list includes all devices found by `mido`, whether they
                           were newly added or existing ones that were updated.
 
@@ -68,12 +70,12 @@ def list_available_midi_devices(db: Session) -> list[MidiDevice]:
         logger.error(f"Error getting MIDI input names from mido: {e}")
         raise
 
-    found_or_created_devices: list[MidiDevice] = []
+    found_or_created_devices: list[MidiDeviceModel] = []
 
     try:
         for name in device_names:
-            device: MidiDevice | None = (
-                db.query(MidiDevice).filter(MidiDevice.name == name).first()
+            device: MidiDeviceModel | None = (
+                db.query(MidiDeviceModel).filter(MidiDeviceModel.name == name).first()
             )
             if device:
                 logger.debug(f"MIDI device '{name}' found in database. Updating timestamp.")
@@ -83,7 +85,7 @@ def list_available_midi_devices(db: Session) -> list[MidiDevice]:
                 logger.info(f"New MIDI device '{name}' detected. Adding to database.")
                 # Assuming name can serve as a basic system_identifier
                 # initially
-                device = MidiDevice(name=name, system_identifier=name)
+                device = MidiDeviceModel(name=name, system_identifier=name)
                 db.add(device)
             found_or_created_devices.append(device)
 
@@ -103,10 +105,10 @@ def list_available_midi_devices(db: Session) -> list[MidiDevice]:
     return found_or_created_devices
 
 
-def get_midi_device_by_name(db: Session, name: str) -> MidiDevice | None:
+def get_midi_device_by_name(db: Session, name: str) -> MidiDeviceModel | None:
     """Retrieves a MIDI device from the database by its unique name.
 
-    This function queries the `MidiDevice` table for an entry where the `name`
+    This function queries the `MidiDeviceModel` table for an entry where the `name`
     column matches the provided `name` argument.
 
     Args:
@@ -116,7 +118,7 @@ def get_midi_device_by_name(db: Session, name: str) -> MidiDevice | None:
                     stored in the database.
 
     Returns:
-        Optional[MidiDevice]: The `MidiDevice` SQLAlchemy model instance if a
+        Optional[MidiDeviceModel]: The `MidiDeviceModel` SQLAlchemy model instance if a
                               device with the specified name is found in the
                               database. Returns `None` if no such device exists.
 
@@ -153,7 +155,7 @@ class MidiRecorder:
         selected_device_names (list[str]): Names of MIDI devices to record from.
         session_name (str): User-defined name for this capture session.
         capture_session (MidiCaptureSession | None): The SQLAlchemy model for the current session.
-        target_devices (list[MidiDevice]): List of resolved MidiDevice models to record from.
+        target_devices (list[MidiDeviceModel]): List of resolved MidiDeviceModel models to record from.
         midi_inputs (dict[str, mido.ports.BaseInput]): Dictionary mapping device names to open mido input ports.
         midi_files (dict[tuple[str, int], mido.MidiFile]): Dictionary storing captured MIDI data, keyed by (device_name, channel).
         active (bool): True if recording is currently in progress, False otherwise.
@@ -174,7 +176,7 @@ class MidiRecorder:
            project in the database.
         2. Creates a new `MidiCaptureSession` record in the database with a
            status of "pending" and associates it with the project.
-        3. Resolves the `selected_device_names` against the `MidiDevice` table
+        3. Resolves the `selected_device_names` against the `MidiDeviceModel` table
            in the database. Only devices found in the database are considered valid
            target devices for recording.
         4. Stores the resolved target devices and other session information as
@@ -198,7 +200,7 @@ class MidiRecorder:
                 - If the `project_id` does not correspond to an existing project.
                 - If `selected_device_names` is empty.
                 - If none of the names in `selected_device_names` correspond to
-                  known `MidiDevice` records in the database.
+                  known `MidiDeviceModel` records in the database.
             SQLAlchemyError: If any database operation (query, add, commit, flush)
                              fails during the initialization process.
             Exception: For any other unexpected errors, which are logged and re-raised.
@@ -206,8 +208,8 @@ class MidiRecorder:
         self.project_id: int = project_id
         self.selected_device_names: list[str] = selected_device_names
         self.session_name: str = session_name
-        self.capture_session: MidiCaptureSession | None = None
-        self.target_devices: list[MidiDevice] = []
+        self.capture_session: MidiCaptureSessionModel | None = None
+        self.target_devices: list[MidiDeviceModel] = []
         self.midi_inputs: dict[str, mido.ports.BaseInput] = {}
         self.midi_files: dict[tuple[str, int], mido.MidiFile] = {}
         self.active: bool = False
@@ -224,7 +226,7 @@ class MidiRecorder:
                 logger.error(f"Project with ID {self.project_id} not found.")
                 raise ValueError(f"Project with ID {self.project_id} not found.")
 
-            self.capture_session = MidiCaptureSession(
+            self.capture_session = MidiCaptureSessionModel(
                 project_id=self.project_id,
                 name=self.session_name,
                 status="pending",
@@ -234,9 +236,9 @@ class MidiRecorder:
 
             # logger.info("Created MidiCaptureSession '" + self.session_name + "' with ID " + str(self.capture_session.id) + ".") # Commented out for pylint test
 
-            resolved_devices: list[MidiDevice] = []
+            resolved_devices: list[MidiDeviceModel] = []
             for device_name in self.selected_device_names:
-                device: MidiDevice | None = get_midi_device_by_name(db, device_name)
+                device: MidiDeviceModel | None = get_midi_device_by_name(db, device_name)
                 if device:
                     resolved_devices.append(device)
                 else:
@@ -390,7 +392,7 @@ class MidiRecorder:
         This method initiates the MIDI recording by:
         1. Checking if recording is already active or if the recorder is properly
            initialized (has a capture session and target devices).
-        2. Iterating through the `self.target_devices` (resolved `MidiDevice` models).
+        2. Iterating through the `self.target_devices` (resolved `MidiDeviceModel` models).
            For each device, it attempts to open a MIDI input port using `mido.open_input()`.
            The `_midi_callback` method is set as the callback for incoming messages.
         3. If any ports are successfully opened:
@@ -564,7 +566,7 @@ class MidiRecorder:
                 (a `bytes` object) using an in-memory `io.BytesIO` buffer.
              c. A new `MidiFile` SQLAlchemy record is created, storing this
                 binary data as a BLOB, along with references to the
-                `MidiCaptureSession` and the source `MidiDevice`, and the
+                `MidiCaptureSession` and the source `MidiDeviceModel`, and the
                 channel number. This record is added to the database session.
         4. Updates the associated `MidiCaptureSession` record in the database:
            - Sets `end_time` to the current UTC datetime.
@@ -615,7 +617,7 @@ class MidiRecorder:
                 logger.info("No MIDI messages were captured during this session.")
 
             for (device_name, channel), mido_file_obj in self.midi_files.items():
-                device_model: MidiDevice | None = next(
+                device_model: MidiDeviceModel | None = next(
                     (dev for dev in self.target_devices if dev.name == device_name),
                     None,
                 )

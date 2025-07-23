@@ -3,6 +3,8 @@ import os
 # import wave # Removed
 import logging  # Added logging
 from typing import List
+from sqlalchemy.orm import Session  # Added Session for type hints
+from src.database.models import ProjectModel, RecordingModel, SampleModel, MidiDeviceModel, MidiCaptureSessionModel, MidiFileModel  # Added model imports
 from src.core.midi_capture import (
     MidiRecorder,
     list_available_midi_devices,
@@ -845,7 +847,7 @@ class Project:
 
             midi_files: List[MidiFileModel] = (
                 _db_to_use.query(MidiFileModel)
-                .filter(MidiFileModel.midi_capture_session_id == session_id)
+                .filter(MidiFileModel.capture_session_id == session_id)
                 .order_by(MidiFileModel.created_at.asc())
                 .all()
             )
