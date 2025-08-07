@@ -44,6 +44,11 @@ class ProjectModel(Base):
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
     metadata_json = Column(Text, nullable=True)
     
+    # Columns for VirtualInstrumentModel, for single-table inheritance
+    base_note = Column(Integer, nullable=True)  # MIDI note number
+    velocity_layers = Column(Integer, nullable=True)
+    round_robins = Column(Integer, nullable=True)
+
     # Define relationships
     recordings = relationship("RecordingModel", back_populates="project", cascade="all, delete-orphan")
     
@@ -65,9 +70,6 @@ class ProjectModel(Base):
 
 class SamplePackModel(ProjectModel):
     """Model for sample pack projects."""
-    __tablename__ = "sample_packs"
-    
-    id = Column(Integer, ForeignKey("projects.id"), primary_key=True)
     
     __mapper_args__ = {
         "polymorphic_identity": "sample_pack",
@@ -84,12 +86,6 @@ class SamplePackModel(ProjectModel):
 
 class VirtualInstrumentModel(ProjectModel):
     """Model for virtual instrument projects."""
-    __tablename__ = "virtual_instruments"
-    
-    id = Column(Integer, ForeignKey("projects.id"), primary_key=True)
-    base_note = Column(Integer, nullable=True)  # MIDI note number
-    velocity_layers = Column(Integer, nullable=True)
-    round_robins = Column(Integer, nullable=True)
     
     __mapper_args__ = {
         "polymorphic_identity": "virtual_instrument",

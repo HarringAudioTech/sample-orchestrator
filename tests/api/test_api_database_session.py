@@ -32,7 +32,7 @@ from src.database.models import (
 
 
 # --- Test Fixtures ---
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def app() -> Flask:
     """Create and configure a Flask app instance for testing.
     

@@ -21,7 +21,7 @@ from sqlalchemy import event
 
 # --- Test Fixtures ---
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def app() -> Flask:
     """Create and configure a Flask app instance for testing.
     

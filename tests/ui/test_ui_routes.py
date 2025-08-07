@@ -11,10 +11,10 @@ from sqlalchemy.orm import Session as SQLAlchemySession
 from sqlalchemy.engine import Engine
 
 from src.app import create_app
+from src.database import utils
 from src.database.utils import (
     init_db as initialize_db_utils,
-    get_db,
-    SessionLocal
+    get_db
 )
 from src.database.models import (
     Base, 
@@ -30,7 +30,7 @@ from typing import Generator
 
 
 # --- Test Fixtures ---
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def app() -> Generator[Flask, None, None]:
     """Create and configure a new app instance for each test module."""
     flask_app: Flask = create_app()
@@ -62,7 +62,7 @@ def db_session(app: Flask) -> Generator[SQLAlchemySession, None, None]:
     Ensures the session is closed after the test.
     """
     # Use the SessionLocal directly from the imported module
-    session: SQLAlchemySession = SessionLocal()
+    session: SQLAlchemySession = utils.SessionLocal()
     yield session
     session.close()
 
