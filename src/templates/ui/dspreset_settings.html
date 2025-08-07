@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}DSPreset Settings - {{ project.name }}{% endblock %}
+
+{% block content %}
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <ul class=flashes>
+      {% for category, message in messages %}
+        <li class="{{ category }}">{{ message }}</li>
+      {% endfor %}
+      </ul>
+    {% endif %}
+  {% endwith %}
+
+<h2>DSPreset Settings for {{ project.name }}</h2>
+<form action="{{ url_for('ui_bp.dspreset_settings_submit', project_id=project.id) }}" method="post" enctype="multipart/form-data">
+    <div>
+        <label for="project_name">Project Name:</label>
+        <input type="text" id="project_name" name="project_name" value="{{ project.name }}" required>
+    </div>
+    <div>
+        <label for="author">Author:</label>
+        <input type="text" id="author" name="author" value="{{ project.meta_data.get('author', '') }}">
+    </div>
+    <div>
+        <label for="base_note">Base Note:</label>
+        <input type="number" id="base_note" name="base_note" value="{{ project.base_note or '' }}">
+    </div>
+    <div>
+        <label for="velocity_layers">Velocity Layers:</label>
+        <input type="number" id="velocity_layers" name="velocity_layers" value="{{ project.velocity_layers or '' }}">
+    </div>
+    <div>
+        <label for="round_robins">Round Robins:</label>
+        <input type="number" id="round_robins" name="round_robins" value="{{ project.round_robins or '' }}">
+    </div>
+    <div>
+        <label for="artwork">Artwork:</label>
+        <input type="file" id="artwork" name="artwork">
+        {% if project.meta_data.get('artwork_path') %}
+            <p>Current artwork: {{ project.meta_data.get('artwork_path') }}</p>
+        {% endif %}
+    </div>
+
+    <h3>Samples</h3>
+    <div class="sample-list">
+        {% for recording in project.recordings %}
+            <h4>{{ recording.name }}</h4>
+            <ul>
+                {% for sample in recording.samples %}
+                <li>
+                    <input type="checkbox" id="sample_{{ sample.id }}" name="selected_samples" value="{{ sample.id }}" checked>
+                    <label for="sample_{{ sample.id }}">{{ sample.name }}</label>
+                </li>
+                {% endfor %}
+            </ul>
+        {% endfor %}
+    </div>
+
+    <button type="submit">Save Settings</button>
+</form>
+{% endblock %}

@@ -9,9 +9,10 @@ from flask import Blueprint, render_template, abort, request, url_for, redirect,
 from werkzeug.exceptions import HTTPException
 import requests
 
+import json
 # Local application imports
 from src.database.utils import get_db
-from src.database.models import ProjectModel, RecordingModel, ProjectType
+from src.database.models import ProjectModel, RecordingModel, ProjectType, VirtualInstrumentModel
 
 # Local application imports
 from src.core.stage_runner import STAGE_REGISTRY
@@ -169,6 +170,62 @@ def create_project_submit():
             selected_type=project_type
         )
 
+
+@ui_bp.route("/projects/<int:project_id>/dspreset_settings", methods=["GET"])
+def dspreset_settings_form(project_id: int) -> str:
+    """Renders the form for editing DSPreset settings."""
+    with get_db() as db:
+        project = db.query(ProjectModel).filter(ProjectModel.id == project_id).first()
+
+        if not project:
+            abort(404, description=f"Project with ID {project_id} not found.")
+
+        if project.project_type != ProjectType.VIRTUAL_INSTRUMENT.value:
+            abort(403, description="DSPreset settings are only available for Virtual Instrument projects.")
+
+        # We need to get the VirtualInstrumentModel to access its properties
+        vi_project = db.query(VirtualInstrumentModel).filter(VirtualInstrumentModel.id == project_id).first()
+
+        return render_template(
+            "dspreset_settings.html",
+            project=vi_project,
+            now=datetime.utcnow()
+        )
+
+@ui_bp.route("/projects/<int:project_id>/dspreset_settings", methods=["POST"])
+def dspreset_settings_submit(project_id: int):
+    """Handles the submission of the DSPreset settings form."""
+    with get_db() as db:
+        project = db.query(VirtualInstrumentModel).filter(VirtualInstrumentModel.id == project_id).first()
+
+        if not project:
+            abort(404, description=f"Project with ID {project_id} not found.")
+
+        if project.project_type != ProjectType.VIRTUAL_INSTRUMENT.value:
+            abort(403, description="DSPreset settings are only available for Virtual Instrument projects.")
+
+        project.name = request.form.get('project_name')
+        project.base_note = int(request.form.get('base_note'))
+        project.velocity_layers = int(request.form.get('velocity_layers'))
+        project.round_robins = int(request.form.get('round_robins'))
+
+        metadata = project.meta_data
+        metadata['author'] = request.form.get('author')
+        project.metadata_json = json.dumps(metadata)
+
+        # Handle artwork upload
+        if 'artwork' in request.files:
+            artwork_file = request.files['artwork']
+            if artwork_file.filename != '':
+                # In a real app, you'd save this to a secure location
+                # and store the path in the database.
+                # For now, we'll just store the filename in metadata.
+                metadata['artwork_path'] = artwork_file.filename
+                project.metadata_json = json.dumps(metadata)
+
+        db.commit()
+        flash("DSPreset settings updated successfully!", "success")
+        return redirect(url_for('ui_bp.dspreset_settings_form', project_id=project_id))
 
 
 @ui_bp.route("/projects/<string:project_id>/progress", methods=["GET"])
