@@ -7,14 +7,23 @@ and defines basic error handlers and a root route.
 The application can be run directly using `python -m src.app` for development.
 """
 
+# Standard library imports
 import os
+from pathlib import Path
+from typing import Any, Dict, Optional
 
-# g is not used in current session management
+# Third-party imports
 from flask import Flask, jsonify, request
+from flask_cors import CORS
+
+# Local application imports
 from src.api.routes import projects_bp, recordings_bp, samples_bp
 from src.ui.routes import ui_bp  # Import the UI blueprint
 from src.ui.test_bp import test_bp  # Import the test blueprint
+from src.database.utils import get_db
 
+# Import models to ensure they are registered with SQLAlchemy
+import src.database.models  # noqa: F401
 
 # --- Application Factory ---
 from typing import Tuple
@@ -48,6 +57,13 @@ def create_app() -> Flask:
                by a WSGI server or the Flask development server.
     """
     app: Flask = Flask(__name__)
+    
+    # Load configuration from environment or use defaults
+    app.config.update(
+        SECRET_KEY=os.environ.get('FLASK_SECRET_KEY', 'dev-key-change-in-production'),
+        SQLALCHEMY_DATABASE_URI=os.environ.get('DATABASE_URL', 'sqlite:///orchestrator.db'),
+        SQLALCHEMY_TRACK_MODIFICATIONS=False
+    )
 
     # --- Configuration ---
     # Determine project root to build absolute paths for data directories.

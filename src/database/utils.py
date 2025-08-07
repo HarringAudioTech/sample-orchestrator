@@ -11,6 +11,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from typing import Generator
+from flask import current_app
+import os
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -18,19 +20,9 @@ logger = logging.getLogger(__name__)
 # Define the SQLAlchemy base class for models
 Base = declarative_base()
 
-# Hardcoded database URL - this matches the comment in app.py
-DATABASE_URL = "sqlite:///./data/app.db"
-
-# Create engine with connection pool settings appropriate for Flask
-engine = create_engine(
-    DATABASE_URL,
-    connect_args={"check_same_thread": False},  # Needed for SQLite
-    pool_pre_ping=True,
-    echo=False,  # Set to True for SQL debug logging
-)
-
-# Create a sessionmaker factory that will be used to create sessions
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+# Global variables for engine and session
+engine = None
+SessionLocal = None
 
 
 @contextlib.contextmanager
@@ -52,6 +44,9 @@ def get_db() -> Generator[Session, None, None]:
     Raises:
         Exception: Any exception that occurs during session use is logged and re-raised.
     """
+    if SessionLocal is None:
+        raise RuntimeError("Database has not been initialized. Call init_db() first.")
+
     db_session = SessionLocal()
     try:
         yield db_session
@@ -71,9 +66,32 @@ def init_db() -> None:
     This function should be called manually or through a CLI command
     to set up the database schema. It's idempotent (safe to call multiple times).
     """
+    global engine, SessionLocal
+
+    # Get database URL from app config or environment variable
+    DATABASE_URL = current_app.config.get("DATABASE_URL", os.getenv("DATABASE_URL", "sqlite:///./data/orchestrator.db"))
+
+    # Ensure the directory exists for SQLite
+    if DATABASE_URL.startswith("sqlite:///"):
+        db_path = DATABASE_URL.replace("sqlite:///", "").split("?")[0]
+        if db_path != ":memory:":
+            os.makedirs(os.path.dirname(db_path), exist_ok=True)
+
+    # Create engine with connection pool settings appropriate for Flask
+    engine = create_engine(
+        DATABASE_URL,
+        connect_args={"check_same_thread": False},  # Needed for SQLite
+        pool_pre_ping=True,
+        echo=os.getenv("SQL_ECHO", "false").lower() == "true",  # Enable SQL logging if SQL_ECHO=true
+    )
+
+    # Create a sessionmaker factory that will be used to create sessions
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
     # Import models here to avoid circular imports
     from src.database.models import ProjectModel  # This will import all models due to imports in models.py
     
-    # Create tables
+    # Drop all tables first to ensure a clean slate, then create them
+    Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     logger.info("Database tables created or verified")

@@ -14,7 +14,7 @@
   {% endwith %}
 
 <h2>Import Audio File for Project: {{ project_name }} (ID: {{ project_id }})</h2>
-<form method="post" enctype="multipart/form-data" action="{{ url_for('projects_bp.upload_project_audio', project_id=project_id) }}">
+<form method="post" enctype="multipart/form-data" action="{{ url_for('projects.upload_project_audio', project_id=project_id) }}">
     <input type="hidden" name="project_id" value="{{ project_id }}">
     <div>
         <label for="recording_name">Recording Name:</label>
@@ -27,5 +27,5 @@
     <button type="submit">Upload Audio</button>
 </form>
 
-<p><a href="{{ url_for('ui_bp.view_project', project_id=project_id) }}">Back to Project</a></p>
+<p><a href="{{ url_for('ui_bp.dashboard', project_id=project_id) }}">Back to Project</a></p>
 {% endblock %}
