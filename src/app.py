@@ -19,6 +19,7 @@ from flask_cors import CORS
 # Local application imports
 from src.api.routes import projects_bp, recordings_bp, samples_bp
 from src.ui.routes import ui_bp  # Import the UI blueprint
+from src.ui.data_routes import data_bp # Import the data UI blueprint
 from src.ui.test_bp import test_bp  # Import the test blueprint
 from src.database.utils import get_db
 
@@ -120,6 +121,12 @@ def create_app() -> Flask:
     app.register_blueprint(ui_bp, url_prefix='/ui')
     app.logger.info(
         f"UI Blueprint registered with prefix /ui. Templates expected at {ui_bp.template_folder} relative to blueprint, and {app.template_folder} relative to app root."
+    )
+
+    # Register Data UI Blueprint with /ui prefix
+    app.register_blueprint(data_bp, url_prefix='/ui')
+    app.logger.info(
+        f"Data UI Blueprint registered with prefix /ui. Templates expected at {data_bp.template_folder} relative to blueprint, and {app.template_folder} relative to app root."
     )
     
     # Register test blueprint

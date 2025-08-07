@@ -105,7 +105,9 @@ def list_available_midi_devices(db: Session) -> list[MidiDeviceModel]:
     return found_or_created_devices
 
 
-def get_midi_device_by_name(db: Session, name: str) -> MidiDeviceModel | None:
+from typing import Optional
+
+def get_midi_device_by_name(db: Session, name: str) -> Optional[MidiDeviceModel]:
     """Retrieves a MIDI device from the database by its unique name.
 
     This function queries the `MidiDeviceModel` table for an entry where the `name`
