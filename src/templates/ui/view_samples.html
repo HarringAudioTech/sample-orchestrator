@@ -28,6 +28,7 @@
                 <td>{{ "%.2f"|format(sample.end_time_seconds) }}</td>
                 <td>{{ sample.midi_pitch if sample.midi_pitch is not none else 'N/A' }}</td>
                 <td>
+                    <a href="{{ url_for('ui_bp.view_sample', sample_id=sample.id) }}" class="btn btn-sm btn-primary">View</a>
                     <a href="{{ url_for('static', filename='../' + sample.file_path) }}" download class="btn btn-sm btn-success">Download</a>
                     <!-- Add a play button if audio playback is implemented -->
                 </td>

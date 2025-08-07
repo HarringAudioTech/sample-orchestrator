@@ -106,5 +106,5 @@ def test_view_sample_loads_with_sample(client: FlaskClient, db_session: SQLAlche
     response = client.get(f"/ui/samples/{sample.id}")
     assert response.status_code == 200
     response_data = response.data.decode("utf-8")
-    assert f"Sample - {sample.id}" in response_data
+    assert f"Sample - {sample.name}" in response_data
     assert "/path/to/sample.wav" in response_data

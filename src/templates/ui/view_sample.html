@@ -1,8 +1,10 @@
 {% extends "base.html" %}
 
+{% block title %}Sample - {{ sample.name }}{% endblock %}
+
 {% block content %}
 <div class="container">
-    <h1 class="my-4">{{ title }}</h1>
+    <h1 class="my-4">Sample: {{ sample.name }}</h1>
 
     <div class="card mb-4">
         <div class="card-header">

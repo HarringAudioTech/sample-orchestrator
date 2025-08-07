@@ -12,7 +12,7 @@ import requests
 import json
 # Local application imports
 from src.database.utils import get_db
-from src.database.models import ProjectModel, RecordingModel, ProjectType, VirtualInstrumentModel
+from src.database.models import ProjectModel, RecordingModel, SampleModel, ProjectType, VirtualInstrumentModel
 
 # Local application imports
 from src.core.stage_runner import STAGE_REGISTRY
@@ -369,3 +369,57 @@ def process_recording_submit(project_id: int, recording_id: int) -> str:
             error_message = response.json()['error']
         flash(error_message, "error")
         return redirect(url_for('ui_bp.process_recording_ui', project_id=project_id, recording_id=recording_id))
+
+
+@ui_bp.route("/projects/<int:project_id>/recordings/<int:recording_id>/samples", methods=["GET"])
+def view_samples(project_id: int, recording_id: int) -> str:
+    """Renders the page for viewing samples of a specific recording.
+
+    Args:
+        project_id (int): The ID of the project.
+        recording_id (int): The ID of the recording.
+
+    Returns:
+        str: Rendered HTML page for viewing samples.
+    """
+    with get_db() as db:
+        project = db.query(ProjectModel).filter(ProjectModel.id == project_id).first()
+        if not project:
+            abort(404, description=f"Project with ID {project_id} not found.")
+
+        recording = db.query(RecordingModel).filter(RecordingModel.id == recording_id).first()
+        if not recording or recording.project_id != project_id:
+            abort(404, description=f"Recording with ID {recording_id} not found in project {project_id}.")
+
+        samples = recording.samples
+
+        return render_template(
+            "view_samples.html",
+            project=project,
+            recording=recording,
+            samples=samples,
+            now=datetime.utcnow()
+        )
+
+
+@ui_bp.route("/samples/<int:sample_id>", methods=["GET"])
+def view_sample(sample_id: int) -> str:
+    """Renders the page for viewing a single sample.
+
+    Args:
+        sample_id (int): The ID of the sample.
+
+    Returns:
+        str: Rendered HTML page for viewing a sample.
+    """
+    with get_db() as db:
+        sample = db.query(SampleModel).filter(SampleModel.id == sample_id).first()
+        if not sample:
+            abort(404, description=f"Sample with ID {sample_id} not found.")
+
+        return render_template(
+            "view_sample.html",
+            title=f"Sample - {sample.name}",
+            sample=sample,
+            now=datetime.utcnow()
+        )
