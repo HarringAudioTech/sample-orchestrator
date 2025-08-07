@@ -111,20 +111,18 @@
                             </td>
                             <td class="text-end">
                                 <div class="btn-group btn-group-sm" role="group">
-                                    <a href="{{ url_for('ui_bp.process_recording_ui', project_id=project.id, recording_id=recording.id) }}" 
-                                       class="btn btn-outline-primary" 
-                                       data-bs-toggle="tooltip" 
+                                    <a href="{{ url_for('data_bp.view_recording', recording_id=recording.id) }}"
+                                       class="btn btn-outline-info"
+                                       data-bs-toggle="tooltip"
+                                       title="View details">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                    <a href="{{ url_for('ui_bp.process_recording_ui', project_id=project.id, recording_id=recording.id) }}"
+                                       class="btn btn-outline-primary"
+                                       data-bs-toggle="tooltip"
                                        title="Process recording">
                                         <i class="bi bi-gear"></i>
                                     </a>
-                                    {% if recording.samples %}
-                                    <a href="{{ url_for('ui_bp.view_recording_samples_ui', project_id=project.id, recording_id=recording.id) }}" 
-                                       class="btn btn-outline-success"
-                                       data-bs-toggle="tooltip"
-                                       title="View samples">
-                                        <i class="bi bi-collection-play"></i>
-                                    </a>
-                                    {% endif %}
                                     <a href="#" class="btn btn-outline-danger" data-bs-toggle="tooltip" title="Delete">
                                         <i class="bi bi-trash"></i>
                                     </a>

@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h1 class="my-4">{{ title }}</h1>
+
+    <div class="card mb-4">
+        <div class="card-header">
+            Sample Details
+        </div>
+        <div class="card-body">
+            <p><strong>ID:</strong> {{ sample.id }}</p>
+            <p><strong>File Path:</strong> {{ sample.file_path }}</p>
+            <p><strong>Created At:</strong> {{ sample.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+        </div>
+    </div>
+
+    <a href="{{ url_for('data_bp.view_recording', recording_id=sample.recording_id) }}" class="btn btn-secondary">Back to Recording</a>
+</div>
+{% endblock %}

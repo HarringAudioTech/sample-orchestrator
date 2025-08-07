@@ -4,6 +4,7 @@ import os
 import logging  # Added logging
 from typing import List
 from sqlalchemy.orm import Session  # Added Session for type hints
+from typing import Optional
 from src.database.models import ProjectModel, RecordingModel, SampleModel, MidiDeviceModel, MidiCaptureSessionModel, MidiFileModel  # Added model imports
 from src.database.utils import get_db  # Import get_db function
 from src.core.midi_capture import (
@@ -34,7 +35,7 @@ class Project:
         db: Optional SQLAlchemy session passed during initialization.
     """
 
-    def __init__(self, project_id: int, db_session: Session | None = None) -> None:
+    def __init__(self, project_id: int, db_session: Optional[Session] = None) -> None:
         """Initializes a Project instance, establishing a context for project-specific operations.
 
         This constructor fetches the project's metadata from the database using
@@ -239,7 +240,7 @@ class Project:
                 except StopIteration:
                     pass
 
-    def get_recording(self, recording_id: int) -> RecordingModel | None:
+    def get_recording(self, recording_id: int) -> Optional[RecordingModel]:
         """Retrieves a specific recording by its ID, ensuring it belongs to this project.
 
         This method queries the database for a `RecordingModel` that matches both
@@ -709,7 +710,7 @@ class Project:
                 except StopIteration:
                     pass
 
-    def get_midi_capture_session(self, session_id: int) -> MidiCaptureSessionModel | None:
+    def get_midi_capture_session(self, session_id: int) -> Optional[MidiCaptureSessionModel]:
         """Retrieves a specific MIDI capture session by ID, ensuring it belongs to this project.
 
         This method queries the database for a `MidiCaptureSessionModel` that

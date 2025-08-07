@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h1 class="my-4">{{ title }}</h1>
+
+    <div class="card mb-4">
+        <div class="card-header">
+            Recording Details
+        </div>
+        <div class="card-body">
+            <p><strong>ID:</strong> {{ recording.id }}</p>
+            <p><strong>Name:</strong> {{ recording.name }}</p>
+            <p><strong>File Path:</strong> {{ recording.file_path }}</p>
+            <p><strong>Status:</strong> {{ recording.status }}</p>
+            <p><strong>Created At:</strong> {{ recording.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+        </div>
+    </div>
+
+    <h2 class="my-4">Samples</h2>
+    {% if samples %}
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>File Path</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for sample in samples %}
+                    <tr>
+                        <td>{{ sample.id }}</td>
+                        <td>{{ sample.file_path }}</td>
+                        <td>
+                            <a href="{{ url_for('data_bp.view_sample', sample_id=sample.id) }}" class="btn btn-sm btn-info">View</a>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>No samples found for this recording.</p>
+    {% endif %}
+
+    <a href="{{ url_for('ui_bp.dashboard', project_id=recording.project_id) }}" class="btn btn-secondary">Back to Dashboard</a>
+</div>
+{% endblock %}
