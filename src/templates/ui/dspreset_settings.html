@@ -43,19 +43,45 @@
         {% endif %}
     </div>
 
-    <h3>Samples</h3>
-    <div class="sample-list">
-        {% for recording in project.recordings %}
-            <h4>{{ recording.name }}</h4>
-            <ul>
-                {% for sample in recording.samples %}
-                <li>
-                    <input type="checkbox" id="sample_{{ sample.id }}" name="selected_samples" value="{{ sample.id }}" checked>
-                    <label for="sample_{{ sample.id }}">{{ sample.name }}</label>
-                </li>
+    <h3>Sample Mapping</h3>
+    <div class="sample-mapping-table">
+        <table>
+            <thead>
+                <tr>
+                    <th>Include</th>
+                    <th>Sample Name</th>
+                    <th>Root Note</th>
+                    <th>Low Key</th>
+                    <th>High Key</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for recording in project.recordings %}
+                    <tr>
+                        <th colspan="5" style="text-align: left; background-color: #f2f2f2;">{{ recording.name }}</th>
+                    </tr>
+                    {% for sample in recording.samples %}
+                        {% set mapping = sample.sample_mapping_items[0] if sample.sample_mapping_items else none %}
+                        {% set root_note = mapping.root_note if mapping and mapping.root_note is not none else 60 %}
+                        <tr>
+                            <td>
+                                <input type="checkbox" name="selected_samples" value="{{ sample.id }}" checked>
+                            </td>
+                            <td>{{ sample.name }}</td>
+                            <td>
+                                <input type="number" name="sample_root_note_{{ sample.id }}" value="{{ root_note }}" min="0" max="127">
+                            </td>
+                            <td>
+                                <input type="number" name="sample_lo_key_{{ sample.id }}" value="{{ mapping.key_range_start if mapping and mapping.key_range_start is not none else root_note }}" min="0" max="127">
+                            </td>
+                            <td>
+                                <input type="number" name="sample_hi_key_{{ sample.id }}" value="{{ mapping.key_range_end if mapping and mapping.key_range_end is not none else root_note }}" min="0" max="127">
+                            </td>
+                        </tr>
+                    {% endfor %}
                 {% endfor %}
-            </ul>
-        {% endfor %}
+            </tbody>
+        </table>
     </div>
 
     <button type="submit">Save Settings</button>
