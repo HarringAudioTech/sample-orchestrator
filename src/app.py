@@ -13,7 +13,9 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 # Third-party imports
+import click
 from flask import Flask, jsonify, request
+from flask.cli import with_appcontext
 from flask_cors import CORS
 
 # Local application imports
@@ -21,10 +23,19 @@ from src.api.routes import projects_bp, recordings_bp, samples_bp
 from src.ui.routes import ui_bp  # Import the UI blueprint
 from src.ui.data_routes import data_bp # Import the data UI blueprint
 from src.ui.test_bp import test_bp  # Import the test blueprint
-from src.database.utils import get_db
+from src.database.utils import get_db, init_db
 
 # Import models to ensure they are registered with SQLAlchemy
 import src.database.models  # noqa: F401
+
+# --- CLI Commands ---
+@click.command('init-db')
+@with_appcontext
+def init_db_command():
+    """Clears the existing data and creates new tables."""
+    init_db()
+    click.echo('Initialized the database.')
+
 
 # --- Application Factory ---
 from typing import Tuple
@@ -165,6 +176,9 @@ def create_app() -> Flask:
             ),
             404,
         )
+
+    # Register CLI commands
+    app.cli.add_command(init_db_command)
 
     @app.errorhandler(500)
     def internal_server_error(error: HTTPException) -> Tuple[Flask.response_class, int]:

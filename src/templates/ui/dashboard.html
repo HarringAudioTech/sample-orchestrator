@@ -116,7 +116,7 @@
                             </td>
                             <td class="text-end">
                                 <div class="btn-group btn-group-sm" role="group">
-                                    <a href="{{ url_for('data_bp.view_recording', recording_id=recording.id) }}"
+                                    <a href="{{ url_for('ui_bp.view_recording', project_id=project.id, recording_id=recording.id) }}"
                                        class="btn btn-outline-info"
                                        data-bs-toggle="tooltip"
                                        title="View details">
