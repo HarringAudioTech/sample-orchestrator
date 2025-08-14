@@ -298,26 +298,21 @@ class DecentSamplerPresetGenerator:
                 xml_sample_path: str = os.path.join("Samples", sample_filename)
                 sample_element.set("path", xml_sample_path)
 
-                # Root note (MIDI note number)
-                root_note_val: int = sample_model.midi_pitch
-                root_note_str: str = (
-                    str(root_note_val) if root_note_val is not None else "60"
-                )  # Default to C3 (MIDI 60)
+                # Defaults
+                root_note_str = "60"
+                lo_key_str = "60"
+                hi_key_str = "60"
+
+                mapping_item = next(iter(sample_model.sample_mapping_items), None)
+                if mapping_item:
+                    if mapping_item.root_note is not None:
+                        root_note_str = str(mapping_item.root_note)
+
+                    # If key ranges are not set, they default to the root note
+                    lo_key_str = str(mapping_item.key_range_start) if mapping_item.key_range_start is not None else root_note_str
+                    hi_key_str = str(mapping_item.key_range_end) if mapping_item.key_range_end is not None else root_note_str
+
                 sample_element.set("rootNote", root_note_str)
-
-                # Key range (loKey, hiKey)
-                lo_key_str: str = root_note_str
-                hi_key_str: str = root_note_str
-                if sample_model.sample_mapping_items:
-                    # Assuming the first mapping item dictates the key range for this sample.
-                    # More complex logic might be needed if multiple items or
-                    # complex mappings exist.
-                    mapping_item: SampleMappingItemModel = sample_model.sample_mapping_items[0]
-                    if mapping_item.key_range_start is not None:
-                        lo_key_str = str(mapping_item.key_range_start)
-                    if mapping_item.key_range_end is not None:
-                        hi_key_str = str(mapping_item.key_range_end)
-
                 sample_element.set("loKey", lo_key_str)
                 sample_element.set("hiKey", hi_key_str)
 

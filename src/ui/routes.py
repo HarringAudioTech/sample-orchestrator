@@ -8,11 +8,14 @@ from datetime import datetime
 from flask import Blueprint, render_template, abort, request, url_for, redirect, flash, current_app
 from werkzeug.exceptions import HTTPException
 import requests
-
+from sqlalchemy.orm import joinedload
 import json
 # Local application imports
 from src.database.utils import get_db
-from src.database.models import ProjectModel, RecordingModel, ProjectType, VirtualInstrumentModel
+from src.database.models import (
+    ProjectModel, RecordingModel, SampleModel,
+    ProjectType, VirtualInstrumentModel, SampleMappingItemModel
+)
 
 # Local application imports
 from src.core.stage_runner import STAGE_REGISTRY
@@ -194,9 +197,14 @@ def dspreset_settings_form(project_id: int) -> str:
 
 @ui_bp.route("/projects/<int:project_id>/dspreset_settings", methods=["POST"])
 def dspreset_settings_submit(project_id: int):
-    """Handles the submission of the DSPreset settings form."""
+    """Handles the submission of the DSPreset settings form, including sample mappings."""
     with get_db() as db:
-        project = db.query(VirtualInstrumentModel).filter(VirtualInstrumentModel.id == project_id).first()
+        # Eagerly load related data to prevent N+1 query issues
+        project = db.query(VirtualInstrumentModel).options(
+            joinedload(VirtualInstrumentModel.recordings)
+            .joinedload(RecordingModel.samples)
+            .joinedload(SampleModel.sample_mapping_items)
+        ).filter(VirtualInstrumentModel.id == project_id).first()
 
         if not project:
             abort(404, description=f"Project with ID {project_id} not found.")
@@ -204,27 +212,67 @@ def dspreset_settings_submit(project_id: int):
         if project.project_type != ProjectType.VIRTUAL_INSTRUMENT.value:
             abort(403, description="DSPreset settings are only available for Virtual Instrument projects.")
 
-        project.name = request.form.get('project_name')
-        project.base_note = int(request.form.get('base_note'))
-        project.velocity_layers = int(request.form.get('velocity_layers'))
-        project.round_robins = int(request.form.get('round_robins'))
+        # --- Update Project-Level Settings ---
+        project.name = request.form.get('project_name', project.name)
+        try:
+            base_note = request.form.get('base_note')
+            project.base_note = int(base_note) if base_note and base_note.strip() else None
 
-        metadata = project.meta_data
+            velocity_layers = request.form.get('velocity_layers')
+            project.velocity_layers = int(velocity_layers) if velocity_layers and velocity_layers.strip() else None
+
+            round_robins = request.form.get('round_robins')
+            project.round_robins = int(round_robins) if round_robins and round_robins.strip() else None
+        except (ValueError, TypeError):
+            flash("Invalid number format for base note, velocity layers, or round robins.", "error")
+            return redirect(url_for('ui_bp.dspreset_settings_form', project_id=project_id))
+
+        metadata = project.meta_data or {}
         metadata['author'] = request.form.get('author')
-        project.metadata_json = json.dumps(metadata)
 
-        # Handle artwork upload
         if 'artwork' in request.files:
             artwork_file = request.files['artwork']
             if artwork_file.filename != '':
-                # In a real app, you'd save this to a secure location
-                # and store the path in the database.
-                # For now, we'll just store the filename in metadata.
                 metadata['artwork_path'] = artwork_file.filename
-                project.metadata_json = json.dumps(metadata)
 
-        db.commit()
-        flash("DSPreset settings updated successfully!", "success")
+        project.metadata_json = json.dumps(metadata)
+
+        # --- Update Sample-Level Mappings ---
+        selected_sample_ids = set(request.form.getlist('selected_samples'))
+
+        for rec in project.recordings:
+            for sample in rec.samples:
+                sample_id_str = str(sample.id)
+                if sample_id_str in selected_sample_ids:
+                    try:
+                        root_note = int(request.form.get(f'sample_root_note_{sample.id}'))
+                        lo_key = int(request.form.get(f'sample_lo_key_{sample.id}'))
+                        hi_key = int(request.form.get(f'sample_hi_key_{sample.id}'))
+
+                        mapping_item = next(iter(sample.sample_mapping_items), None)
+                        if not mapping_item:
+                            mapping_item = SampleMappingItemModel(sample_id=sample.id)
+                            db.add(mapping_item)
+
+                        mapping_item.root_note = root_note
+                        mapping_item.key_range_start = lo_key
+                        mapping_item.key_range_end = hi_key
+
+                    except (ValueError, TypeError, AttributeError):
+                        flash(f"Invalid mapping value for sample {sample.name}. Please enter valid numbers.", "error")
+                        continue
+                else:
+                    for item in sample.sample_mapping_items:
+                        db.delete(item)
+
+        try:
+            db.commit()
+            flash("DSPreset settings updated successfully!", "success")
+        except Exception as e:
+            db.rollback()
+            current_app.logger.error(f"Failed to update DSPreset settings: {e}")
+            flash("An error occurred while saving the settings. Please try again.", "error")
+
         return redirect(url_for('ui_bp.dspreset_settings_form', project_id=project_id))
 
 
@@ -371,6 +419,7 @@ def process_recording_submit(project_id: int, recording_id: int) -> str:
         return redirect(url_for('ui_bp.process_recording_ui', project_id=project_id, recording_id=recording_id))
 
 
+
 @ui_bp.route("/projects/<int:project_id>/recordings/<int:recording_id>", methods=["GET"])
 def view_recording(project_id: int, recording_id: int) -> str:
     """Renders the page for viewing a single recording and its samples.
@@ -397,5 +446,58 @@ def view_recording(project_id: int, recording_id: int) -> str:
             title=f"Recording: {recording.name}",
             recording=recording,
             samples=recording.samples,
+            now=datetime.utcnow()
+        )
+
+@ui_bp.route("/projects/<int:project_id>/recordings/<int:recording_id>/samples", methods=["GET"])
+def view_samples(project_id: int, recording_id: int) -> str:
+    """Renders the page for viewing samples of a specific recording.
+
+    Args:
+        project_id (int): The ID of the project.
+        recording_id (int): The ID of the recording.
+
+    Returns:
+        str: Rendered HTML page for viewing samples.
+    """
+    with get_db() as db:
+        project = db.query(ProjectModel).filter(ProjectModel.id == project_id).first()
+        if not project:
+            abort(404, description=f"Project with ID {project_id} not found.")
+
+        recording = db.query(RecordingModel).filter(RecordingModel.id == recording_id).first()
+        if not recording or recording.project_id != project_id:
+            abort(404, description=f"Recording with ID {recording_id} not found in project {project_id}.")
+
+        samples = recording.samples
+
+        return render_template(
+            "view_samples.html",
+            project=project,
+            recording=recording,
+            samples=samples,
+            now=datetime.utcnow()
+        )
+
+
+@ui_bp.route("/samples/<int:sample_id>", methods=["GET"])
+def view_sample(sample_id: int) -> str:
+    """Renders the page for viewing a single sample.
+
+    Args:
+        sample_id (int): The ID of the sample.
+
+    Returns:
+        str: Rendered HTML page for viewing a sample.
+    """
+    with get_db() as db:
+        sample = db.query(SampleModel).filter(SampleModel.id == sample_id).first()
+        if not sample:
+            abort(404, description=f"Sample with ID {sample_id} not found.")
+
+        return render_template(
+            "view_sample.html",
+            title=f"Sample - {sample.name}",
+            sample=sample,
             now=datetime.utcnow()
         )
