@@ -53,6 +53,6 @@ services:
     # Command to initialize the database and start the application
     command: >
       sh -c "
-      python -c 'from src.database.utils import init_db; init_db()' &&
-      python -m flask run --host=0.0.0.0 --port=5001
+      flask init-db &&
+      flask run --host=0.0.0.0 --port=5001
       "

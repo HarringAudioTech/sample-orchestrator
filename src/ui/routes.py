@@ -369,3 +369,33 @@ def process_recording_submit(project_id: int, recording_id: int) -> str:
             error_message = response.json()['error']
         flash(error_message, "error")
         return redirect(url_for('ui_bp.process_recording_ui', project_id=project_id, recording_id=recording_id))
+
+
+@ui_bp.route("/projects/<int:project_id>/recordings/<int:recording_id>", methods=["GET"])
+def view_recording(project_id: int, recording_id: int) -> str:
+    """Renders the page for viewing a single recording and its samples.
+
+    Args:
+        project_id (int): The ID of the project.
+        recording_id (int): The ID of the recording to view.
+
+    Returns:
+        str: Rendered HTML page for the recording.
+    """
+    with get_db() as db:
+        recording = (
+            db.query(RecordingModel)
+            .filter(RecordingModel.id == recording_id, RecordingModel.project_id == project_id)
+            .first()
+        )
+
+        if not recording:
+            abort(404, description=f"Recording with ID {recording_id} not found in project {project_id}.")
+
+        return render_template(
+            "view_recording.html",
+            title=f"Recording: {recording.name}",
+            recording=recording,
+            samples=recording.samples,
+            now=datetime.utcnow()
+        )
