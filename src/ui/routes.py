@@ -14,7 +14,7 @@ import json
 from src.database.utils import get_db
 from src.database.models import (
     ProjectModel, RecordingModel, SampleModel,
-    ProjectType, VirtualInstrumentModel, SampleMappingItemModel
+    ProjectType, VirtualInstrumentModel, SampleMappingItemModel, VelocityGroupModel
 )
 
 # Local application imports
@@ -186,8 +186,14 @@ def dspreset_settings_form(project_id: int) -> str:
         if project.project_type != ProjectType.VIRTUAL_INSTRUMENT.value:
             abort(403, description="DSPreset settings are only available for Virtual Instrument projects.")
 
-        # We need to get the VirtualInstrumentModel to access its properties
-        vi_project = db.query(VirtualInstrumentModel).filter(VirtualInstrumentModel.id == project_id).first()
+        # Eagerly load all necessary data for the virtual instrument project
+        vi_project = db.query(VirtualInstrumentModel).options(
+            joinedload(VirtualInstrumentModel.recordings)
+            .joinedload(RecordingModel.samples)
+            .joinedload(SampleModel.sample_mapping_items)
+            .joinedload(SampleMappingItemModel.velocity_group),
+            joinedload(VirtualInstrumentModel.velocity_groups)
+        ).filter(VirtualInstrumentModel.id == project_id).first()
 
         return render_template(
             "dspreset_settings.html",
@@ -199,71 +205,105 @@ def dspreset_settings_form(project_id: int) -> str:
 def dspreset_settings_submit(project_id: int):
     """Handles the submission of the DSPreset settings form, including sample mappings."""
     with get_db() as db:
-        # Eagerly load related data to prevent N+1 query issues
         project = db.query(VirtualInstrumentModel).options(
             joinedload(VirtualInstrumentModel.recordings)
             .joinedload(RecordingModel.samples)
-            .joinedload(SampleModel.sample_mapping_items)
+            .joinedload(SampleModel.sample_mapping_items),
+            joinedload(VirtualInstrumentModel.velocity_groups)
         ).filter(VirtualInstrumentModel.id == project_id).first()
 
         if not project:
             abort(404, description=f"Project with ID {project_id} not found.")
-
-        if project.project_type != ProjectType.VIRTUAL_INSTRUMENT.value:
-            abort(403, description="DSPreset settings are only available for Virtual Instrument projects.")
 
         # --- Update Project-Level Settings ---
         project.name = request.form.get('project_name', project.name)
         try:
             base_note = request.form.get('base_note')
             project.base_note = int(base_note) if base_note and base_note.strip() else None
-
-            velocity_layers = request.form.get('velocity_layers')
-            project.velocity_layers = int(velocity_layers) if velocity_layers and velocity_layers.strip() else None
-
             round_robins = request.form.get('round_robins')
             project.round_robins = int(round_robins) if round_robins and round_robins.strip() else None
         except (ValueError, TypeError):
-            flash("Invalid number format for base note, velocity layers, or round robins.", "error")
+            flash("Invalid number format for base note or round robins.", "error")
             return redirect(url_for('ui_bp.dspreset_settings_form', project_id=project_id))
 
         metadata = project.meta_data or {}
         metadata['author'] = request.form.get('author')
-
-        if 'artwork' in request.files:
-            artwork_file = request.files['artwork']
-            if artwork_file.filename != '':
-                metadata['artwork_path'] = artwork_file.filename
-
+        if 'artwork' in request.files and request.files['artwork'].filename != '':
+            metadata['artwork_path'] = request.files['artwork'].filename
         project.metadata_json = json.dumps(metadata)
+
+        # --- Handle Velocity Groups ---
+        layer_ids = request.form.getlist('layer_id')
+        deleted_layer_ids = request.form.getlist('deleted_layers')
+
+        # Delete groups
+        for layer_id_str in deleted_layer_ids:
+            if layer_id_str.isdigit():
+                group_to_delete = db.query(VelocityGroupModel).filter_by(id=int(layer_id_str)).first()
+                if group_to_delete:
+                    db.delete(group_to_delete)
+
+        # Create/Update groups
+        new_layer_id_map = {}
+        for layer_id in layer_ids:
+            try:
+                name = request.form.get(f'layer_name_{layer_id}')
+                low_vel = int(request.form.get(f'layer_low_vel_{layer_id}'))
+                high_vel = int(request.form.get(f'layer_high_vel_{layer_id}'))
+
+                if layer_id.startswith('new_'):
+                    new_group = VelocityGroupModel(
+                        project_id=project.id,
+                        name=name,
+                        low_vel=low_vel,
+                        high_vel=high_vel
+                    )
+                    db.add(new_group)
+                    db.flush() # Flush to get the new ID
+                    new_layer_id_map[layer_id] = new_group.id
+                elif layer_id.isdigit():
+                    group = next((g for g in project.velocity_groups if g.id == int(layer_id)), None)
+                    if group:
+                        group.name = name
+                        group.low_vel = low_vel
+                        group.high_vel = high_vel
+            except (ValueError, TypeError):
+                flash(f"Invalid velocity value for layer {layer_id}. Please enter valid numbers.", "error")
+                continue
 
         # --- Update Sample-Level Mappings ---
         selected_sample_ids = set(request.form.getlist('selected_samples'))
+        all_samples = [s for rec in project.recordings for s in rec.samples]
 
-        for rec in project.recordings:
-            for sample in rec.samples:
-                sample_id_str = str(sample.id)
-                if sample_id_str in selected_sample_ids:
-                    try:
-                        root_note = int(request.form.get(f'sample_root_note_{sample.id}'))
-                        lo_key = int(request.form.get(f'sample_lo_key_{sample.id}'))
-                        hi_key = int(request.form.get(f'sample_hi_key_{sample.id}'))
+        for sample in all_samples:
+            sample_id_str = str(sample.id)
+            mapping_item = next(iter(sample.sample_mapping_items), None)
 
-                        mapping_item = next(iter(sample.sample_mapping_items), None)
-                        if not mapping_item:
-                            mapping_item = SampleMappingItemModel(sample_id=sample.id)
-                            db.add(mapping_item)
+            if sample_id_str in selected_sample_ids:
+                if not mapping_item:
+                    mapping_item = SampleMappingItemModel(sample_id=sample.id)
+                    db.add(mapping_item)
 
-                        mapping_item.root_note = root_note
-                        mapping_item.key_range_start = lo_key
-                        mapping_item.key_range_end = hi_key
+                try:
+                    mapping_item.root_note = int(request.form.get(f'sample_root_note_{sample.id}'))
+                    mapping_item.key_range_start = int(request.form.get(f'sample_lo_key_{sample.id}'))
+                    mapping_item.key_range_end = int(request.form.get(f'sample_hi_key_{sample.id}'))
 
-                    except (ValueError, TypeError, AttributeError):
-                        flash(f"Invalid mapping value for sample {sample.name}. Please enter valid numbers.", "error")
-                        continue
-                else:
-                    for item in sample.sample_mapping_items:
-                        db.delete(item)
+                    group_id_str = request.form.get(f'sample_velocity_group_{sample.id}')
+                    if group_id_str and group_id_str.startswith('new_'):
+                        mapping_item.velocity_group_id = new_layer_id_map.get(group_id_str)
+                    elif group_id_str and group_id_str.isdigit():
+                        mapping_item.velocity_group_id = int(group_id_str)
+                    else:
+                        mapping_item.velocity_group_id = None
+
+                except (ValueError, TypeError):
+                    flash(f"Invalid mapping value for sample {sample.name}. Please enter valid numbers.", "error")
+                    continue
+            else:
+                # If sample is not selected, delete its mapping
+                if mapping_item:
+                    db.delete(mapping_item)
 
         try:
             db.commit()

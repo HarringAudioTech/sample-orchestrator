@@ -304,7 +304,6 @@ def test_dashboard_with_midi_captures(client: FlaskClient, db_session: SQLAlchem
         name="MIDI Project", 
         project_type=ProjectType.VIRTUAL_INSTRUMENT,
         base_note=60,  # Middle C
-        velocity_layers=3,
         round_robins=2
     )
     db_session.add(project)

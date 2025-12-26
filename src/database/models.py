@@ -46,7 +46,6 @@ class ProjectModel(Base):
     
     # Columns for VirtualInstrumentModel, for single-table inheritance
     base_note = Column(Integer, nullable=True)  # MIDI note number
-    velocity_layers = Column(Integer, nullable=True)
     round_robins = Column(Integer, nullable=True)
 
     # Define relationships
@@ -90,6 +89,7 @@ class VirtualInstrumentModel(ProjectModel):
     __mapper_args__ = {
         "polymorphic_identity": "virtual_instrument",
     }
+    velocity_groups = relationship("VelocityGroupModel", back_populates="project", cascade="all, delete-orphan")
 
 
 class RecordingModel(Base):
@@ -149,21 +149,36 @@ class SampleModel(Base):
         return {}
 
 
+class VelocityGroupModel(Base):
+    """Model for velocity groups in a virtual instrument."""
+    __tablename__ = "velocity_groups"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    name = Column(String(255), nullable=False, default="default")
+    low_vel = Column(Integer, nullable=False, default=0)
+    high_vel = Column(Integer, nullable=False, default=127)
+
+    project = relationship("VirtualInstrumentModel", back_populates="velocity_groups")
+    sample_mapping_items = relationship("SampleMappingItemModel", back_populates="velocity_group")
+
+
 class SampleMappingItemModel(Base):
     """Model for sample key mapping items."""
     __tablename__ = "sample_mapping_items"
     
     id = Column(Integer, primary_key=True, index=True)
     sample_id = Column(Integer, ForeignKey("samples.id"), nullable=False)
+    velocity_group_id = Column(Integer, ForeignKey("velocity_groups.id"), nullable=True)
+
     key_range_start = Column(Integer, nullable=True)  # MIDI note number for range start
     key_range_end = Column(Integer, nullable=True)    # MIDI note number for range end
-    velocity_range_start = Column(Integer, nullable=True)  # MIDI velocity range start
-    velocity_range_end = Column(Integer, nullable=True)    # MIDI velocity range end
     root_note = Column(Integer, nullable=True)  # MIDI note number for sample root note
     created_at = Column(DateTime, server_default=func.now())
     
     # Define relationships
     sample = relationship("SampleModel", back_populates="sample_mapping_items")
+    velocity_group = relationship("VelocityGroupModel", back_populates="sample_mapping_items")
 
 
 class MidiDeviceModel(Base):
