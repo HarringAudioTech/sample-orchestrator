@@ -224,115 +224,98 @@ class DecentSamplerPresetGenerator:
         return ui_element
 
     def _create_groups_element(self, samples_output_dir: str) -> ET.Element:
-        """Creates the <groups> XML element and populates it with sample data.
+        """Creates the <groups> XML element based on velocity groups and sample mappings.
 
-        This method constructs the <groups> section of the .dspreset file.
-        It iterates through each recording in the project. For each recording,
-        a <group> XML element is created. Within each group, it processes every
-        associated sample:
-        1. The sample's audio file is copied from its source location to the
-           instrument's 'Samples' subdirectory (created within `samples_output_dir`).
-           If copying fails or the source file doesn't exist, a warning is printed
-           and the sample is skipped.
-        2. A <sample> XML element is created with attributes:
-            - `path`: Relative path to the copied sample file (e.g., "Samples/sample_name.wav").
-            - `rootNote`: MIDI note number of the sample's root pitch. Defaults to 60 (C3)
-              if not specified in the sample model.
-            - `loKey`, `hiKey`: MIDI note numbers defining the keyboard range for this
-              sample. Derived from `sample_mapping_items` if available, otherwise
-              defaults to the `rootNote`.
-            - `loVel`, `hiVel`: Velocity range (0-127) for this sample. Defaults to
-              the full range (0-127).
-        If no recordings are found in the project, an empty <groups> element is returned.
+        This method constructs the <groups> section of the .dspreset file by:
+        1. Collecting all samples from the project that have a mapping item.
+        2. Grouping these samples by their assigned `velocity_group_id`.
+        3. Creating a `<group>` XML element for each `VelocityGroupModel` in the project.
+           - The group's `name`, `loVel`, and `hiVel` are set from the velocity group data.
+        4. For each sample within a velocity group, it creates a `<sample>` element:
+           - Copies the audio file to the 'Samples' directory.
+           - Sets attributes like `path`, `rootNote`, `loKey`, and `hiKey` from the
+             sample's mapping data.
+        5. Any samples that are mapped but not assigned to a velocity group are placed
+           in a default group with a full velocity range (0-127).
 
         Args:
             samples_output_dir (str): The absolute path to the 'Samples' directory
-                where sample audio files will be copied and referenced from.
+                where sample audio files will be copied.
 
         Returns:
-            xml.etree.ElementTree.Element: The configured <groups> XML element,
-            containing all <group> and <sample> sub-elements.
+            xml.etree.ElementTree.Element: The configured <groups> XML element.
         """
-        groups_element: ET.Element = ET.Element("groups")
+        groups_element = ET.Element("groups")
+        project_model = self.project.project_model
 
-        if not self.project.project_model or not self.project.project_model.recordings:
-            print("INFO: No recordings found in the project. Groups element will be empty.")
+        if not project_model or not hasattr(project_model, 'velocity_groups'):
+            print("INFO: Project is not a virtual instrument or has no velocity groups.")
             return groups_element
 
-        for recording_model in self.project.project_model.recordings:
-            # Create a <group> for each recording.
-            # You could add attributes to the group here, e.g., name
-            group_element: ET.Element = ET.SubElement(groups_element, "group")
-            if recording_model.name:  # Add group name if available
-                group_element.set("name", recording_model.name)
+        # Collect all samples with mapping items
+        all_samples = [
+            s for rec in project_model.recordings
+            for s in rec.samples if s.sample_mapping_items
+        ]
 
-            if not recording_model.samples:
-                # Drastically simplified f-string for pylint testing
-                print(f"INFO: Rec {recording_model.name} empty.")
-                continue
+        # Group samples by their velocity_group_id
+        samples_by_group = {}
+        unassigned_samples = []
+        for sample in all_samples:
+            mapping_item = sample.sample_mapping_items[0]
+            group_id = mapping_item.velocity_group_id
+            if group_id:
+                if group_id not in samples_by_group:
+                    samples_by_group[group_id] = []
+                samples_by_group[group_id].append(sample)
+            else:
+                unassigned_samples.append(sample)
 
-            for sample_model in recording_model.samples:
-                source_sample_path: str = sample_model.file_path
-                sample_filename: str = os.path.basename(source_sample_path)
-                dest_sample_path: str = os.path.join(samples_output_dir, sample_filename)
+        # Create groups for each velocity layer
+        for vel_group in project_model.velocity_groups:
+            group_element = ET.SubElement(groups_element, "group", name=vel_group.name)
+            group_element.set("loVel", str(vel_group.low_vel))
+            group_element.set("hiVel", str(vel_group.high_vel))
 
-                # Attempt to copy the sample file
-                if os.path.exists(source_sample_path):
-                    try:
-                        shutil.copy2(source_sample_path, dest_sample_path)
-                        # print(f"INFO: Copied sample: {source_sample_path} to {dest_sample_path}")
-                    except IOError as e:
-                        print(f"ERROR: Could not copy sample file {sample_filename}: {e}")
-                        continue  # Skip this sample if copy fails
-                else:
-                    print(
-                        f"WARNING: Sample source file not found, skipping: {source_sample_path}"
-                    )
-                    continue  # Skip this sample if source doesn't exist
+            for sample_model in samples_by_group.get(vel_group.id, []):
+                self._add_sample_to_group(group_element, sample_model, samples_output_dir)
 
-                # Create the <sample> XML element
-                sample_element: ET.Element = ET.SubElement(group_element, "sample")
-
-                # Path is relative to the .dspreset file, within the 'Samples'
-                # subdirectory
-                xml_sample_path: str = os.path.join("Samples", sample_filename)
-                sample_element.set("path", xml_sample_path)
-
-                # Defaults
-                root_note_str = "60"
-                lo_key_str = "60"
-                hi_key_str = "60"
-
-                mapping_item = next(iter(sample_model.sample_mapping_items), None)
-                if mapping_item:
-                    if mapping_item.root_note is not None:
-                        root_note_str = str(mapping_item.root_note)
-
-                    # If key ranges are not set, they default to the root note
-                    lo_key_str = str(mapping_item.key_range_start) if mapping_item.key_range_start is not None else root_note_str
-                    hi_key_str = str(mapping_item.key_range_end) if mapping_item.key_range_end is not None else root_note_str
-
-                sample_element.set("rootNote", root_note_str)
-                sample_element.set("loKey", lo_key_str)
-                sample_element.set("hiKey", hi_key_str)
-
-                # Velocity range (loVel, hiVel) - defaults to full range
-                lo_vel_str: str = "0"
-                hi_vel_str: str = "127"
-                # Example of how to integrate velocity from mapping_item if it were available:
-                # if sample_model.sample_mapping_items:
-                #     mapping_item = sample_model.sample_mapping_items[0]
-                #     if mapping_item.velocity_range_start is not None:
-                #         lo_vel_str = str(mapping_item.velocity_range_start)
-                #     if mapping_item.velocity_range_end is not None:
-                #         hi_vel_str = str(mapping_item.velocity_range_end)
-                sample_element.set("loVel", lo_vel_str)
-                sample_element.set("hiVel", hi_vel_str)
-
-                # Other potential sample attributes (e.g., volume, pan, loop settings)
-                # sample_element.set("volume", "0dB") # Example
+        # Create a default group for unassigned samples
+        if unassigned_samples:
+            default_group = ET.SubElement(groups_element, "group", name="Unassigned")
+            default_group.set("loVel", "0")
+            default_group.set("hiVel", "127")
+            for sample_model in unassigned_samples:
+                self._add_sample_to_group(default_group, sample_model, samples_output_dir)
 
         return groups_element
+
+    def _add_sample_to_group(self, group_element: ET.Element, sample_model: SampleModel, samples_output_dir: str):
+        """Copies a sample file and adds its XML representation to a group element."""
+        source_sample_path = sample_model.file_path
+        sample_filename = os.path.basename(source_sample_path)
+        dest_sample_path = os.path.join(samples_output_dir, sample_filename)
+
+        if not os.path.exists(source_sample_path):
+            print(f"WARNING: Sample source file not found, skipping: {source_sample_path}")
+            return
+
+        try:
+            shutil.copy2(source_sample_path, dest_sample_path)
+        except IOError as e:
+            print(f"ERROR: Could not copy sample file {sample_filename}: {e}")
+            return
+
+        sample_element = ET.SubElement(group_element, "sample")
+        xml_sample_path = os.path.join("Samples", sample_filename)
+        sample_element.set("path", xml_sample_path)
+
+        mapping_item = sample_model.sample_mapping_items[0]
+        root_note_str = str(mapping_item.root_note or 60)
+
+        sample_element.set("rootNote", root_note_str)
+        sample_element.set("loKey", str(mapping_item.key_range_start or root_note_str))
+        sample_element.set("hiKey", str(mapping_item.key_range_end or root_note_str))
 
     def _create_effects_element(self) -> ET.Element:
         """Creates the <effects> XML element for the Decent Sampler preset.

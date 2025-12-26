@@ -208,7 +208,6 @@ def test_create_virtual_instrument_project(client: FlaskClient):
                 "project_type": "virtual_instrument",
                 "description": "Test description",
                 "base_note": 60,
-                "velocity_layers": 3,
                 "round_robins": 2
             }
             
@@ -220,7 +219,6 @@ def test_create_virtual_instrument_project(client: FlaskClient):
                     "description": "Test description",
                     "project_type": "virtual_instrument",
                     "base_note": 60,
-                    "velocity_layers": 3,
                     "round_robins": 2
                 }
             )

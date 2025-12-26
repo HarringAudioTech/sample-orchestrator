@@ -142,9 +142,6 @@ def create_project() -> Response:
             return jsonify({"error": "base_note must be a valid MIDI note number (0-127)"}), 400
             
         velocity_layers = data.get("velocity_layers")
-        if velocity_layers is not None and (not isinstance(velocity_layers, int) or velocity_layers < 1):
-            return jsonify({"error": "velocity_layers must be a positive integer"}), 400
-            
         round_robins = data.get("round_robins")
         if round_robins is not None and (not isinstance(round_robins, int) or round_robins < 1):
             return jsonify({"error": "round_robins must be a positive integer"}), 400
@@ -168,7 +165,6 @@ def create_project() -> Response:
                 project = VirtualInstrumentModel(
                     **common_args,
                     base_note=data.get("base_note"),
-                    velocity_layers=data.get("velocity_layers"),
                     round_robins=data.get("round_robins")
                 )
             else:  # SAMPLE_PACK

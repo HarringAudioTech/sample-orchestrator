@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session as SQLAlchemySession
 from src.app import create_app
 from src.database import utils
 from src.database.utils import init_db as initialize_db_utils
-from src.database.models import Base, ProjectModel, VirtualInstrumentModel, ProjectType, RecordingModel, SampleModel, SampleMappingItemModel
+from src.database.models import Base, ProjectModel, VirtualInstrumentModel, ProjectType, RecordingModel, SampleModel, SampleMappingItemModel, SamplePackModel
 
 from typing import Generator
 
@@ -63,7 +63,6 @@ def create_virtual_instrument_project(db_session: SQLAlchemySession, name: str =
         name=name,
         project_type=ProjectType.VIRTUAL_INSTRUMENT.value,
         base_note=60,
-        velocity_layers=1,
         round_robins=1
     )
     db_session.add(project)
@@ -82,13 +81,13 @@ def test_dspreset_settings_page_loads(client: FlaskClient, db_session: SQLAlchem
     assert "Project Name" in response.data.decode("utf-8")
     assert "Author" in response.data.decode("utf-8")
     assert "Base Note" in response.data.decode("utf-8")
-    assert "Velocity Layers" in response.data.decode("utf-8")
+    assert "Velocity Layers" in response.data.decode("utf-8") # This is now a section title
     assert "Round Robins" in response.data.decode("utf-8")
     assert "Artwork" in response.data.decode("utf-8")
 
 def test_dspreset_settings_page_not_for_sample_pack(client: FlaskClient, db_session: SQLAlchemySession):
     """Test that the DSPreset settings page returns 403 for a sample pack project."""
-    project = ProjectModel(name="Test Sample Pack", project_type=ProjectType.SAMPLE_PACK.value)
+    project = SamplePackModel(name="Test Sample Pack", project_type=ProjectType.SAMPLE_PACK.value)
     db_session.add(project)
     db_session.commit()
     db_session.refresh(project)
@@ -105,7 +104,6 @@ def test_update_dspreset_settings(client: FlaskClient, db_session: SQLAlchemySes
             "project_name": "Updated VI Project",
             "author": "Test Author",
             "base_note": "61",
-            "velocity_layers": "2",
             "round_robins": "3",
         },
         follow_redirects=True,
@@ -119,7 +117,6 @@ def test_update_dspreset_settings(client: FlaskClient, db_session: SQLAlchemySes
     assert updated_project.name == "Updated VI Project"
     assert updated_project.meta_data.get("author") == "Test Author"
     assert updated_project.base_note == 61
-    assert updated_project.velocity_layers == 2
     assert updated_project.round_robins == 3
 
 
@@ -152,7 +149,6 @@ def test_dspreset_settings_submit_updates_mappings(client: FlaskClient, db_sessi
         "project_name": "Updated VI Project",
         "author": "Test Author",
         "base_note": "60",
-        "velocity_layers": "1",
         "round_robins": "1",
         "selected_samples": [str(sample1.id), str(sample2.id)], # sample3 is not selected
         f"sample_root_note_{sample1.id}": "61", # Update root note
