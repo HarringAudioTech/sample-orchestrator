@@ -8,7 +8,8 @@ from typing import Dict, Any, List, Tuple, Optional
 import numpy as np
 import librosa
 
-from src.core.processing_stages import AudioProcessingStage, register_stage
+from src.core.processing_stages import AudioProcessingStage
+from src.core.stage_runner import register_stage
 
 logger = logging.getLogger(__name__)
 

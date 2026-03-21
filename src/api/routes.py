@@ -590,7 +590,11 @@ def process_recording_endpoint(recording_id: int) -> Response:
         from src.core.processing_stages import DATA_TYPE_FILE_PATH
         import src.core.stages.slicing_stage  # noqa: F401
         import src.core.stages.noise_reduction_stage  # noqa: F401
-        import src.core.stages.decent_sampler_export_stage # noqa: F401
+        import src.core.stages.decent_sampler_export_stage  # noqa: F401
+        import src.core.stages.onset_detection_stage  # noqa: F401
+        import src.core.stages.slice_planning_stage  # noqa: F401
+        import src.core.stages.segment_classification_stage  # noqa: F401
+        import src.core.stages.intelligent_slicing_stage  # noqa: F401
 
         json_data: Optional[Dict[str, Any]] = request.get_json()
         if not json_data:
