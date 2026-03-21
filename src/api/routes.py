@@ -595,6 +595,7 @@ def process_recording_endpoint(recording_id: int) -> Response:
         import src.core.stages.slice_planning_stage  # noqa: F401
         import src.core.stages.segment_classification_stage  # noqa: F401
         import src.core.stages.intelligent_slicing_stage  # noqa: F401
+        import src.core.stages.quality_control_stage  # noqa: F401
 
         json_data: Optional[Dict[str, Any]] = request.get_json()
         if not json_data:

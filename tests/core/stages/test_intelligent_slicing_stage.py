@@ -52,7 +52,8 @@ class TestIntelligentSlicingRegistration:
 class TestIntelligentSlicingProcess:
     @patch("src.core.stages.intelligent_slicing_stage.OnsetDetectionStage")
     @patch("src.core.stages.intelligent_slicing_stage.SlicingStage")
-    def test_full_pipeline(self, MockSlicing, MockOnset, stage, mock_context):
+    @patch("src.core.stages.intelligent_slicing_stage.QualityControlStage")
+    def test_full_pipeline(self, MockQC, MockSlicing, MockOnset, stage, mock_context):
         """Test that the full pipeline is called in order."""
         # Mock onset detection
         mock_onset = MockOnset.return_value
@@ -60,16 +61,22 @@ class TestIntelligentSlicingProcess:
 
         # Mock slicing
         mock_slicing = MockSlicing.return_value
-        mock_slicing.process.return_value = [
+        slicing_result = [
             {"id": 1, "file_path": "/test/slice_001.wav", "start_time": 0.0, "end_time": 0.5},
             {"id": 2, "file_path": "/test/slice_002.wav", "start_time": 0.5, "end_time": 1.0},
         ]
+        mock_slicing.process.return_value = slicing_result
+
+        # Mock QC to pass everything through
+        mock_qc = MockQC.return_value
+        mock_qc.process.return_value = slicing_result
 
         result = stage.process("/test/audio.wav", {}, mock_context)
 
         assert len(result) == 2
         mock_onset.process.assert_called_once()
         mock_slicing.process.assert_called_once()
+        mock_qc.process.assert_called_once()
 
     @patch("src.core.stages.intelligent_slicing_stage.OnsetDetectionStage")
     @patch("src.core.stages.intelligent_slicing_stage.SlicingStage")
@@ -86,6 +93,7 @@ class TestIntelligentSlicingProcess:
         custom_params = {
             "onset_detection": {"sr": 48000},
             "slicing": {"bit_depth": 16},
+            "enable_quality_control": False,
         }
 
         stage.process("/test/audio.wav", custom_params, mock_context)

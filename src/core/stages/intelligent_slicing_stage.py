@@ -16,6 +16,7 @@ from src.core.stages.onset_detection_stage import OnsetDetectionStage
 from src.core.stages.slice_planning_stage import SlicePlanningStage
 from src.core.stages.segment_classification_stage import SegmentClassificationStage
 from src.core.stages.slicing_stage import SlicingStage
+from src.core.stages.quality_control_stage import QualityControlStage
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,7 @@ class IntelligentSlicingStage(AudioProcessingStage):
     2. Slice planning - determines optimal slice boundaries
     3. Segment classification - classifies each segment type
     4. Slicing - extracts audio slices and creates database entries
+    5. Quality control - evaluates sample quality and filters low-quality samples
 
     Input: file_path (path to audio file)
     Output: list_of_sample_data (list of created sample metadata dicts)
@@ -60,6 +62,8 @@ class IntelligentSlicingStage(AudioProcessingStage):
             "slice_planning": {},
             "segment_classification": {},
             "slicing": {},
+            "quality_control": {},
+            "enable_quality_control": True,
         }
 
     def process(
@@ -131,8 +135,19 @@ class IntelligentSlicingStage(AudioProcessingStage):
         slicing_params["slice_points"] = slice_points
 
         samples = slicing_stage.process(file_path, slicing_params, context)
-
         logger.info(f"IntelligentSlicing: created {len(samples)} samples")
+
+        # Stage 5: Quality control (optional)
+        if merged_params.get("enable_quality_control", True):
+            logger.info("IntelligentSlicing: running quality control")
+            qc_stage = QualityControlStage()
+            samples = qc_stage.process(
+                samples, merged_params.get("quality_control", {}), context
+            )
+            logger.info(
+                f"IntelligentSlicing: {len(samples)} samples passed QC"
+            )
+
         return samples
 
 
