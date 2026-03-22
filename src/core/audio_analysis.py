@@ -90,49 +90,75 @@ def detect_key(audio_path: str, sr: Optional[int] = None) -> str:
         logger.warning(f"Key detection failed: {str(e)}")
         return ""
 
-def detect_loop_points(audio_path: str, sr: Optional[int] = None) -> Dict[str, int]:
+def detect_loop_points(
+    audio_path: str,
+    sr: Optional[int] = None,
+    n: int = 5,
+    min_score: float = 0.3,
+) -> List[Dict[str, Union[int, float]]]:
     """
-    Detect potential loop points in an audio file.
-    
+    Detect potential loop regions in an audio file.
+
+    Uses :class:`~src.core.loop_evaluator.LoopEvaluator` to find multiple
+    candidate loops, score them with heuristics, and return the best *n*.
+
     Args:
-        audio_path: Path to the audio file
-        sr: Sample rate (None to use file's native sample rate)
-        
+        audio_path: Path to the audio file.
+        sr: Sample rate (None to use the file's native rate).
+        n: Maximum number of loop candidates to return.
+        min_score: Minimum overall score for a candidate to be included.
+
     Returns:
-        Dict with loop points or empty dict if no good loop found:
-        {
-            'loop_start': int,  # sample index
-            'loop_end': int,    # sample index
-            'confidence': float # 0.0 to 1.0
-        }
+        List of dicts, each containing::
+
+            {'loop_start': int,   # sample index
+             'loop_end': int,     # sample index
+             'confidence': float, # 0.0 – 1.0
+             'start_time': float, # seconds
+             'end_time': float,   # seconds
+             'duration_bars': float,
+             'bpm': float}
+
+        Ordered by descending confidence.  Returns an empty list on failure.
     """
     try:
-        y, sr = librosa.load(audio_path, sr=sr, mono=True)
-        
-        # Compute onset envelope
-        onset_env = librosa.onset.onset_strength(y=y, sr=sr)
-        
-        # Find potential loop points using novelty function
-        # This is a simplified approach - a real implementation would be more sophisticated
-        
-        # Look for similar sections using self-similarity matrix
-        S = np.abs(librosa.stft(y))
-        S_sim = librosa.segment.cross_similarity(S, S)
-        
-        # Find the best diagonal (excluding the main diagonal)
-        # This is a placeholder - a real implementation would analyze the SSM more carefully
-        loop_length = len(y) // 2  # Start by looking for a loop that's half the length
-        
-        # This is a simplified approach - in practice, you'd want to analyze the SSM
-        # to find the best loop points
-        return {
-            'loop_start': 0,
-            'loop_end': len(y) - 1,
-            'confidence': 0.0
-        }
+        from src.core.loop_evaluator import LoopEvaluator
+
+        evaluator = LoopEvaluator()
+        result = evaluator.evaluate(audio_path, sr=sr, n=n, min_score=min_score)
+
+        loops: List[Dict[str, Union[int, float]]] = []
+        for sc in result.selected_candidates:
+            loops.append({
+                'loop_start': sc.candidate.start_sample,
+                'loop_end': sc.candidate.end_sample,
+                'confidence': sc.overall_score,
+                'start_time': sc.candidate.start_time,
+                'end_time': sc.candidate.end_time,
+                'duration_bars': sc.candidate.duration_bars,
+                'bpm': sc.candidate.bpm,
+            })
+        return loops
     except Exception as e:
         logger.warning(f"Loop detection failed: {str(e)}")
-        return {}
+        return []
+
+
+def detect_best_loop_point(
+    audio_path: str, sr: Optional[int] = None
+) -> Dict[str, Union[int, float]]:
+    """
+    Convenience wrapper returning only the single best loop point.
+
+    Backward-compatible with the old ``detect_loop_points()`` return format.
+
+    Returns:
+        Dict with ``loop_start``, ``loop_end``, ``confidence`` or empty dict.
+    """
+    loops = detect_loop_points(audio_path, sr=sr, n=1)
+    if loops:
+        return loops[0]
+    return {}
 
 def analyze_audio_metadata(audio_path: str, sr: Optional[int] = None) -> Dict[str, any]:
     """
@@ -169,21 +195,22 @@ def analyze_audio_metadata(audio_path: str, sr: Optional[int] = None) -> Dict[st
         bpm = detect_bpm(audio_path, sr)
         key = detect_key(audio_path, sr)
         
-        # Detect loop points
-        loop_points = detect_loop_points(audio_path, sr)
-        
+        # Detect loop points (returns list of candidates now)
+        loop_candidates = detect_loop_points(audio_path, sr)
+        best_loop = loop_candidates[0] if loop_candidates else None
+
         # Calculate loudness (simplified RMS)
         rms = np.sqrt(np.mean(y**2))
         loudness = 20 * np.log10(rms) if rms > 0 else -120
-        
+
         # Calculate dynamic range (simplified)
         peak = np.max(np.abs(y))
         noise_floor = np.percentile(np.abs(y), 5)  # 5th percentile as noise floor
         dynamic_range = 20 * np.log10(peak / noise_floor) if noise_floor > 0 else 0
-        
+
         # Detect transients (onsets)
         onset_frames = librosa.onset.onset_detect(y=y, sr=sr, units='time')
-        
+
         return {
             'duration': float(info.duration),
             'sample_rate': int(info.samplerate),
@@ -193,8 +220,9 @@ def analyze_audio_metadata(audio_path: str, sr: Optional[int] = None) -> Dict[st
             'key': key,
             'loudness': float(loudness),
             'dynamic_range': float(dynamic_range),
-            'is_loop': len(loop_points) > 0 and loop_points.get('confidence', 0) > 0.7,
-            'loop_points': loop_points if loop_points else None,
+            'is_loop': best_loop is not None and best_loop.get('confidence', 0) > 0.7,
+            'loop_points': best_loop,
+            'loop_candidates': loop_candidates,
             'transient_positions': list(onset_frames)
         }
     except Exception as e:
