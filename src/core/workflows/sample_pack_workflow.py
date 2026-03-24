@@ -11,16 +11,12 @@ from typing import Dict, Any, List, Optional
 
 from sqlalchemy.orm import Session
 
-# Import models
-from src.database.models import ProjectType, SamplePackStatus, SamplePackModel
-
-# Import processing stages
+from src.database.models import RecordingModel, SamplePackStatus
 from src.core.stages.onset_detection_stage import OnsetDetectionStage
 from src.core.stages.slice_planning_stage import SlicePlanningStage
 from src.core.stages.segment_classification_stage import SegmentClassificationStage
 from src.core.stages.slicing_stage import SlicingStage
 from src.core.stages.loop_detection_stage import LoopDetectionStage
-
 
 logger = logging.getLogger(__name__)
 
@@ -36,8 +32,6 @@ class SamplePackWorkflow:
     def __init__(self, db_session: Session):
         """Initialize the workflow with a database session."""
         self.db_session = db_session
-
-        # Initialize processing stages
         self.onset_detection = OnsetDetectionStage()
         self.slice_planning = SlicePlanningStage()
         self.segment_classification = SegmentClassificationStage()
@@ -66,35 +60,20 @@ class SamplePackWorkflow:
         if params is None:
             params = {}
 
-        # Get recording from database
-        recording = self.db_session.query(RecordingModel).get(recording_id)
+        recording = self.db_session.get(RecordingModel, recording_id)
         if not recording:
             raise ValueError(f"Recording with ID {recording_id} not found")
 
-        # Update recording status
-        recording.status = "processing"
-        self.db_session.commit()
-
-        # Create output directory for this recording
         recording_output_dir = os.path.join(output_dir, f"recording_{recording_id}")
-        os.makedirs(recording_output_dir, exist_ok=True)
+        samples_dir = os.path.join(recording_output_dir, "samples")
+        os.makedirs(samples_dir, exist_ok=True)
 
-        # Create a sample pack for this recording
-        sample_pack = self._create_sample_pack(
-            id=project_id,
-            name=f"Samples from {recording.id}",
-            description=f"Auto-generated samples from {recording.id}",
-            status="draft",
-            project_type=ProjectType.SAMPLE_PACK,
-        )
-
-        # Prepare context for processing stages
         context = {
             "db_session": self.db_session,
             "recording_id": recording_id,
             "project_id": project_id,
-            "sample_pack_id": sample_pack.id,
-            "output_sample_dir": os.path.join(recording_output_dir, "samples"),
+            "output_sample_dir": samples_dir,
+            "project_type": "sample_pack",
         }
 
         try:
@@ -149,81 +128,49 @@ class SamplePackWorkflow:
                     context,
                 )
 
-            # Stage 4: Slice the audio and create samples
+            # Stage 4: Convert classified segments to slice_points format and slice
             logger.info(f"Slicing audio for recording {recording_id}")
-            samples = self.slicing.process(
+            slice_points = [
                 {
-                    "audio_file": recording.file_path,
-                    "slice_points": classified_segments,
-                },
-                params.get("slicing", {}),
+                    "start": seg["start_time"],
+                    "end": seg["end_time"],
+                    "type": seg.get("type", "one_shot"),
+                    "metadata": seg.get("metadata", {}),
+                }
+                for seg in classified
+            ]
+
+            slicing_params = params.get("slicing", {})
+            slicing_params["slice_points"] = slice_points
+
+            samples = self.slicing.process(
+                recording.file_path,
+                slicing_params,
                 context,
             )
 
-            # Update sample pack with results
-            sample_pack.status = SamplePackStatus.COMPLETE
-            self.db_session.commit()
-
-            # Update recording status
-            recording.status = "completed"
-            self.db_session.commit()
+            logger.info(
+                f"Created {len(samples)} samples from recording {recording_id}"
+            )
 
             return {
                 "status": "success",
                 "recording_id": recording_id,
-                "sample_pack_id": sample_pack.id,
                 "samples_created": len(samples),
                 "output_dir": recording_output_dir,
+                "samples": samples,
             }
 
         except Exception as e:
-            # Update status to failed
-            recording.status = "failed"
-            if sample_pack:
-                sample_pack.status = SamplePackStatus.COMPLETE
-            self.db_session.commit()
-
             logger.error(
                 f"Error processing recording {recording_id}: {str(e)}", exc_info=True
             )
             raise
 
-    def _create_sample_pack(
-        self, id: int, name: str, description: str = "", status: str = "draft", project_type: str = ProjectType.SAMPLE_PACK
-    ) -> SamplePackModel:
-        """
-        Create a new sample pack in the database.
-
-        Args:
-            id: ID of the sample pack
-            name: Name of the sample pack
-            description: Optional description of the sample pack
-            status: Status of the sample pack
-            project_type: Type of the project
-
-        Returns:
-            The created SamplePackModel instance
-        """
-        sample_pack = SamplePackModel(
-            id=id,
-            name=name,
-            description=description,
-            status=status,
-            project_type=project_type,
-        )
-
-        self.db_session.add(sample_pack)
-        self.db_session.commit()
-
-        return sample_pack
-
 
 def create_sample_pack_workflow(db_session: Session) -> SamplePackWorkflow:
     """
     Factory function to create a new SamplePackWorkflow instance.
-
-    This is the preferred way to create a workflow instance as it ensures
-    proper dependency injection and configuration.
 
     Args:
         db_session: SQLAlchemy database session

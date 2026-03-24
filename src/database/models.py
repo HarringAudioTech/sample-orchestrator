@@ -32,6 +32,25 @@ class SamplePackStatus(str, enum.Enum):
     FAILED = "failed"
 
 
+class SampleType(str, enum.Enum):
+    """Type classification for audio samples."""
+
+    ONE_SHOT = "one_shot"
+    LOOP = "loop"
+    AMBIENT = "ambient"
+    FILL = "fill"
+    TRANSITION = "transition"
+
+
+class SampleStatus(str, enum.Enum):
+    """Processing status of an audio sample."""
+
+    PENDING = "pending"
+    PROCESSING = "processing"
+    PROCESSED = "processed"
+    FAILED = "failed"
+
+
 class ProjectModel(Base):
     """Base model for projects."""
     __tablename__ = "projects"
@@ -124,13 +143,15 @@ class RecordingModel(Base):
 class SampleModel(Base):
     """Model for audio samples."""
     __tablename__ = "samples"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     recording_id = Column(Integer, ForeignKey("recordings.id"), nullable=False)
     name = Column(String(255), nullable=False)
     file_path = Column(String(512), nullable=False)
     start_time = Column(Float, nullable=True)  # in seconds from parent recording
     duration = Column(Float, nullable=True)    # in seconds
+    sample_type = Column(String(50), nullable=True, default=SampleType.ONE_SHOT.value)
+    status = Column(String(50), nullable=True, default=SampleStatus.PENDING.value)
     created_at = Column(DateTime, server_default=func.now())
     metadata_json = Column(Text, nullable=True)
     
