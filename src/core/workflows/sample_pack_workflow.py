@@ -19,6 +19,7 @@ from src.core.stages.onset_detection_stage import OnsetDetectionStage
 from src.core.stages.slice_planning_stage import SlicePlanningStage
 from src.core.stages.segment_classification_stage import SegmentClassificationStage
 from src.core.stages.slicing_stage import SlicingStage
+from src.core.stages.loop_detection_stage import LoopDetectionStage
 
 
 logger = logging.getLogger(__name__)
@@ -41,6 +42,7 @@ class SamplePackWorkflow:
         self.slice_planning = SlicePlanningStage()
         self.segment_classification = SegmentClassificationStage()
         self.slicing = SlicingStage()
+        self.loop_detection = LoopDetectionStage()
 
     def process_recording(
         self,
@@ -96,23 +98,56 @@ class SamplePackWorkflow:
         }
 
         try:
-            # Stage 1: Detect onsets in the audio
-            logger.info(f"Detecting onsets for recording {recording_id}")
-            onsets = self.onset_detection.process(
-                recording.file_path, params.get("onset_detection", {}), context
-            )
+            loop_detection_params = params.get("loop_detection", {})
+            use_loop_detection = loop_detection_params.get("enabled", False)
 
-            # Stage 2: Plan slice points based on onsets and project type
-            logger.info(f"Planning slice points for recording {recording_id}")
-            slice_plan = self.slice_planning.process(
-                onsets, params.get("slice_planning", {}), context
-            )
+            if use_loop_detection:
+                # Loop detection path: detect, score, and select the
+                # best N loops directly from the audio file.
+                logger.info(
+                    f"Running loop detection for recording {recording_id}"
+                )
+                slice_plan = self.loop_detection.process(
+                    recording.file_path, loop_detection_params, context
+                )
+                # Classify the detected loops
+                classified_segments = self.segment_classification.process(
+                    slice_plan,
+                    params.get("segment_classification", {}),
+                    context,
+                )
+            else:
+                # Default one-shot path: onset detection → slice planning
+                # Stage 1: Detect onsets in the audio
+                logger.info(
+                    f"Detecting onsets for recording {recording_id}"
+                )
+                onsets = self.onset_detection.process(
+                    recording.file_path,
+                    params.get("onset_detection", {}),
+                    context,
+                )
 
-            # Stage 3: Classify segments
-            logger.info(f"Classifying segments for recording {recording_id}")
-            classified_segments = self.segment_classification.process(
-                slice_plan, params.get("segment_classification", {}), context
-            )
+                # Stage 2: Plan slice points based on onsets and project type
+                logger.info(
+                    f"Planning slice points for recording {recording_id}"
+                )
+                # Make file path available for heuristic loop detection
+                # in _plan_melodic_loops()
+                context["file_path"] = recording.file_path
+                slice_plan = self.slice_planning.process(
+                    onsets, params.get("slice_planning", {}), context
+                )
+
+                # Stage 3: Classify segments
+                logger.info(
+                    f"Classifying segments for recording {recording_id}"
+                )
+                classified_segments = self.segment_classification.process(
+                    slice_plan,
+                    params.get("segment_classification", {}),
+                    context,
+                )
 
             # Stage 4: Slice the audio and create samples
             logger.info(f"Slicing audio for recording {recording_id}")

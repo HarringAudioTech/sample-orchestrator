@@ -103,27 +103,72 @@ class SlicePlanningStage(AudioProcessingStage):
         return slices
     
     def _plan_melodic_loops(
-        self, 
-        onset_times: List[float], 
-        params: Dict[str, Any]
+        self,
+        onset_times: List[float],
+        params: Dict[str, Any],
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
-        """Plan slices for melodic loops (loop-focused)."""
+        """Plan slices for melodic loops using heuristic-scored loop detection.
+
+        When the audio file path is available via *context*, the
+        :class:`~src.core.loop_evaluator.LoopEvaluator` is used to detect,
+        score, and select the best loop candidates.  Falls back to returning
+        the full audio as a single loop when no file path is available.
+        """
         loop_params = params.get("loop_detection", {})
         min_loop = loop_params.get("min_loop_length", 1.0)
         max_loop = loop_params.get("max_loop_length", 32.0)
-        
-        # For now, just return the entire audio as one loop
-        # In a real implementation, this would analyze the audio for loop points
+
+        # Try heuristic loop detection when we have a file path
+        file_path = None
+        if context:
+            file_path = context.get("file_path") or context.get("audio_file")
+
+        if file_path:
+            try:
+                from src.core.loop_evaluator import LoopEvaluator
+
+                max_candidates = loop_params.get("max_candidates", 5)
+                min_score = loop_params.get("min_score", 0.3)
+                evaluator = LoopEvaluator(
+                    min_loop_duration=min_loop,
+                    max_loop_duration=max_loop,
+                )
+                result = evaluator.evaluate(
+                    file_path, n=max_candidates, min_score=min_score,
+                )
+                if result.selected_candidates:
+                    if context is not None:
+                        context["loop_detection_result"] = result
+                    return [
+                        {
+                            "start_time": sc.candidate.start_time,
+                            "end_time": sc.candidate.end_time,
+                            "type": "loop",
+                            "metadata": {
+                                "confidence": sc.overall_score,
+                                "source": "loop_detection",
+                                "rank": sc.rank,
+                                "duration_bars": sc.candidate.duration_bars,
+                                "bpm": sc.candidate.bpm,
+                            },
+                        }
+                        for sc in result.selected_candidates
+                    ]
+            except Exception as exc:
+                logger.warning("Heuristic loop detection failed, falling back: %s", exc)
+
+        # Fallback: return the entire audio as one loop
         if not onset_times:
             return []
-            
+
         return [{
             "start_time": 0.0,
-            "end_time": max(onset_times) + 1.0,  # Add 1s padding
+            "end_time": max(onset_times) + 1.0,
             "type": "loop",
             "metadata": {
-                "confidence": 0.9,
-                "source": "full_audio"
+                "confidence": 0.5,
+                "source": "full_audio_fallback"
             }
         }]
     
@@ -175,7 +220,7 @@ class SlicePlanningStage(AudioProcessingStage):
         if project_type == ProjectType.DRUM_KIT:
             return self._plan_drum_kit_slices(onset_times, merged_params)
         elif project_type == ProjectType.MELODIC_LOOPS:
-            return self._plan_melodic_loops(onset_times, merged_params)
+            return self._plan_melodic_loops(onset_times, merged_params, context)
         else:
             # Default to drum kit behavior for unknown project types
             logger.warning(f"Unknown project type: {project_type}. Using default drum kit behavior.")
