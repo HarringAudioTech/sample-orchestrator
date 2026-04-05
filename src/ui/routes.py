@@ -396,11 +396,13 @@ def process_recording_ui(project_id: int, recording_id: int) -> str:
         if not recording or recording.project_id != project_id:
             abort(404, description=f"Recording with ID {recording_id} not found in project {project_id}.")
 
+        # Instantiate workflows for template
+        workflows_instances = {name: workflow_class() for name, workflow_class in WORKFLOW_REGISTRY.items()}
         return render_template(
             "process_recording.html",
             project=project,
             recording=recording,
-            workflows=WORKFLOW_REGISTRY,
+            workflows=workflows_instances,
             stages=STAGE_REGISTRY,
             now=datetime.utcnow()  # Add current time for base template
         )

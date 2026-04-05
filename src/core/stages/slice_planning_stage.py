@@ -10,6 +10,7 @@ import numpy as np
 
 from src.core.processing_stages import AudioProcessingStage
 from src.core.stage_runner import register_stage
+from src.database.models import ProjectType
 
 logger = logging.getLogger(__name__)
 
@@ -163,7 +164,7 @@ class SlicePlanningStage(AudioProcessingStage):
                 "confidence": 0.5,
                 "source": "full_audio_fallback"
             }
-        ]
+        }]
 
     def process(
         self,
@@ -202,9 +203,9 @@ class SlicePlanningStage(AudioProcessingStage):
         onset_times = [t for t in data if isinstance(t, (int, float))]
         
         # Plan slices based on project type
-        if project_type == ProjectType.DRUM_KIT:
-            return self._plan_drum_kit_slices(onset_times, merged_params)
-        elif project_type == ProjectType.MELODIC_LOOPS:
+        if project_type == ProjectType.VIRTUAL_INSTRUMENT.value:
+            # Note: ProjectType.VIRTUAL_INSTRUMENT maps to melodic loops slice planning for now,
+            # we don't have a drum_kit type in models, returning one-shots for others.
             return self._plan_melodic_loops(onset_times, merged_params, context)
         else:
             return self._plan_one_shot_slices(onset_times, merged_params)
