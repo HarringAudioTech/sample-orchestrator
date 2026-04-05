@@ -10,6 +10,7 @@ import numpy as np
 
 from src.core.processing_stages import AudioProcessingStage
 from src.core.stage_runner import register_stage
+from src.database.models import ProjectType
 
 logger = logging.getLogger(__name__)
 
@@ -202,7 +203,6 @@ class SlicePlanningStage(AudioProcessingStage):
         onset_times = [t for t in data if isinstance(t, (int, float))]
         
         # Plan slices based on project type
-        from src.database.models import ProjectType
         if project_type == ProjectType.VIRTUAL_INSTRUMENT.value:
             # Note: ProjectType.VIRTUAL_INSTRUMENT maps to melodic loops slice planning for now,
             # we don't have a drum_kit type in models, returning one-shots for others.
