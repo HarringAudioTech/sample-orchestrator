@@ -54,11 +54,11 @@
     <tbody>
         {% for name, workflow in workflows.items() %}
         <tr>
-            <td>{{ workflow.name }}</td>
-            <td>{{ workflow.description }}</td>
+                <td>{{ workflow.name }}</td>
+                <td>{{ workflow.description }}</td>
             <td>
                 <ul>
-                    {% for stage in workflow.stages_definition %}
+                        {% for stage in workflow.stages_definition %}
                         <li>{{ stage.stage_name }}</li>
                     {% endfor %}
                 </ul>
