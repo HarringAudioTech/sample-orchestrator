@@ -2,9 +2,9 @@ import os
 
 # import wave # Removed
 import logging  # Added logging
-from typing import List
+from typing import List, Optional, Generator
 from sqlalchemy.orm import Session  # Added Session for type hints
-from typing import Optional
+from sqlalchemy.exc import SQLAlchemyError
 from src.database.models import ProjectModel, RecordingModel, SampleModel, MidiDeviceModel, MidiCaptureSessionModel, MidiFileModel  # Added model imports
 from src.database.utils import get_db  # Import get_db function
 from src.core.midi_capture import (
@@ -66,7 +66,7 @@ class Project:
 
         _db_to_use: Session
         _manage_session_locally: bool = False
-        db_gen = None  # Initialize db_gen to None # TODO: type hint for generator
+        db_gen: Optional[Generator[Session, None, None]] = None  # Initialize db_gen to None
 
         if self.db:
             _db_to_use = self.db
@@ -148,7 +148,7 @@ class Project:
 
         _db_to_use: Session
         _manage_session_locally: bool = False
-        db_gen_local = None  # TODO: type hint for generator
+        db_gen_local: Optional[Generator[Session, None, None]] = None
 
         if self.db is None:
             logger.debug("No self.db session, creating local session for add_recording.")
@@ -268,7 +268,7 @@ class Project:
 
         _db_to_use: Session
         _manage_session_locally: bool = False
-        db_gen_local = None  # TODO: type hint for generator
+        db_gen_local: Optional[Generator[Session, None, None]] = None
 
         if self.db is None:
             logger.debug("No self.db session, creating local session for get_recording.")
@@ -337,7 +337,7 @@ class Project:
 
         _db_to_use: Session
         _manage_session_locally: bool = False
-        db_gen_local = None  # TODO: type hint for generator
+        db_gen_local: Optional[Generator[Session, None, None]] = None
 
         if self.db is None:
             logger.debug("No self.db session, creating local session for list_recordings.")
@@ -413,7 +413,7 @@ class Project:
 
         _db_to_use: Session
         _manage_session_locally: bool = False
-        db_gen_local = None  # TODO: type hint for generator
+        db_gen_local: Optional[Generator[Session, None, None]] = None
 
         if self.db is None:
             logger.debug(
@@ -516,7 +516,7 @@ class Project:
 
         _db_to_use: Session
         _manage_session_locally: bool = False
-        db_gen_local = None  # TODO: type hint for generator
+        db_gen_local: Optional[Generator[Session, None, None]] = None
 
         if self.db is None:
             logger.debug("No self.db session, creating local session for list_midi_devices.")
@@ -600,7 +600,7 @@ class Project:
 
         _db_to_use: Session
         _manage_session_locally: bool = False
-        db_gen_local = None  # TODO: type hint for generator
+        db_gen_local: Optional[Generator[Session, None, None]] = None
 
         if self.db is None:
             logger.debug(
@@ -671,7 +671,7 @@ class Project:
 
         _db_to_use: Session
         _manage_session_locally: bool = False
-        db_gen_local = None  # TODO: type hint for generator
+        db_gen_local: Optional[Generator[Session, None, None]] = None
 
         if self.db is None:
             logger.debug(
@@ -739,7 +739,7 @@ class Project:
 
         _db_to_use: Session
         _manage_session_locally: bool = False
-        db_gen_local = None  # TODO: type hint for generator
+        db_gen_local: Optional[Generator[Session, None, None]] = None
 
         if self.db is None:
             logger.debug(
@@ -822,7 +822,7 @@ class Project:
 
         _db_to_use: Session
         _manage_session_locally: bool = False
-        db_gen_local = None  # TODO: type hint for generator
+        db_gen_local: Optional[Generator[Session, None, None]] = None
 
         if self.db is None:
             logger.debug(
