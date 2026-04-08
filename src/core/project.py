@@ -4,6 +4,7 @@ import os
 import logging  # Added logging
 from typing import List
 from sqlalchemy.orm import Session  # Added Session for type hints
+from sqlalchemy.exc import SQLAlchemyError
 from typing import Optional
 from src.database.models import ProjectModel, RecordingModel, SampleModel, MidiDeviceModel, MidiCaptureSessionModel, MidiFileModel  # Added model imports
 from src.database.utils import get_db  # Import get_db function
@@ -11,6 +12,8 @@ from src.core.midi_capture import (
     MidiRecorder,
     list_available_midi_devices,
 )
+from src.core.stage_runner import execute_stage_chain
+import src.core.stages.intelligent_slicing_stage  # Ensure registered
 
 # Configure basic logging
 # In a larger application, this would likely be configured in a central place.
@@ -369,37 +372,22 @@ class Project:
                     pass
 
     def process_recording(self, recording_id: int, output_sample_dir: str):
-        """Initiates audio processing for a specific recording (currently not implemented).
+        """Initiates audio processing for a specific recording using the IntelligentSlicingStage.
 
-        This method is intended to handle the processing of an audio recording,
-        such as slicing it into samples. However, it currently raises a
-        `NotImplementedError` as it needs to be refactored to use the
-        new `SlicingStage` via the stage runner system.
-
-        The original implementation involved ensuring the `output_sample_dir`
-        exists and then calling a (now deprecated) processing function.
-        A pre-check was performed to ensure the recording belonged to the project.
+        This method handles the full pipeline: onset detection, slice planning,
+        classification, slicing to disk, and quality control.
 
         Args:
             recording_id (int): The ID of the recording to process.
-            output_sample_dir (str): The path where processed samples (e.g., slices)
-                                     were intended to be saved.
+            output_sample_dir (str): The path where processed samples will be saved.
 
         Raises:
-            NotImplementedError: This method always raises this error, indicating
-                                 it requires an update.
-            SQLAlchemyError: (Historical) Would have been raised if database
-                             interaction failed during the pre-check.
-            Exception: (Historical) Could have re-raised exceptions from audio
-                       processing.
+            ValueError: If the recording is not found or does not belong to this project.
+            SQLAlchemyError: If database interaction fails.
+            Exception: If audio processing fails.
         """
         logger.info(
             f"Initiating processing for recording ID {recording_id} in project {self.project_id}."
-        )
-        # TODO: Refactor this method to use the new SlicingStage via
-        # stage_runner.
-        raise NotImplementedError(
-            "This processing method needs to be updated to use SlicingStage"
         )
 
         try:
@@ -409,73 +397,68 @@ class Project:
             logger.error(
                 f"Error creating output directory {output_sample_dir}: {e}. Processing aborted."
             )
-            return  # Or raise custom error
+            raise
 
-        _db_to_use: Session
-        _manage_session_locally: bool = False
-        db_gen_local = None  # TODO: type hint for generator
-
-        if self.db is None:
-            logger.debug(
-                "No self.db session, creating local session for process_recording pre-check."
-            )
-            db_gen_local = get_db()
-            _db_to_use = next(db_gen_local)
-            _manage_session_locally = True
+        # Use the provided session or get a new one via context manager
+        if self.db:
+            self._do_process_recording(self.db, recording_id, output_sample_dir)
         else:
-            _db_to_use = self.db
-            logger.debug("Using self.db session for process_recording pre-check.")
+            with get_db() as db_session:
+                self._do_process_recording(db_session, recording_id, output_sample_dir)
+
+    def _do_process_recording(self, db_session: Session, recording_id: int, output_sample_dir: str):
+        """Internal method to perform processing within a database session."""
+        recording = (
+            db_session.query(RecordingModel)
+            .filter(
+                RecordingModel.id == recording_id,
+                RecordingModel.project_id == self.project_id,
+            )
+            .first()
+        )
+
+        if not recording:
+            error_msg = f"Recording ID {recording_id} not found for project {self.project_id}."
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+
+        logger.info(f"Processing recording: {recording.file_path}")
+
+        # Prepare context for the processing stages
+        context = {
+            "db_session": db_session,
+            "recording_id": recording_id,
+            "project_id": self.project_id,
+            "output_sample_dir": output_sample_dir,
+            "project_type": self.project_model.project_type,
+            "audio_file": recording.file_path,
+        }
+
+        # Define the processing chain
+        # We use the IntelligentSlicingStage which handles everything from
+        # detection to QC.
+        chain_definition = [
+            {
+                "stage_name": "intelligent_slicing",
+                "params": {
+                    # TODO: Allow passing these params from the UI/API
+                    "enable_quality_control": True,
+                },
+            }
+        ]
 
         try:
-            # The following is part of the original method's pre-check logic
-            recording: RecordingModel | None = (
-                _db_to_use.query(RecordingModel)
-                .filter(
-                    RecordingModel.id == recording_id,
-                    RecordingModel.project_id == self.project_id,
-                )
-                .first()
+            results = execute_stage_chain(
+                initial_data=recording.file_path,
+                initial_data_type="file_path",
+                chain_definition=chain_definition,
+                context=context
             )
-
-            if not recording:
-                # Commenting out the problematic logger.warning line
-                # logger.warning(
-                #     f"Recording ID {recording_id} not found for project {self.project_id}. Processing aborted."
-                # )
-                return
-
-            logger.info(
-                # This line will now be part of the dead code
-                f"Calling detect_and_slice_recording for recording ID {recording_id}."
-            )
-            # detect_and_slice_recording( # This line will now be part of the dead code
-            #     db_processing_session, recording_id, output_sample_dir # This line will now be part of the dead code
-            # ) # This line will now be part of the dead code
-            logger.info(
-                f"Processing task submitted for recording ID {recording_id}."
-            )  # This line will now be part of the dead code
-        except SQLAlchemyError as e:  # Catch DB errors from the pre-check query
-            logger.error(
-                f"Database error in process_recording pre-check for recording {recording_id}: {e}"
-            )
-            raise
+            logger.info(f"Successfully processed recording {recording_id}. Created {len(results)} samples.")
+            return results
         except Exception as e:
-            logger.error(
-                f"An unexpected error occurred during process_recording setup for recording {recording_id}: {e}",
-                exc_info=True,
-            )
-            # Consider updating recording status to 'failed' here if
-            # appropriate and not handled by called function
+            logger.error(f"Failed to process recording {recording_id}: {e}", exc_info=True)
             raise
-        finally:
-            if _manage_session_locally and db_gen_local:
-                try:
-                    next(db_gen_local, None)
-                    logger.debug(
-                        "Closed locally managed session for process_recording pre-check."
-                    )
-                except StopIteration:
-                    pass
             # Note: The original db_processing_session.close() is removed as we now use _db_to_use
             # which is managed by the common finally block if created locally.
             # If self.db was used, it's not closed here.

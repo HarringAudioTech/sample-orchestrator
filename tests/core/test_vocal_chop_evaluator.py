@@ -362,15 +362,14 @@ def test_tempo_key_estimation( # This test should still be valid
 
 
 # pylint: disable=redefined-outer-name
-def test_click_pop_stub( # This test should still be valid
+def test_click_pop_no_clicks(
     evaluator_fixture: VocalChopEvaluator, temp_wav_file_fixture: str, mocker: Any
 ):
-    """Tests that click_pop_detected is False due to the stubbed detector."""
+    """Tests that click_pop_detected is False for clean audio."""
     # Mock onsets to create at least one stab for the detector to run on
     mocker.patch("librosa.onset.onset_detect", return_value=np.array([0]))
     mocker.patch("librosa.beat.beat_track", return_value=(120.0, np.array([])))
     mocker.patch("librosa.midi_to_note", return_value="Cmaj")
-
 
     spy_detect_clicks_pops = mocker.spy(evaluator_fixture, "_detect_clicks_pops")
 
@@ -379,6 +378,35 @@ def test_click_pop_stub( # This test should still be valid
     spy_detect_clicks_pops.assert_called()
     assert not result.click_pop_detected
     assert not any("Potential clicks/pops detected" in issue for issue in result.issues)
+
+
+@pytest.fixture
+def temp_wav_with_click_fixture(
+    tmp_path, dummy_audio_data_fixture: Tuple[np.ndarray, int]
+) -> str:
+    """Creates a temporary WAV file with a sharp click/spike."""
+    y, sr = dummy_audio_data_fixture
+    # Add a massive single-sample spike in the middle
+    y_with_click = y.copy()
+    y_with_click[len(y)//2] = 1.0  # Full scale spike
+    
+    file_path = tmp_path / "test_click.wav"
+    soundfile.write(str(file_path), y_with_click, sr, format="WAV", subtype="PCM_16")
+    return str(file_path)
+
+
+def test_click_pop_detected(
+    evaluator_fixture: VocalChopEvaluator, temp_wav_with_click_fixture: str, mocker: Any
+):
+    """Tests that click_pop_detected is True when a spike is present."""
+    mocker.patch("librosa.onset.onset_detect", return_value=np.array([0]))
+    mocker.patch("librosa.beat.beat_track", return_value=(120.0, np.array([])))
+    mocker.patch("librosa.midi_to_note", return_value="Cmaj")
+
+    result = evaluator_fixture.evaluate(temp_wav_with_click_fixture)
+
+    assert result.click_pop_detected
+    assert any("Potential clicks/pops detected" in issue for issue in result.issues)
 
 
 # TODO:

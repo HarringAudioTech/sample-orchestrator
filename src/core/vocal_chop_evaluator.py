@@ -76,8 +76,32 @@ class VocalChopEvaluator:
         self.ideal_characteristics = ideal_characteristics
 
     def _detect_clicks_pops(self, audio_segment: np.ndarray, sample_rate: int) -> bool:  # pylint: disable=unused-argument
-        # Placeholder for actual click/pop detection logic
-        # TODO: Implement actual detection (e.g., high-frequency transient detection)
+        """
+        Detects clicks and pops in an audio segment.
+        Uses a simple high-frequency transient detection based on the 
+        absolute second derivative (discontinuity detection).
+        """
+        if len(audio_segment) < 3:
+            return False
+            
+        # Calculate second derivative to find sudden discontinuities
+        # d2[n] = x[n] - 2*x[n-1] + x[n-2]
+        d2 = np.abs(np.diff(audio_segment, n=2))
+        
+        # A threshold of 0.5 is quite high for normalized audio (-6dB delta)
+        # but prevents too many false positives on legitimate transients.
+        # We also check against local average to be more robust.
+        threshold = 0.1
+        
+        if np.any(d2 > threshold):
+            # Verify it's a spike by checking if it's much larger than its neighbors
+            # (simple outlier detection)
+            max_idx = np.argmax(d2)
+            # Use a slightly larger window for local mean and smaller multiplier
+            local_mean = np.mean(d2[max(0, max_idx-20):min(len(d2), max_idx+20)])
+            if d2[max_idx] > local_mean * 5:
+                return True
+                
         return False
 
     # pylint: disable=too-many-locals, too-many-branches, too-many-statements
