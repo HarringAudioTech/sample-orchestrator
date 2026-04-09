@@ -53,6 +53,9 @@ class SlicingStage(AudioProcessingStage):
         return {
             "bit_depth": 24,
             "normalize": True,
+            "apply_fades": True,
+            "fade_in_ms": 2,      # Micro-fade to prevent clicks
+            "fade_out_ms": 2,     # Micro-fade to prevent clicks
             "min_sample_length_ms": 100,
             "max_sample_length_ms": 10000,
             "librosa_onset_params": {
@@ -66,6 +69,34 @@ class SlicingStage(AudioProcessingStage):
             "sample_type": "one_shot",
             "output_format": "wav",
         }
+
+    def _apply_fades(
+        self, audio_data: np.ndarray, sr: int, fade_in_ms: float, fade_out_ms: float
+    ) -> np.ndarray:
+        """Apply linear fade-in and fade-out to audio data."""
+        y = audio_data.copy()
+        
+        # Calculate fade lengths in samples
+        fade_in_samples = int((fade_in_ms / 1000.0) * sr)
+        fade_out_samples = int((fade_out_ms / 1000.0) * sr)
+        
+        # Ensure fades aren't longer than the audio itself
+        total_samples = len(y)
+        if fade_in_samples + fade_out_samples > total_samples:
+            # Scale fades proportionally to fit within audio length
+            scale = total_samples / (fade_in_samples + fade_out_samples)
+            fade_in_samples = int(fade_in_samples * scale)
+            fade_out_samples = int(fade_out_samples * scale)
+            
+        if fade_in_samples > 0:
+            fade_in_curve = np.linspace(0.0, 1.0, fade_in_samples)
+            y[:fade_in_samples] *= fade_in_curve
+            
+        if fade_out_samples > 0:
+            fade_out_curve = np.linspace(1.0, 0.0, fade_out_samples)
+            y[-fade_out_samples:] *= fade_out_curve
+            
+        return y
 
     def _load_audio_file(
         self, file_path: str, target_sr: int
@@ -176,6 +207,9 @@ class SlicingStage(AudioProcessingStage):
 
         if params is None:
             params = {}
+            
+        merged_params = self.default_params.copy()
+        merged_params.update(params)
 
         # Get slice points from params
         slice_points = params.get("slice_points", [])
@@ -197,7 +231,7 @@ class SlicingStage(AudioProcessingStage):
                 if is_test_environment() and hasattr(self, "_test_onsets"):
                     onset_frames = self._test_onsets
                 else:
-                    onset_params = params.get("librosa_onset_params", {}).copy()
+                    onset_params = merged_params.get("librosa_onset_params", {}).copy()
                     onset_params.pop("sr", None)
                     onset_frames = librosa.onset.onset_detect(
                         y=y, sr=sr, **onset_params
@@ -287,6 +321,12 @@ class SlicingStage(AudioProcessingStage):
                 continue
 
             slice_audio = y[start_sample:end_sample]
+
+            # Apply fades if requested
+            if merged_params.get("apply_fades", True):
+                fade_in_ms = merged_params.get("fade_in_ms", 2)
+                fade_out_ms = merged_params.get("fade_out_ms", 2)
+                slice_audio = self._apply_fades(slice_audio, sr, fade_in_ms, fade_out_ms)
 
             # Generate output filename
             base_name = os.path.splitext(

@@ -8,12 +8,8 @@ def init_database():
     """Initialize the database with required tables."""
     app = create_app()
     with app.app_context():
-        # Configure the database URL (using SQLite in this case)
-        db_url = app.config.get('SQLALCHEMY_DATABASE_URI', 'sqlite:///orchestrator.db')
-        engine = create_engine(db_url)
-        
         # Initialize the database (create tables)
-        initialize_db(engine)
+        initialize_db()
         print("Database tables created successfully!")
 
 if __name__ == "__main__":
