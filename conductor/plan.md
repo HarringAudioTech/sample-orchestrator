@@ -1,11 +1,11 @@
 # Implementation Plan: Enhance Drum One-Shot Slicing and Classification Core
 
-## Phase 1: High-Precision One-Shot Slicing
+## Phase 1: High-Precision One-Shot Slicing [checkpoint: 5531259]
 - [x] Task: Refine `onset_detection` parameters for drum hits.
     - [x] Adjust FFT and hop length for sharper transient detection.
     - [x] Implement zero-crossing snapping for all slice points.
 - [x] Task: Implement transient-preserving micro-fades for all slices.
-- [~] Task: Conductor - User Manual Verification 'High-Precision One-Shot Slicing' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'High-Precision One-Shot Slicing' (Protocol in workflow.md)
 
 ## Phase 2: Enhanced Instrument Classification
 - [ ] Task: Expand the classification engine with initial spectral analysis.
