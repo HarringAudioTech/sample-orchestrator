@@ -26,6 +26,16 @@ class ProjectManager:
         upload_base_dir = app_config.get("UPLOAD_FOLDER", cls.DEFAULT_UPLOAD_BASE_DIR)
         project_specific_dir = f"project_{project_id}"
         return os.path.join(upload_base_dir, project_specific_dir)
+
+    @classmethod
+    def get_project_dir(cls, project_id: int, app_config: Optional[Dict[str, Any]] = None) -> Path:
+        """
+        Returns the path to the project's data directory.
+        """
+        base_dir = "data/projects"
+        if app_config:
+            base_dir = app_config.get("PROJECTS_BASE_DIR", base_dir)
+        return Path(base_dir) / f"project_{project_id}"
         
     @classmethod
     def create_project_directory(
@@ -79,11 +89,13 @@ class ProjectManager:
             (project_dir / "samples" / "mapped").mkdir(exist_ok=True)
             (project_dir / "presets").mkdir(exist_ok=True)
             (project_dir / "exports").mkdir(exist_ok=True)
+            (project_dir / "midi").mkdir(exist_ok=True)
             (project_dir / "metadata").mkdir(exist_ok=True)
         else:
             # Sample pack project structure
             (project_dir / "samples").mkdir(exist_ok=True)
             (project_dir / "exports").mkdir(exist_ok=True)
+            (project_dir / "midi").mkdir(exist_ok=True)
             
         # Create a README file with project info
         readme_path = project_dir / "README.md"

@@ -1,8 +1,7 @@
 {
-  "track_id": "drum_core_20260408",
-  "type": "feature",
-  "status": "new",
-  "created_at": "2026-04-08T12:00:00Z",
-  "updated_at": "2026-04-08T12:00:00Z",
-  "description": "Enhance Drum One-Shot Slicing and Classification Core"
+  "id": "loop_generation_2026",
+  "name": "Loop Generation Integration",
+  "status": "planned",
+  "created_at": "2026-04-09",
+  "description": "Integration of Amanuensis and Patchlab for monophonic and polyphonic loop generation."
 }

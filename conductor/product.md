@@ -4,7 +4,7 @@ A toolset for turning raw hardware synth and effects recording sessions into rel
 # Product Guide: Sample Orchestrator
 
 ## Overview
-Sample Orchestrator is a specialized toolset designed to automate the transformation of hardware synthesizer and effects recording sessions into professional sample packs. The primary focus is on high-precision automation for drum machine recording sessions, transforming long-form jams into meticulously sliced and classified one-shots.
+Sample Orchestrator is a specialized toolset designed to automate the transformation of hardware synthesizer and effects recording sessions into professional sample packs. While originally focused on drum machine sessions, the platform is expanding to support automated loop generation—capturing both monophonic and polyphonic synthesizer phrases to lay the groundwork for coordinated construction kits.
 
 ## Target Audience
 - **The Lead Developer:** Building this tool for personal use to automate drum sample creation.
@@ -27,3 +27,4 @@ Sample Orchestrator is a specialized toolset designed to automate the transforma
 - **Drum Sample Fidelity:** High-quality, perfectly trimmed drum one-shots with no clicks or truncated tails.
 - **Classification Accuracy:** Reliable identification of drum parts (kick, snare, hats, etc.) to minimize manual review.
 - **Workflow Speed:** Significant reduction in the time required to process a 30-minute drum jam into a finished sample pack.
+ficant reduction in the time required to process a 30-minute drum jam into a finished sample pack.

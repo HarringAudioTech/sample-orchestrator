@@ -7,7 +7,7 @@ readme = "README.md"
 packages = [{ include = "src" }]
 
 [tool.poetry.dependencies]
-python = "^3.11"
+python = "^3.12"
 librosa = "^0.10.1"
 mido = "^1.3.2"
 pyaudio = "*"
@@ -16,6 +16,8 @@ numpy = "^2.0.0"
 requests = "^2.32.3"
 flask-cors = "^4.0.0"
 sqlalchemy = "^2.0.28"
+amanuensis = { path = "../amanuensis", develop = true }
+patchlab = { path = "../patchlab/patchlab-python", develop = true }
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.5"
