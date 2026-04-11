@@ -16,8 +16,8 @@ numpy = "^2.0.0"
 requests = "^2.32.3"
 flask-cors = "^4.0.0"
 sqlalchemy = "^2.0.28"
-amanuensis = { path = "../amanuensis", develop = true }
-patchlab = { path = "../patchlab/patchlab-python", develop = true }
+amanuensis = { git = "https://github.com/HarringAudioTech/amanuensis.git", branch = "trunk" }
+patchlab = { git = "https://github.com/HarringAudioTech/patchlab.git", rev = "567eaf9", subdirectory = "patchlab-python" }
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.5"
