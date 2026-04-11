@@ -32,6 +32,10 @@ jobs:
         sudo apt-get install -y libportaudio2 libportaudiocpp0 portaudio19-dev
     - name: Configure Git credentials
       run: |
+        git config --global credential.helper 'store --file=/home/runner/.git-credentials'
+        echo "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com" > /home/runner/.git-credentials
+    - name: Configure Git for Private Repos
+      run: |
         git config --global url."https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf "https://github.com/"
     - name: Install dependencies
       run: |
