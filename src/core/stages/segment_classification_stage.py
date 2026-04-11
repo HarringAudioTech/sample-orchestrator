@@ -5,12 +5,16 @@ based on their characteristics and project requirements.
 """
 
 import logging
+import json
 from typing import Dict, Any, List, Optional, Tuple
 import numpy as np
 import librosa
+from sqlalchemy.orm import Session
 
 from src.core.processing_stages import AudioProcessingStage
 from src.core.stage_runner import register_stage
+from src.database.models import SampleModel
+from src.utils.audio_utils import is_test_environment
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +42,7 @@ class SegmentClassificationStage(AudioProcessingStage):
 
     @property
     def output_type(self) -> str:
-        return "classified_segments"
+        return "audio_segments"
 
     @property
     def default_params(self) -> Dict[str, Any]:
@@ -50,9 +54,10 @@ class SegmentClassificationStage(AudioProcessingStage):
                 "max_loop_duration": 32.0,
                 "min_loop_repetitions": 2,
                 "ambient_min_duration": 5.0,
-                "kick_max_centroid": 1500,
+                "kick_max_centroid": 1800,
                 "hat_min_centroid": 5000,
-                "snare_min_flatness": 0.05,
+                "snare_min_flatness": 0.01,
+                "tom_max_flatness": 0.01,
             },
             "confidence_threshold": 0.7,
             "enable_spectral_analysis": True,
@@ -61,16 +66,20 @@ class SegmentClassificationStage(AudioProcessingStage):
     def _analyze_spectral_features(
         self, y: np.ndarray, sr: int
     ) -> Dict[str, float]:
-        """Compute spectral features for classification."""
+        """Compute spectral and temporal features for classification."""
         if len(y) == 0:
-            return {"centroid": 0.0, "flatness": 0.0}
+            return {"centroid": 0.0, "flatness": 0.0, "rms": 0.0, "peak": 0.0}
             
         centroid = librosa.feature.spectral_centroid(y=y, sr=sr)
         flatness = librosa.feature.spectral_flatness(y=y)
+        rms = librosa.feature.rms(y=y)
+        peak = float(np.max(np.abs(y)))
         
         return {
             "centroid": float(np.mean(centroid)),
             "flatness": float(np.mean(flatness)),
+            "rms": float(np.mean(rms)),
+            "peak": peak,
         }
 
     def _classify_segment(
@@ -122,39 +131,59 @@ class SegmentClassificationStage(AudioProcessingStage):
                 features = self._analyze_spectral_features(y_seg, sr)
                 segment["metadata"]["spectral_centroid"] = features["centroid"]
                 segment["metadata"]["spectral_flatness"] = features["flatness"]
+                segment["metadata"]["rms_energy"] = features["rms"]
+                segment["metadata"]["peak_amplitude"] = features["peak"]
                 
                 # Drum instrument heuristics
-                kick_max = rules.get("kick_max_centroid", 1500)
+                kick_max = rules.get("kick_max_centroid", 1800)
                 hat_min = rules.get("hat_min_centroid", 5000)
-                snare_min_flat = rules.get("snare_min_flatness", 0.05)
+                snare_min_flat = rules.get("snare_min_flatness", 0.01)
+                tom_max_flat = rules.get("tom_max_flatness", 0.01)
                 
                 # Tagging logic
                 segment["metadata"]["tags"] = []
+                centroid = features["centroid"]
+                flatness = features["flatness"]
+                rms = features["rms"]
                 
                 if segment["type"] == "one_shot":
                     segment["metadata"]["tags"].append("one_shot")
-                    if features["centroid"] < kick_max:
+
+                    if centroid < kick_max and flatness < tom_max_flat:
                         segment["metadata"]["instrument_type"] = "kick"
-                        segment["metadata"]["tags"].append("drum")
-                        segment["metadata"]["tags"].append("kick")
-                    elif features["centroid"] > hat_min:
+                        segment["metadata"]["tags"].extend(["drum", "kick"])
+                    elif centroid > hat_min:
                         segment["metadata"]["instrument_type"] = "hihat"
-                        segment["metadata"]["tags"].append("drum")
-                        segment["metadata"]["tags"].append("hihat")
-                    elif features["flatness"] > snare_min_flat:
+                        segment["metadata"]["tags"].extend(["drum", "hihat"])
+                        # Sub-tag for hi-hats
+                        if duration > 0.3:
+                            segment["metadata"]["tags"].append("open_hat")
+                        else:
+                            segment["metadata"]["tags"].append("closed_hat")
+                    elif flatness > snare_min_flat:
                         segment["metadata"]["instrument_type"] = "snare"
-                        segment["metadata"]["tags"].append("drum")
-                        segment["metadata"]["tags"].append("snare")
+                        segment["metadata"]["tags"].extend(["drum", "snare"])
+                    elif flatness < tom_max_flat:
+                        segment["metadata"]["instrument_type"] = "tom"
+                        segment["metadata"]["tags"].extend(["drum", "tom"])
                     else:
                         segment["metadata"]["instrument_type"] = "perc"
                         segment["metadata"]["tags"].append("perc")
                 
-                if features["flatness"] < 0.01:
-                    segment["metadata"]["is_tonal"] = True
+                # Character tags
+                if flatness < 0.005:
+                    segment["metadata"]["character"] = "tonal"
                     segment["metadata"]["tags"].append("tonal")
-                else:
-                    segment["metadata"]["is_tonal"] = False
+                elif flatness > 0.05:
+                    segment["metadata"]["character"] = "noisy"
                     segment["metadata"]["tags"].append("noisy")
+                else:
+                    segment["metadata"]["character"] = "hybrid"
+                
+                if rms > 0.1:
+                    segment["metadata"]["tags"].append("high_energy")
+                elif rms < 0.01:
+                    segment["metadata"]["tags"].append("low_energy")
 
         return segment
 
@@ -202,12 +231,42 @@ class SegmentClassificationStage(AudioProcessingStage):
                     logger.warning(f"Failed to load audio for spectral analysis: {e}")
 
         classified_segments = []
+        db_session: Optional[Session] = context.get("db_session") if context else None
 
         for segment in segments:
             classified = self._classify_segment(
                 segment, merged_params, project_type, audio_data, sr
             )
+            
+            # Update database if sample_id and db_session are available
+            sample_id = classified.get("id") or classified.get("sample_id")
+            if sample_id and db_session:
+                try:
+                    sample = db_session.query(SampleModel).filter(SampleModel.id == sample_id).first()
+                    if sample:
+                        sample.sample_type = classified["type"]
+                        # Merge metadata
+                        existing_meta = json.loads(sample.metadata_json) if sample.metadata_json else {}
+                        existing_meta.update(classified.get("metadata", {}))
+                        sample.metadata_json = json.dumps(existing_meta)
+                        db_session.add(sample)
+                        logger.info(f"Updated sample {sample_id} with classification: {classified['type']}")
+                except Exception as e:
+                    logger.error(f"Failed to update sample {sample_id} in database: {e}")
+
             classified_segments.append(classified)
+
+        if db_session:
+            try:
+                if not is_test_environment():
+                    db_session.commit()
+                    logger.info("Committed classification updates to database.")
+                else:
+                    db_session.flush()
+                    logger.info("Flushed classification updates to database (test mode).")
+            except Exception as e:
+                db_session.rollback()
+                logger.error(f"Failed to commit classification updates: {e}")
 
         return classified_segments
 
