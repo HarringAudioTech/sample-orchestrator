@@ -1,24 +1,20 @@
-# Implementation Plan: Loop Generation Integration
+# Implementation Plan: Enhance Drum One-Shot Slicing and Classification Core
 
-## Phase 1: Environment and Dependencies
-- [x] Task: Add `amanuensis` and `patchlab` as local pip editable dependencies in `pyproject.toml` (e.g. `pip install -e ../amanuensis`).
-- [x] Task: Ensure the development environment can successfully import both `amanuensis` and `patchlab-python`.
+## Phase 1: High-Precision One-Shot Slicing [checkpoint: 5531259]
+- [x] Task: Refine `onset_detection` parameters for drum hits.
+    - [x] Adjust FFT and hop length for sharper transient detection.
+    - [x] Implement zero-crossing snapping for all slice points.
+- [x] Task: Implement transient-preserving micro-fades for all slices.
+- [x] Task: Conductor - User Manual Verification 'High-Precision One-Shot Slicing' (Protocol in workflow.md)
 
-## Phase 2: Amanuensis Integration (MIDI Generation)
-- [x] Task: Create a service/wrapper in `src/core/` to interface with Amanuensis.
-- [x] Task: Review and adapt the logic from `amanuensis/session_output/batch_loops.py` and `batch_kits.py` as the reference for generating the target MIDI lines.
-- [x] Task: Implement generation of single-track monophonic MIDI loops (e.g., basslines, leads) using the reference logic.
-- [x] Task: Implement generation of single-track polyphonic MIDI loops (e.g., chord progressions) using the reference logic.
-- [x] Task: Add variations generation logic utilizing Amanuensis capabilities.
-- [x] Task: Verify output MIDI files are correctly generated and stored.
+## Phase 2: Enhanced Instrument Classification
+- [~] Task: Expand the classification engine with initial spectral analysis.
+    - [x] Implement basic spectral centroid analysis for frequency-based classification.
+    - [ ] Improve duration-based heuristics for different drum types.
+- [ ] Task: Implement a more robust tagging system for classified samples.
+- [ ] Task: Conductor - User Manual Verification 'Enhanced Instrument Classification' (Protocol in workflow.md)
 
-## Phase 3: Synthesizer Manipulation & Python Audio Recording
-- [x] Task: Create a service/wrapper in `src/core/` to interface with Patchlab solely for patch loading and parameter control.
-- [x] Task: Build out robust audio recording infrastructure within Sample Orchestrator using Python (e.g., PyAudio/Soundfile).
-- [x] Task: Coordinate Patchlab (to control the synth) and Amanuensis (to send MIDI), while Sample Orchestrator captures the resulting audio directly.
-- [x] Task: Verify the Python-based audio capture accurately records the monophonic and polyphonic phrases without relying on Patchlab's vestigial capture.
-
-## Phase 4: Output Organization
-- [x] Task: Update the export pipeline to save generated audio loops alongside their source MIDI files.
-- [x] Task: Implement metadata tagging (tempo, key, loop type) for the new loops.
-- [x] Task: Verify output directory structures and ensure they are ready for future "Construction Kit" enhancements.
+## Phase 3: Metadata & Database Integration
+- [ ] Task: Ensure all slice points and classifications are correctly stored in the database.
+- [ ] Task: Implement bulk export of classified samples with standardized naming.
+- [ ] Task: Conductor - User Manual Verification 'Metadata & Database Integration' (Protocol in workflow.md)
