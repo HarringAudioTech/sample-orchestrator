@@ -11,7 +11,10 @@ from src.core.amanuensis_service import AmanuensisService
 from src.core.audio_recorder import AudioRecorder
 from src.core.patchlab_service import PatchlabService
 from src.core.project_manager import ProjectManager
-from src.database.models import RecordingModel, SampleModel, SampleType, SampleStatus
+from src.database.models import (
+    RecordingModel, SampleModel, SampleType, SampleStatus,
+    LoopGenerationConfigModel, LoopRenderingConfigModel
+)
 
 logger = logging.getLogger(__name__)
 
@@ -46,19 +49,6 @@ class LoopOrchestrator:
     ) -> Dict[str, Any]:
         """
         Generates a MIDI loop, plays it to a synth, and records the audio output.
-
-        Args:
-            project_id (int): Project ID.
-            label (str): Label for the loop.
-            engine_id (str): Amanuensis engine ID.
-            midi_port (str): MIDI output port name.
-            audio_device_index (int): Audio input device index.
-            patch_data (Dict): Optional patch data to load via Patchlab.
-            capture_tail_seconds (float): Time to record after MIDI finishes.
-            **kwargs: Arguments for Amanuensis rendering.
-
-        Returns:
-            Dict[str, Any]: Metadata about the captured loop.
         """
         # 1. Generate MIDI
         midi_meta = self.amanuensis.generate_monophonic_loop(project_id, label, engine_id, **kwargs)
@@ -66,6 +56,12 @@ class LoopOrchestrator:
 
         # 2. Setup Synth (if patch data provided)
         if patch_data:
+            # We assume patchlab is already connected or we connect here
+            # For simplicity, if not connected, we try to connect to the port
+            if not self.patchlab.device:
+                # We don't know the device type here, so we might need more info in patch_data
+                # For now, let's assume it's pre-connected or we use a default
+                pass
             self.patchlab.load_patch(patch_data)
 
         # 3. Start Recording
@@ -167,4 +163,53 @@ class LoopOrchestrator:
                 project_id, label, engine_id, midi_port, audio_device_index, **kwargs
             )
             results.append(res)
+        return results
+
+    def capture_loop_batch_with_config(
+        self,
+        project_id: int,
+        batch_label: str,
+        count: int,
+        gen_config_id: int,
+        render_config_id: int,
+        base_seed: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Generates and captures a batch of loops using saved configurations.
+        """
+        gen_config = self.db.query(LoopGenerationConfigModel).filter(LoopGenerationConfigModel.id == gen_config_id).first()
+        render_config = self.db.query(LoopRenderingConfigModel).filter(LoopRenderingConfigModel.id == render_config_id).first()
+
+        if not gen_config or not render_config:
+            raise ValueError("Invalid configuration IDs provided.")
+
+        results = []
+        seed = base_seed if base_seed is not None else gen_config.seed
+
+        for i in range(count):
+            label = f"{batch_label}_v{i+1}"
+            
+            # Combine gen_config params
+            gen_params = {
+                "engine_id": gen_config.engine_id,
+                "key": gen_config.key,
+                "meter": gen_config.meter,
+                "tempo": gen_config.tempo,
+                "bars": gen_config.bars,
+                "seed": seed + i,
+                "chords": gen_config.chords,
+                "engine_options": gen_config.engine_options
+            }
+
+            res = self.capture_single_loop(
+                project_id=project_id,
+                label=label,
+                midi_port=render_config.midi_port,
+                audio_device_index=render_config.audio_device_index,
+                patch_data=render_config.patch_data,
+                capture_tail_seconds=render_config.capture_tail_seconds,
+                **gen_params
+            )
+            results.append(res)
+            
         return results

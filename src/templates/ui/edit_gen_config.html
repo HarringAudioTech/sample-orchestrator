@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Edit' if config else 'New' }} Generation Config{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">{{ 'Edit' if config else 'New' }} Loop Generation Configuration (MIDI)</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Configuration Name</label>
+                            <input type="text" class="form-control" id="name" name="name" value="{{ config.name if config else '' }}" required placeholder="e.g. Bassline Generator Standard">
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="engine_id" class="form-label">Amanuensis Engine</label>
+                                <select class="form-select" id="engine_id" name="engine_id">
+                                    <option value="bass" {{ 'selected' if config and config.engine_id == 'bass' else '' }}>Bass</option>
+                                    <option value="kapellmeister" {{ 'selected' if config and config.engine_id == 'kapellmeister' else '' }}>Kapellmeister (Polyphonic)</option>
+                                    <option value="fretboard" {{ 'selected' if config and config.engine_id == 'fretboard' else '' }}>Fretboard</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="tempo" class="form-label">Tempo (BPM)</label>
+                                <input type="number" step="0.1" class="form-control" id="tempo" name="tempo" value="{{ config.tempo if config else 120.0 }}">
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label for="key" class="form-label">Key</label>
+                                <input type="text" class="form-control" id="key" name="key" value="{{ config.key if config else 'C' }}">
+                            </div>
+                            <div class="col-md-4">
+                                <label for="meter" class="form-label">Meter</label>
+                                <input type="text" class="form-control" id="meter" name="meter" value="{{ config.meter if config else '4/4' }}">
+                            </div>
+                            <div class="col-md-4">
+                                <label for="bars" class="form-label">Bars</label>
+                                <input type="number" class="form-control" id="bars" name="bars" value="{{ config.bars if config else 4 }}">
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="seed" class="form-label">Initial Seed</label>
+                            <input type="number" class="form-control" id="seed" name="seed" value="{{ config.seed if config else 42 }}">
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="engine_options_json" class="form-label">Engine Options (JSON)</label>
+                            <textarea class="form-control" id="engine_options_json" name="engine_options_json" rows="5">{{ config.engine_options_json if config else '{}' }}</textarea>
+                            <div class="form-text">Advanced Amanuensis parameters in JSON format.</div>
+                        </div>
+
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ request.args.get('next') or url_for('ui_bp.index') }}" class="btn btn-secondary">Cancel</a>
+                            <button type="submit" class="btn btn-primary">Save Configuration</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

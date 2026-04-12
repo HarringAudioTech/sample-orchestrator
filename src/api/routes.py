@@ -10,7 +10,10 @@ from werkzeug.utils import secure_filename
 from src.core.project import Project as CoreProject
 from src.core.project_manager import ProjectManager
 from src.database.utils import get_db
-from src.database.models import ProjectModel, RecordingModel, ProjectType, SamplePackModel, VirtualInstrumentModel
+from src.database.models import (
+    ProjectModel, RecordingModel, ProjectType, SamplePackModel, VirtualInstrumentModel,
+    LoopGenerationConfigModel, LoopRenderingConfigModel
+)
 
 # --- Configuration ---
 # Default paths for generated samples if not set in app config.
@@ -27,6 +30,8 @@ recordings_bp = Blueprint("recordings", __name__, url_prefix="/recordings")
 # Blueprint for sample-related operations (those not directly under a
 # recording).
 samples_bp = Blueprint("samples", __name__, url_prefix="/samples")
+# Blueprint for configuration-related operations.
+configs_bp = Blueprint("configs", __name__, url_prefix="/configs")
 
 
 # --- Database Session Management ---
@@ -511,6 +516,57 @@ def upload_project_audio(project_id: int) -> Response:
             except OSError as rm_e: current_app.logger.error(f"Error cleaning up {file_path}: {rm_e}")
         flash(f"Could not add recording to database: {str(e)}", "error")
         return redirect(redirect_url)
+
+
+# --- Configuration Endpoints ---
+
+@configs_bp.route("/generation", methods=["GET"])
+def list_gen_configs() -> Response:
+    with get_db() as db:
+        configs = db.query(LoopGenerationConfigModel).all()
+        return jsonify([model_to_dict(c) for c in configs]), 200
+
+@configs_bp.route("/generation", methods=["POST"])
+def create_gen_config() -> Response:
+    data = request.get_json()
+    with get_db() as db:
+        config = LoopGenerationConfigModel(
+            name=data["name"],
+            engine_id=data.get("engine_id", "bass"),
+            key=data.get("key", "C"),
+            meter=data.get("meter", "4/4"),
+            tempo=data.get("tempo", 120.0),
+            bars=data.get("bars", 4),
+            seed=data.get("seed", 42),
+            engine_options_json=json.dumps(data.get("engine_options", {})),
+            chords_json=json.dumps(data.get("chords", []))
+        )
+        db.add(config)
+        db.commit()
+        db.refresh(config)
+        return jsonify(model_to_dict(config)), 201
+
+@configs_bp.route("/rendering", methods=["GET"])
+def list_render_configs() -> Response:
+    with get_db() as db:
+        configs = db.query(LoopRenderingConfigModel).all()
+        return jsonify([model_to_dict(c) for c in configs]), 200
+
+@configs_bp.route("/rendering", methods=["POST"])
+def create_render_config() -> Response:
+    data = request.get_json()
+    with get_db() as db:
+        config = LoopRenderingConfigModel(
+            name=data["name"],
+            midi_port=data["midi_port"],
+            audio_device_index=data.get("audio_device_index"),
+            capture_tail_seconds=data.get("capture_tail_seconds", 2.0),
+            patch_data_json=json.dumps(data.get("patch_data", {}))
+        )
+        db.add(config)
+        db.commit()
+        db.refresh(config)
+        return jsonify(model_to_dict(config)), 201
 
 
 # --- Standalone Recording and Sample Endpoints ---
