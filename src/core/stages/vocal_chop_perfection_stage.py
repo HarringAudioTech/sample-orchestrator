@@ -9,7 +9,7 @@ import os
 import shutil
 import abc  # Abstract Base Class
 import logging # Added logging
-from typing import Tuple, Optional, List, Type
+from typing import Tuple, Optional, List, Type, Dict, Any
 import dataclasses
 
 import soundfile  # type: ignore # pylint: disable=import-error
@@ -255,8 +255,9 @@ class ClickPopRemovalStage(ProcessingStage):
 class SilenceAndStabAdjustmentStage(ProcessingStage):
     """Stage for adjusting silence and stab boundaries."""
 
-    def __init__(self, working_dir: str):
+    def __init__(self, working_dir: str, config: Optional[Dict[str, Any]] = None):
         super().__init__(working_dir, stage_name="SilenceAndStabAdjustmentStage")
+        self.config = config or {}
 
     def _find_closest_zero_crossing(
         self,
@@ -427,10 +428,12 @@ class SilenceAndStabAdjustmentStage(ProcessingStage):
 
 # pylint: disable=too-few-public-methods
 class MetadataUpdateStage(ProcessingStage):
-    """Stage for updating metadata in the audio file."""
+    """Stage for updating WAV metadata (tags, comments)."""
 
-    def __init__(self, working_dir: str):
+    def __init__(self, working_dir: str, config: Optional[Dict[str, Any]] = None):
         super().__init__(working_dir, stage_name="MetadataUpdateStage")
+        self.config = config or {}
+
 
     # pylint: disable=too-many-branches,too-many-statements # Refactor if it gets too complex
     def process( # noqa: C901

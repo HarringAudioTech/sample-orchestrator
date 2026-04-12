@@ -25,49 +25,39 @@ def test_noise_reduction_stage_properties() -> None:
     assert stage.output_type == DATA_TYPE_AUDIO_BUFFER_MONO
     default_params: Dict[str, Any] = stage.default_params
     assert "amount" in default_params
-    assert "aggressiveness" in default_params
+    assert "threshold_db" in default_params
 
 
 def test_noise_reduction_stage_process_success() -> None:
     """Test successful processing with default and overridden parameters."""
     stage = NoiseReductionStage()
-    # Create a dummy NumPy array for input
+    # Create a dummy NumPy array for input (0.1 is above default -60dB gate)
     dummy_input_data: np.ndarray = np.array([0.1, -0.2, 0.3, -0.4, 0.5], dtype=np.float32)
 
-    # Test with default parameters
-    params_default: Dict[str, Any] = stage.default_params.copy()
+    # Test with default parameters (should pass through if above threshold)
+    params_default: Dict[str, Any] = {"auto_threshold": False, "threshold_db": -100.0}
     context_default: Dict[str, Any] = {"project_id": 1, "recording_id": 10}
 
-    logger.info("Testing NoiseReductionStage with default parameters...")
     output_data_default: np.ndarray = stage.process(
         np.copy(dummy_input_data), params_default, context_default
     )
 
     assert isinstance(output_data_default, np.ndarray)
     assert output_data_default.shape == dummy_input_data.shape
-    # Check the placeholder logic (attenuation by 0.98)
-    expected_output_default: np.ndarray = dummy_input_data * 0.98
     np.testing.assert_array_almost_equal(
-        output_data_default, expected_output_default, decimal=5
+        output_data_default, dummy_input_data, decimal=5
     )
 
-    # Test with overridden parameters
-    params_override: Dict[str, Any] = {"amount": 0.8, "aggressiveness": 5}
-    context_override: Dict[str, Any] = {"some_other_key": "value"}  # Context can vary
-
-    logger.info("Testing NoiseReductionStage with overridden parameters...")
-    output_data_override: np.ndarray = stage.process(
-        np.copy(dummy_input_data), params_override, context_override
+    # Test with gating (threshold at -10dB is ~0.316 linear)
+    # Samples 0.1, -0.2 are below, 0.3 is below, -0.4 is above, 0.5 is above
+    params_gated: Dict[str, Any] = {"auto_threshold": False, "threshold_db": -10.0, "amount": 1.0}
+    output_data_gated: np.ndarray = stage.process(
+        np.copy(dummy_input_data), params_gated, context_default
     )
-
-    assert isinstance(output_data_override, np.ndarray)
-    assert output_data_override.shape == dummy_input_data.shape
-    # Placeholder logic is the same, parameters are logged but don't change
-    # behavior in placeholder
-    expected_output_override: np.ndarray = dummy_input_data * 0.98
-    np.testing.assert_array_almost_equal(
-        output_data_override, expected_output_override, decimal=5
-    )
+    
+    # Linear threshold is ~0.316
+    expected_gated = np.array([0.0, 0.0, 0.0, -0.4, 0.5], dtype=np.float32)
+    np.testing.assert_array_almost_equal(output_data_gated, expected_gated, decimal=5)
 
 
 def test_noise_reduction_stage_process_logs_parameters(caplog: LogCaptureFixture) -> None:
@@ -78,18 +68,13 @@ def test_noise_reduction_stage_process_logs_parameters(caplog: LogCaptureFixture
     """
     stage = NoiseReductionStage()
     dummy_input_data: np.ndarray = np.array([0.1, 0.2], dtype=np.float32)
-    params: Dict[str, Any] = {"amount": 0.7, "aggressiveness": 4}
+    params: Dict[str, Any] = {"amount": 0.7, "threshold_db": -50.0}
     context: Dict[str, Any] = {}  # Empty context for this test
 
     with caplog.at_level(logging.INFO):
         stage.process(dummy_input_data, params, context)
 
-    assert f"[{stage.name}] Applying noise reduction (placeholder)..." in caplog.text
-    assert (
-        f"Parameters: amount={params['amount']}, aggressiveness={params['aggressiveness']}"
-        in caplog.text
-    )
-    assert f"Input data shape: {dummy_input_data.shape}" in caplog.text
+    assert f"[{stage.name}] Applying noise gate with threshold -50.0 dB" in caplog.text
 
 
 def test_noise_reduction_stage_invalid_input_type() -> None:
