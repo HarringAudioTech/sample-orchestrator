@@ -5,49 +5,28 @@ on: [push]
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      POETRY_EXPERIMENTAL_SYSTEM_GIT_CLIENT: "true"
     strategy:
       matrix:
         python-version: ["3.12"]
     steps:
     - uses: actions/checkout@v4
-    - name: Checkout amanuensis
-      uses: actions/checkout@v4
-      with:
-        repository: HarringAudioTech/amanuensis
-        token: ${{ secrets.GH_PAT }}
-        path: amanuensis
-        ref: trunk
-    - name: Checkout patchlab
-      uses: actions/checkout@v4
-      with:
-        repository: HarringAudioTech/patchlab
-        token: ${{ secrets.GH_PAT }}
-        path: patchlab
-        ref: 567eaf9
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v3
       with:
         python-version: ${{ matrix.python-version }}
     - name: Install Poetry
       run: |
-        pip install poetry poetry-plugin-export
+        pip install poetry
     - name: Install PortAudio system dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y libportaudio2 libportaudiocpp0 portaudio19-dev
+    - name: Configure Git credentials
+      run: |
+        git config --global url."https://x-access-token:${{ secrets.GH_PAT }}@github.com/".insteadOf "https://github.com/"
     - name: Install dependencies
       run: |
-        poetry export --without-hashes --with dev -f requirements.txt > requirements.txt
-        sed -i '/amanuensis/d' requirements.txt
-        sed -i '/patchlab/d' requirements.txt
-        pip install -r requirements.txt
-        pip install ./amanuensis
-        pip install ./patchlab/patchlab-python
-        pip install -e .
-
-
+        poetry install
     - name: Analysing the code with pylint
       run: |
-        pylint $(git ls-files '*.py')
+        poetry run pylint $(git ls-files '*.py')
