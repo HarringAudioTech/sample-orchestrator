@@ -30,9 +30,10 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y libportaudio2 libportaudiocpp0 portaudio19-dev
-    - name: Inject PAT into pyproject.toml
+    - name: Configure Git credentials
       run: |
-        sed -i 's|https://github.com/|https://x-access-token:${{ secrets.GH_PAT }}@github.com/|g' pyproject.toml
+        git config --global --unset-all http.https://github.com/.extraheader || true
+        git config --global url."https://${{ secrets.GH_PAT }}@github.com/".insteadOf "https://github.com/"
     - name: Install dependencies
       run: |
         poetry install
