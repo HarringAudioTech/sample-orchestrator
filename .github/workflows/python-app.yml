@@ -37,7 +37,7 @@ jobs:
     - name: Install dependencies
       run: |
         poetry export --without-hashes --with dev -f requirements.txt > requirements.txt
-        sed -i "s|https://github.com/|https://x-access-token:${GH_PAT}@github.com/|g" requirements.txt
+        sed -i "s|https://github.com/|https://${GH_PAT}@github.com/|g" requirements.txt
         pip install -r requirements.txt
         pip install -e .
       env:
