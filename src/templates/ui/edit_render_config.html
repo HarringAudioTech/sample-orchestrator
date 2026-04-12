@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Edit' if config else 'New' }} Rendering Config{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">{{ 'Edit' if config else 'New' }} Rendering Configuration (Audio Capture)</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Configuration Name</label>
+                            <input type="text" class="form-control" id="name" name="name" value="{{ config.name if config else '' }}" required placeholder="e.g. Acid Bassline Capture HW">
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-8">
+                                <label for="midi_port" class="form-label">MIDI Output Port</label>
+                                <input type="text" class="form-control" id="midi_port" name="midi_port" value="{{ config.midi_port if config else '' }}" required placeholder="e.g. USB MIDI Port 1">
+                                <div class="form-text">Exact name of the MIDI port to send output to.</div>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="audio_device_index" class="form-label">Audio Device Index</label>
+                                <input type="number" class="form-control" id="audio_device_index" name="audio_device_index" value="{{ config.audio_device_index if config and config.audio_device_index is not none else '' }}">
+                                <div class="form-text">Audio input device index. (Optional)</div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="capture_tail_seconds" class="form-label">Capture Tail (seconds)</label>
+                            <input type="number" step="0.1" class="form-control" id="capture_tail_seconds" name="capture_tail_seconds" value="{{ config.capture_tail_seconds if config else 2.0 }}">
+                            <div class="form-text">How long to record after the MIDI loop has finished playing.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="patch_data_json" class="form-label">Patch Data (JSON)</label>
+                            <textarea class="form-control" id="patch_data_json" name="patch_data_json" rows="8">{{ config.patch_data_json if config else '{}' }}</textarea>
+                            <div class="form-text">Patchlab synth patch data in JSON format.</div>
+                        </div>
+
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ request.args.get('next') or url_for('ui_bp.index') }}" class="btn btn-secondary">Cancel</a>
+                            <button type="submit" class="btn btn-primary">Save Configuration</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

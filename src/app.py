@@ -19,7 +19,7 @@ from flask.cli import with_appcontext
 from flask_cors import CORS
 
 # Local application imports
-from src.api.routes import projects_bp, recordings_bp, samples_bp
+from src.api.routes import projects_bp, recordings_bp, samples_bp, configs_bp
 from src.ui.routes import ui_bp  # Import the UI blueprint
 from src.ui.data_routes import data_bp # Import the data UI blueprint
 from src.ui.test_bp import test_bp  # Import the test blueprint
@@ -126,6 +126,7 @@ def create_app() -> Flask:
     app.register_blueprint(projects_bp)
     app.register_blueprint(recordings_bp)
     app.register_blueprint(samples_bp)
+    app.register_blueprint(configs_bp)
     app.logger.info("API Blueprints registered.")
 
     # Register UI Blueprint with /ui prefix

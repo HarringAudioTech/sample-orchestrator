@@ -246,14 +246,60 @@ class MidiCaptureSessionModel(Base):
 class MidiFileModel(Base):
     """Model for MIDI files captured in a session."""
     __tablename__ = "midi_files"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     capture_session_id = Column(Integer, ForeignKey("midi_capture_sessions.id"), nullable=False)
     device_id = Column(Integer, ForeignKey("midi_devices.id"), nullable=False)
     channel = Column(Integer, nullable=False)  # -1 for system messages, 0-15 for MIDI channels
     file_data = Column(Text, nullable=False)  # Binary MIDI data stored as text (base64 encoded)
     created_at = Column(DateTime, server_default=func.now())
-    
+
     # Define relationships
     capture_session = relationship("MidiCaptureSessionModel", back_populates="midi_files")
     device = relationship("MidiDeviceModel")
+
+
+class LoopGenerationConfigModel(Base):
+    """Model for reusable loop generation parameters (Amanuensis)."""
+    __tablename__ = "loop_generation_configs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    engine_id = Column(String(100), nullable=False, default="bass")
+    key = Column(String(10), nullable=False, default="C")
+    meter = Column(String(10), nullable=False, default="4/4")
+    tempo = Column(Float, nullable=False, default=120.0)
+    bars = Column(Integer, nullable=False, default=4)
+    seed = Column(Integer, nullable=False, default=42)
+    # Store complex params as JSON
+    engine_options_json = Column(Text, nullable=True) 
+    chords_json = Column(Text, nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    @property
+    def engine_options(self) -> Dict[str, Any]:
+        return json.loads(self.engine_options_json) if self.engine_options_json else {}
+
+    @property
+    def chords(self) -> List[Dict[str, str]]:
+        return json.loads(self.chords_json) if self.chords_json else []
+
+
+class LoopRenderingConfigModel(Base):
+    """Model for reusable loop rendering parameters (Audio Capture)."""
+    __tablename__ = "loop_rendering_configs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    midi_port = Column(String(255), nullable=False)
+    audio_device_index = Column(Integer, nullable=True)
+    capture_tail_seconds = Column(Float, nullable=False, default=2.0)
+    # Store Patchlab patch data as JSON
+    patch_data_json = Column(Text, nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    @property
+    def patch_data(self) -> Dict[str, Any]:
+        return json.loads(self.patch_data_json) if self.patch_data_json else {}

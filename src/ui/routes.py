@@ -14,12 +14,14 @@ import json
 from src.database.utils import get_db
 from src.database.models import (
     ProjectModel, RecordingModel, SampleModel,
-    ProjectType, VirtualInstrumentModel, SampleMappingItemModel, VelocityGroupModel
+    ProjectType, VirtualInstrumentModel, SampleMappingItemModel, VelocityGroupModel,
+    LoopGenerationConfigModel, LoopRenderingConfigModel
 )
 
 # Local application imports
 from src.core.stage_runner import STAGE_REGISTRY
 from src.core.workflows import WORKFLOW_REGISTRY
+from src.core.loop_orchestrator import LoopOrchestrator
 
 # Import stages to ensure they're registered
 import src.core.stages.slicing_stage  # noqa: F401
@@ -39,6 +41,140 @@ ui_bp = Blueprint(
 # Import and initialize dashboard routes after ui_bp is defined
 from . import dashboard_routes  # noqa: E402
 dashboard_routes.init_dashboard_routes(ui_bp)
+
+# --- Loop Generation Routes ---
+
+@ui_bp.route("/projects/<int:project_id>/loop_generation", methods=["GET"])
+def loop_generation_ui(project_id: int) -> str:
+    """Renders the loop generation dashboard for a project."""
+    with get_db() as db:
+        project = db.query(ProjectModel).filter(ProjectModel.id == project_id).first()
+        if not project:
+            abort(404, description=f"Project with ID {project_id} not found.")
+
+        gen_configs = db.query(LoopGenerationConfigModel).all()
+        render_configs = db.query(LoopRenderingConfigModel).all()
+
+        return render_template(
+            "loop_generation.html",
+            project=project,
+            gen_configs=gen_configs,
+            render_configs=render_configs,
+            now=datetime.utcnow()
+        )
+
+@ui_bp.route("/configs/generation/new", methods=["GET", "POST"])
+@ui_bp.route("/configs/generation/<int:config_id>/edit", methods=["GET", "POST"])
+def edit_gen_config(config_id: Optional[int] = None):
+    """Handles creating or editing a loop generation configuration."""
+    with get_db() as db:
+        config = None
+        if config_id:
+            config = db.query(LoopGenerationConfigModel).filter(LoopGenerationConfigModel.id == config_id).first()
+            if not config:
+                abort(404)
+
+        if request.method == "POST":
+            name = request.form.get("name")
+            engine_id = request.form.get("engine_id")
+            key = request.form.get("key")
+            meter = request.form.get("meter")
+            tempo = float(request.form.get("tempo", 120.0))
+            bars = int(request.form.get("bars", 4))
+            seed = int(request.form.get("seed", 42))
+            engine_options_json = request.form.get("engine_options_json", "{}")
+
+            if not config:
+                config = LoopGenerationConfigModel(name=name)
+                db.add(config)
+            
+            config.name = name
+            config.engine_id = engine_id
+            config.key = key
+            config.meter = meter
+            config.tempo = tempo
+            config.bars = bars
+            config.seed = seed
+            config.engine_options_json = engine_options_json
+            
+            db.commit()
+            flash(f"Generation config '{name}' saved.", "success")
+            return redirect(request.args.get("next") or url_for("ui_bp.index"))
+
+        return render_template(
+            "edit_gen_config.html",
+            config=config,
+            now=datetime.utcnow()
+        )
+
+@ui_bp.route("/configs/rendering/new", methods=["GET", "POST"])
+@ui_bp.route("/configs/rendering/<int:config_id>/edit", methods=["GET", "POST"])
+def edit_render_config(config_id: Optional[int] = None):
+    """Handles creating or editing a loop rendering configuration."""
+    with get_db() as db:
+        config = None
+        if config_id:
+            config = db.query(LoopRenderingConfigModel).filter(LoopRenderingConfigModel.id == config_id).first()
+            if not config:
+                abort(404)
+
+        if request.method == "POST":
+            name = request.form.get("name")
+            midi_port = request.form.get("midi_port")
+            audio_device_index = request.form.get("audio_device_index")
+            if audio_device_index:
+                audio_device_index = int(audio_device_index)
+            else:
+                audio_device_index = None
+            capture_tail_seconds = float(request.form.get("capture_tail_seconds", 2.0))
+            patch_data_json = request.form.get("patch_data_json", "{}")
+
+            if not config:
+                config = LoopRenderingConfigModel(name=name)
+                db.add(config)
+            
+            config.name = name
+            config.midi_port = midi_port
+            config.audio_device_index = audio_device_index
+            config.capture_tail_seconds = capture_tail_seconds
+            config.patch_data_json = patch_data_json
+            
+            db.commit()
+            flash(f"Rendering config '{name}' saved.", "success")
+            return redirect(request.args.get("next") or url_for("ui_bp.index"))
+
+        return render_template(
+            "edit_render_config.html",
+            config=config,
+            now=datetime.utcnow()
+        )
+
+@ui_bp.route("/projects/<int:project_id>/loop_generation/run", methods=["POST"])
+def run_loop_generation(project_id: int):
+    """Triggers loop generation batch."""
+    batch_label = request.form.get("batch_label")
+    count = int(request.form.get("count", 4))
+    gen_config_id = int(request.form.get("gen_config_id"))
+    render_config_id = int(request.form.get("render_config_id"))
+
+    with get_db() as db:
+        orchestrator = LoopOrchestrator(db)
+        try:
+            results = orchestrator.capture_loop_batch_with_config(
+                project_id=project_id,
+                batch_label=batch_label,
+                count=count,
+                gen_config_id=gen_config_id,
+                render_config_id=render_config_id
+            )
+            flash(f"Successfully generated {len(results)} loops.", "success")
+        except Exception as e:
+            current_app.logger.error(f"Error in loop generation: {e}")
+            flash(f"Error generating loops: {str(e)}", "error")
+
+        return redirect(url_for("ui_bp.loop_generation_ui", project_id=project_id))
+
+# --- Existing Routes ---
 
 # Add a simple test route to check if routes are being registered
 @ui_bp.route("/test-route")
@@ -83,20 +219,7 @@ def index() -> str:
 
 @ui_bp.route("/projects/new", methods=["GET"])
 def create_project_form() -> str:
-    """Renders the HTML form for creating a new project.
-
-    This route handles GET requests to `/ui/projects/new`. It displays a
-    web page containing a form that users can fill out to provide details
-    for a new project (e.g., name, description).
-    It utilizes the "create_project.html" template.
-
-    Args:
-        None.
-
-    Returns:
-        str: The rendered HTML content of the new project creation page.
-             The page title is set to "Create Project".
-    """
+    """Renders the HTML form for creating a new project."""
     from datetime import datetime
     from src.database.models import ProjectType
     
@@ -111,11 +234,7 @@ def create_project_form() -> str:
 
 @ui_bp.route("/projects/create", methods=["POST"])
 def create_project_submit():
-    """Handles the submission of the new project creation form.
-
-    This route processes the form data, calls the API to create a new project,
-    and redirects the user based on the outcome.
-    """
+    """Handles the submission of the new project creation form."""
     project_name = request.form.get('project_name')
     project_description = request.form.get('project_description')
 
@@ -318,27 +437,7 @@ def dspreset_settings_submit(project_id: int):
 
 @ui_bp.route("/projects/<string:project_id>/progress", methods=["GET"])
 def project_progress(project_id: str) -> str:
-    """Renders the progress monitoring page for a specific project.
-
-    This route displays a page where users can view the status or progress
-    of a particular project, identified by `project_id`. This might include
-    details about ongoing tasks, completed work, or other relevant metrics.
-    It utilizes the "project_progress.html" template.
-
-    In a full implementation, this function would fetch details about the
-    project (using `project_id`) from a database or backend service to
-    populate the template with dynamic data.
-
-    Args:
-        project_id (str): The unique identifier of the project for which
-                          to display the progress page. This is passed as a
-                          path variable from the URL.
-
-    Returns:
-        str: The rendered HTML content of the project progress page. The page
-             title is dynamically set to include the `project_id`.
-    """
-    # In the future, you would fetch project details using project_id
+    """Renders the progress monitoring page for a specific project."""
     return render_template(
         "project_progress.html", 
         title=f"Project {project_id}", 
@@ -349,14 +448,7 @@ def project_progress(project_id: str) -> str:
 
 @ui_bp.route("/projects/<int:project_id>/import_audio", methods=["GET"])
 def import_project_audio_ui(project_id: int) -> str:
-    """Renders the UI for importing an audio file to a specific project.
-
-    Args:
-        project_id (int): The ID of the project to import audio for.
-
-    Returns:
-        str: Rendered HTML page for audio import.
-    """
+    """Renders the UI for importing an audio file to a specific project."""
     # Use get_db() as a context manager
     with get_db() as db:
         project = db.query(ProjectModel).filter(ProjectModel.id == project_id).first()
@@ -377,15 +469,7 @@ def import_project_audio_ui(project_id: int) -> str:
 
 @ui_bp.route("/projects/<int:project_id>/recordings/<int:recording_id>/process", methods=["GET"])
 def process_recording_ui(project_id: int, recording_id: int) -> str:
-    """Renders the UI for processing a specific recording.
-
-    Args:
-        project_id (int): The ID of the project.
-        recording_id (int): The ID of the recording to process.
-
-    Returns:
-        str: Rendered HTML page for processing a recording.
-    """
+    """Renders the UI for processing a specific recording."""
     # Use get_db() as a context manager
     with get_db() as db:
         project = db.query(ProjectModel).filter(ProjectModel.id == project_id).first()
@@ -410,12 +494,7 @@ def process_recording_ui(project_id: int, recording_id: int) -> str:
 
 @ui_bp.route("/projects/<int:project_id>/recordings/<int:recording_id>/process", methods=["POST"])
 def process_recording_submit(project_id: int, recording_id: int) -> str:
-    """Handles the submission of the recording processing form.
-
-    This route processes the form data, constructs the API payload,
-    calls the backend API to initiate processing, and redirects the user
-    with flash messages based on the outcome.
-    """
+    """Handles the submission of the recording processing form."""
     workflow_name = request.form.get('workflow_name')
     instrument_name = request.form.get('instrument_name')
     instrument_author = request.form.get('instrument_author')
@@ -455,8 +534,8 @@ def process_recording_submit(project_id: int, recording_id: int) -> str:
     except requests.exceptions.RequestException as e:
         current_app.logger.error(f"Error processing recording via API: {e}")
         error_message = "Failed to process recording. Please try again."
-        if response and response.json() and 'error' in response.json():
-            error_message = response.json()['error']
+        if hasattr(e, 'response') and e.response and e.response.json() and 'error' in e.response.json():
+            error_message = e.response.json()['error']
         flash(error_message, "error")
         return redirect(url_for('ui_bp.process_recording_ui', project_id=project_id, recording_id=recording_id))
 
@@ -464,15 +543,7 @@ def process_recording_submit(project_id: int, recording_id: int) -> str:
 
 @ui_bp.route("/projects/<int:project_id>/recordings/<int:recording_id>", methods=["GET"])
 def view_recording(project_id: int, recording_id: int) -> str:
-    """Renders the page for viewing a single recording and its samples.
-
-    Args:
-        project_id (int): The ID of the project.
-        recording_id (int): The ID of the recording to view.
-
-    Returns:
-        str: Rendered HTML page for the recording.
-    """
+    """Renders the page for viewing a single recording and its samples."""
     with get_db() as db:
         recording = (
             db.query(RecordingModel)
@@ -493,15 +564,7 @@ def view_recording(project_id: int, recording_id: int) -> str:
 
 @ui_bp.route("/projects/<int:project_id>/recordings/<int:recording_id>/samples", methods=["GET"])
 def view_samples(project_id: int, recording_id: int) -> str:
-    """Renders the page for viewing samples of a specific recording.
-
-    Args:
-        project_id (int): The ID of the project.
-        recording_id (int): The ID of the recording.
-
-    Returns:
-        str: Rendered HTML page for viewing samples.
-    """
+    """Renders the page for viewing samples of a specific recording."""
     with get_db() as db:
         project = db.query(ProjectModel).filter(ProjectModel.id == project_id).first()
         if not project:
@@ -524,14 +587,7 @@ def view_samples(project_id: int, recording_id: int) -> str:
 
 @ui_bp.route("/samples/<int:sample_id>", methods=["GET"])
 def view_sample(sample_id: int) -> str:
-    """Renders the page for viewing a single sample.
-
-    Args:
-        sample_id (int): The ID of the sample.
-
-    Returns:
-        str: Rendered HTML page for viewing a sample.
-    """
+    """Renders the page for viewing a single sample."""
     with get_db() as db:
         sample = db.query(SampleModel).filter(SampleModel.id == sample_id).first()
         if not sample:
