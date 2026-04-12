@@ -33,10 +33,7 @@ jobs:
     - name: Configure Git credentials
       run: |
         git config --global credential.helper 'store --file=/home/runner/.git-credentials'
-        echo "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com" > /home/runner/.git-credentials
-    - name: Configure Git for Private Repos
-      run: |
-        git config --global url."https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf "https://github.com/"
+        echo "https://x-access-token:${{ secrets.GH_PAT }}@github.com" > /home/runner/.git-credentials
     - name: Install dependencies
       run: |
         poetry install
