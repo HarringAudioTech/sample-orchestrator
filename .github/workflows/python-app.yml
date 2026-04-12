@@ -34,7 +34,7 @@ jobs:
         repository: HarringAudioTech/patchlab
         token: ${{ secrets.GH_PAT }}
         path: patchlab
-        ref: 567eaf9
+
     - name: Set up Python 3.12
       uses: actions/setup-python@v3
       with:
