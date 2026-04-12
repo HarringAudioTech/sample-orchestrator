@@ -34,15 +34,16 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y libportaudio2 libportaudiocpp0 portaudio19-dev
-    - name: Configure Git credentials
-      run: |
-        echo "machine github.com login x-access-token password ${{ secrets.GH_PAT }}" > ~/.netrc
-        chmod 600 ~/.netrc
     - name: Install dependencies
       run: |
-        poetry install
+        poetry export --without-hashes --with dev -f requirements.txt > requirements.txt
+        sed -i "s|https://github.com/|https://x-access-token:${GH_PAT}@github.com/|g" requirements.txt
+        pip install -r requirements.txt
+        pip install -e .
+      env:
+        GH_PAT: ${{ secrets.GH_PAT }}
 
     - name: Test with pytest
       run: |
-        poetry run pytest
+        pytest
   
