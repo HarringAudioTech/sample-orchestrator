@@ -109,7 +109,7 @@ def test_denoising_stage_passthrough(
     assert os.path.basename(output_path) == expected_output_name
     assert os.path.exists(output_path)
     assert "Denoising recommended" in caplog.text
-    assert "Denoising not yet implemented" in caplog.text
+    assert "Native denoising not yet implemented" in caplog.text
 
 # pylint: disable=redefined-outer-name
 def test_clickpop_removal_stage_passthrough(
@@ -136,7 +136,7 @@ def test_clickpop_removal_stage_passthrough(
     assert os.path.basename(output_path) == expected_output_name
     assert os.path.exists(output_path)
     assert "Click/pop removal recommended" in caplog.text
-    assert "Click/pop removal not yet implemented" in caplog.text
+    assert "Native click/pop removal not yet implemented" in caplog.text
 
 
 # --- Tests for SilenceAndStabAdjustmentStage ---

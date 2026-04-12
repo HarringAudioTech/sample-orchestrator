@@ -18,6 +18,7 @@ def test_slicing_stage_applies_fades():
         "recording_id": 1,
         "project_id": 1,
         "output_sample_dir": "test_output",
+        "file_path": "test_audio.wav"
     }
     
     # Mock recording
