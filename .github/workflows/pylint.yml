@@ -28,6 +28,9 @@ jobs:
     - name: Install dependencies
       run: |
         poetry install
+      env:
+        POETRY_EXPERIMENTAL_SYSTEM_GIT_CLIENT: "true"
+
     - name: Analysing the code with pylint
       run: |
         poetry run pylint $(git ls-files '*.py')
