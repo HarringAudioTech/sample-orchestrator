@@ -4,8 +4,10 @@ This stage is responsible for detecting onsets/transients in audio files.
 """
 
 import logging
-from typing import Dict, Any, List, Tuple, Optional
+from typing import Dict, Any, List, Optional
+from pathlib import Path
 import numpy as np
+
 import librosa
 
 from src.core.processing_stages import AudioProcessingStage
@@ -145,8 +147,16 @@ class OnsetDetectionStage(AudioProcessingStage):
         detection_params = merged_params.get("detection_params", {})
         
         try:
-            # Load audio file
-            y, _ = librosa.load(data, sr=sr, mono=True)
+            # Load audio file if it's a path, otherwise use as is
+            if isinstance(data, (str, Path)):
+                y, _ = librosa.load(data, sr=sr, mono=True)
+            elif isinstance(data, np.ndarray):
+                y = data
+                # Ensure mono
+                if len(y.shape) > 1:
+                    y = librosa.to_mono(y)
+            else:
+                raise TypeError(f"Unsupported data type for onset detection: {type(data)}")
             
             # Extract strength parameters from detection_params
             strength_keys = ["fmin", "fmax", "n_mels", "aggregate"]

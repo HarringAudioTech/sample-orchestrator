@@ -42,11 +42,11 @@ class SlicingStage(AudioProcessingStage):
 
     @property
     def input_type(self) -> str:
-        return "file_path"
+        return "audio_segments"
 
     @property
     def output_type(self) -> str:
-        return "list_of_sample_data"
+        return "audio_segments"
 
     @property
     def default_params(self) -> Dict[str, Any]:
@@ -158,7 +158,7 @@ class SlicingStage(AudioProcessingStage):
 
     def process(
         self,
-        data: Union[str, Dict[str, Any]],
+        data: Any,
         params: Optional[Dict[str, Any]] = None,
         context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
@@ -199,6 +199,14 @@ class SlicingStage(AudioProcessingStage):
         recording_id: int = context["recording_id"]
         output_dir: str = context["output_sample_dir"]
         project_id: int = context["project_id"]
+        
+        # Determine the source file path
+        file_path = context.get("file_path")
+        if not file_path and isinstance(data, str):
+            file_path = data
+        
+        if not file_path:
+            raise ValueError("File path not found in data or context")
 
         # Get recording from database
         recording = db_session.get(RecordingModel, recording_id)
@@ -211,23 +219,19 @@ class SlicingStage(AudioProcessingStage):
         merged_params = self.default_params.copy()
         merged_params.update(params)
 
-        # Get slice points from params
-        slice_points = params.get("slice_points", [])
+        # Get slice points from data (if it's a list of segments) or params
+        slice_points = []
+        if isinstance(data, list):
+            slice_points = data
+        else:
+            slice_points = params.get("slice_points", [])
 
         # If no slice points provided, detect onsets
         if not slice_points:
             logger.info("No slice points provided, detecting onsets automatically.")
             try:
-                if isinstance(data, str):
-                    y, sr = self._load_audio_file(data, target_sr=44100)
-                else:
-                    y = data.get("audio_data")
-                    sr = data.get("sample_rate")
-                    if y is None or sr is None:
-                        raise ValueError(
-                            "Invalid audio data format. Expected 'audio_data' and 'sample_rate' keys."
-                        )
-
+                y, sr = self._load_audio_file(file_path, target_sr=44100)
+                
                 if is_test_environment() and hasattr(self, "_test_onsets"):
                     onset_frames = self._test_onsets
                 else:
@@ -252,8 +256,8 @@ class SlicingStage(AudioProcessingStage):
                 for i in range(len(onset_times) - 1):
                     slice_points.append(
                         {
-                            "start": float(onset_times[i]),
-                            "end": float(onset_times[i + 1]),
+                            "start_time": float(onset_times[i]),
+                            "end_time": float(onset_times[i + 1]),
                         }
                     )
 
@@ -272,15 +276,7 @@ class SlicingStage(AudioProcessingStage):
 
         # Load audio file if not already loaded
         if "y" not in locals() or "sr" not in locals():
-            if isinstance(data, str):
-                y, sr = self._load_audio_file(data, target_sr=44100)
-            else:
-                y = data.get("audio_data")
-                sr = data.get("sample_rate")
-                if y is None or sr is None:
-                    raise ValueError(
-                        "Invalid audio data format. Expected 'audio_data' and 'sample_rate' keys."
-                    )
+            y, sr = self._load_audio_file(file_path, target_sr=44100)
 
         # Process each slice
         processed_slices = 0
