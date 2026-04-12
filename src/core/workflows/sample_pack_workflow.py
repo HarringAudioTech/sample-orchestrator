@@ -137,7 +137,7 @@ class SamplePackWorkflow:
                     "type": seg.get("type", "one_shot"),
                     "metadata": seg.get("metadata", {}),
                 }
-                for seg in classified
+                for seg in classified_segments
             ]
 
             slicing_params = params.get("slicing", {})

@@ -42,17 +42,20 @@ class SlicingStage(AudioProcessingStage):
 
     @property
     def input_type(self) -> str:
-        return "file_path"
+        return "audio_segments"
 
     @property
     def output_type(self) -> str:
-        return "list_of_sample_data"
+        return "audio_segments"
 
     @property
     def default_params(self) -> Dict[str, Any]:
         return {
             "bit_depth": 24,
             "normalize": True,
+            "apply_fades": True,
+            "fade_in_ms": 2,      # Micro-fade to prevent clicks
+            "fade_out_ms": 2,     # Micro-fade to prevent clicks
             "min_sample_length_ms": 100,
             "max_sample_length_ms": 10000,
             "librosa_onset_params": {
@@ -66,6 +69,34 @@ class SlicingStage(AudioProcessingStage):
             "sample_type": "one_shot",
             "output_format": "wav",
         }
+
+    def _apply_fades(
+        self, audio_data: np.ndarray, sr: int, fade_in_ms: float, fade_out_ms: float
+    ) -> np.ndarray:
+        """Apply linear fade-in and fade-out to audio data."""
+        y = audio_data.copy()
+        
+        # Calculate fade lengths in samples
+        fade_in_samples = int((fade_in_ms / 1000.0) * sr)
+        fade_out_samples = int((fade_out_ms / 1000.0) * sr)
+        
+        # Ensure fades aren't longer than the audio itself
+        total_samples = len(y)
+        if fade_in_samples + fade_out_samples > total_samples:
+            # Scale fades proportionally to fit within audio length
+            scale = total_samples / (fade_in_samples + fade_out_samples)
+            fade_in_samples = int(fade_in_samples * scale)
+            fade_out_samples = int(fade_out_samples * scale)
+            
+        if fade_in_samples > 0:
+            fade_in_curve = np.linspace(0.0, 1.0, fade_in_samples)
+            y[:fade_in_samples] *= fade_in_curve
+            
+        if fade_out_samples > 0:
+            fade_out_curve = np.linspace(1.0, 0.0, fade_out_samples)
+            y[-fade_out_samples:] *= fade_out_curve
+            
+        return y
 
     def _load_audio_file(
         self, file_path: str, target_sr: int
@@ -127,7 +158,7 @@ class SlicingStage(AudioProcessingStage):
 
     def process(
         self,
-        data: Union[str, Dict[str, Any]],
+        data: Any,
         params: Optional[Dict[str, Any]] = None,
         context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
@@ -168,6 +199,14 @@ class SlicingStage(AudioProcessingStage):
         recording_id: int = context["recording_id"]
         output_dir: str = context["output_sample_dir"]
         project_id: int = context["project_id"]
+        
+        # Determine the source file path
+        file_path = context.get("file_path")
+        if not file_path and isinstance(data, str):
+            file_path = data
+        
+        if not file_path:
+            raise ValueError("File path not found in data or context")
 
         # Get recording from database
         recording = db_session.get(RecordingModel, recording_id)
@@ -176,28 +215,27 @@ class SlicingStage(AudioProcessingStage):
 
         if params is None:
             params = {}
+            
+        merged_params = self.default_params.copy()
+        merged_params.update(params)
 
-        # Get slice points from params
-        slice_points = params.get("slice_points", [])
+        # Get slice points from data (if it's a list of segments) or params
+        slice_points = []
+        if isinstance(data, list):
+            slice_points = data
+        else:
+            slice_points = params.get("slice_points", [])
 
         # If no slice points provided, detect onsets
         if not slice_points:
             logger.info("No slice points provided, detecting onsets automatically.")
             try:
-                if isinstance(data, str):
-                    y, sr = self._load_audio_file(data, target_sr=44100)
-                else:
-                    y = data.get("audio_data")
-                    sr = data.get("sample_rate")
-                    if y is None or sr is None:
-                        raise ValueError(
-                            "Invalid audio data format. Expected 'audio_data' and 'sample_rate' keys."
-                        )
-
+                y, sr = self._load_audio_file(file_path, target_sr=44100)
+                
                 if is_test_environment() and hasattr(self, "_test_onsets"):
                     onset_frames = self._test_onsets
                 else:
-                    onset_params = params.get("librosa_onset_params", {}).copy()
+                    onset_params = merged_params.get("librosa_onset_params", {}).copy()
                     onset_params.pop("sr", None)
                     onset_frames = librosa.onset.onset_detect(
                         y=y, sr=sr, **onset_params
@@ -218,8 +256,8 @@ class SlicingStage(AudioProcessingStage):
                 for i in range(len(onset_times) - 1):
                     slice_points.append(
                         {
-                            "start": float(onset_times[i]),
-                            "end": float(onset_times[i + 1]),
+                            "start_time": float(onset_times[i]),
+                            "end_time": float(onset_times[i + 1]),
                         }
                     )
 
@@ -238,15 +276,7 @@ class SlicingStage(AudioProcessingStage):
 
         # Load audio file if not already loaded
         if "y" not in locals() or "sr" not in locals():
-            if isinstance(data, str):
-                y, sr = self._load_audio_file(data, target_sr=44100)
-            else:
-                y = data.get("audio_data")
-                sr = data.get("sample_rate")
-                if y is None or sr is None:
-                    raise ValueError(
-                        "Invalid audio data format. Expected 'audio_data' and 'sample_rate' keys."
-                    )
+            y, sr = self._load_audio_file(file_path, target_sr=44100)
 
         # Process each slice
         processed_slices = 0
@@ -287,6 +317,12 @@ class SlicingStage(AudioProcessingStage):
                 continue
 
             slice_audio = y[start_sample:end_sample]
+
+            # Apply fades if requested
+            if merged_params.get("apply_fades", True):
+                fade_in_ms = merged_params.get("fade_in_ms", 2)
+                fade_out_ms = merged_params.get("fade_out_ms", 2)
+                slice_audio = self._apply_fades(slice_audio, sr, fade_in_ms, fade_out_ms)
 
             # Generate output filename
             base_name = os.path.splitext(

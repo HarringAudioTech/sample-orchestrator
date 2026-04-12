@@ -30,10 +30,12 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y libportaudio2 libportaudiocpp0 portaudio19-dev
+    - name: Configure Git credentials
+      run: |
+        git config --global url."https://x-access-token:${{ secrets.GH_PAT }}@github.com/".insteadOf "https://github.com/"
     - name: Install dependencies
       run: |
         poetry install
     - name: Test with pytest
       run: |
         poetry run pytest
-  

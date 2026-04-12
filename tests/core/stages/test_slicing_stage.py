@@ -45,10 +45,10 @@ class TestSlicingStageProperties:
         assert slicing_stage.name == "slicing"
 
     def test_input_type(self, slicing_stage):
-        assert slicing_stage.input_type == "file_path"
+        assert slicing_stage.input_type == "audio_segments"
 
     def test_output_type(self, slicing_stage):
-        assert slicing_stage.output_type == "list_of_sample_data"
+        assert slicing_stage.output_type == "audio_segments"
 
     def test_default_params_has_expected_keys(self, slicing_stage):
         params = slicing_stage.default_params

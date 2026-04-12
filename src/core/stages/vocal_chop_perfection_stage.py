@@ -9,12 +9,15 @@ import os
 import shutil
 import abc  # Abstract Base Class
 import logging # Added logging
-from typing import Tuple, Optional, List, Type
+from typing import Tuple, Optional, List, Type, Dict, Any
 import dataclasses
 
 import soundfile  # type: ignore # pylint: disable=import-error
 import numpy as np  # type: ignore # pylint: disable=import-error
 import librosa  # type: ignore # pylint: disable=import-error
+
+from src.core.stage_runner import execute_stage_chain
+import src.core.stages.vst3_plugin_stage # Ensure registered
 
 # Assuming these are in the parent directory or src/core
 # Adjust imports based on actual project structure if these files are elsewhere.
@@ -42,9 +45,10 @@ except ImportError:
 class ProcessingStage(abc.ABC):
     """Abstract base class for a processing stage in the vocal chop perfection workflow."""
 
-    def __init__(self, working_dir: str, stage_name: Optional[str] = None):
+    def __init__(self, working_dir: str, stage_name: Optional[str] = None, config: Optional[dict] = None):
         self.working_dir = working_dir
         self.stage_name = stage_name if stage_name else self.__class__.__name__
+        self.config = config or {}
         if not os.path.exists(self.working_dir):
             os.makedirs(self.working_dir, exist_ok=True)
 
@@ -139,8 +143,8 @@ class ProcessingStage(abc.ABC):
 class DenoisingStage(ProcessingStage):
     """Stage for denoising the audio."""
 
-    def __init__(self, working_dir: str):
-        super().__init__(working_dir, stage_name="DenoisingStage")
+    def __init__(self, working_dir: str, config: Optional[dict] = None):
+        super().__init__(working_dir, stage_name="DenoisingStage", config=config)
 
     def process(
         self, input_file_path: str, evaluation_result: VocalChopEvaluationResult
@@ -150,11 +154,37 @@ class DenoisingStage(ProcessingStage):
 
         if evaluation_result.denoising_recommended:
             logging.info("[%s] Denoising recommended for %s.", self.stage_name, input_file_path)
-            # TODO: Implement actual denoising logic here.
-            logging.debug(
-                "[%s] Denoising not yet implemented. Passing through.", self.stage_name
-            )
-            output_file_path = self._copy_with_suffix(input_file_path, "denoised_stub")
+            
+            vst3_path = self.config.get("vst3_path")
+            if vst3_path:
+                logging.info("[%s] Using VST3 plugin for denoising: %s", self.stage_name, vst3_path)
+                try:
+                    # Read audio
+                    audio_data, sr = soundfile.read(input_file_path)
+                    if audio_data.ndim > 1:
+                        audio_data = np.mean(audio_data, axis=1) # Mono conversion
+                    
+                    # Process via VST3 stage
+                    chain = [{"stage_name": "vst3_plugin", "params": {
+                        "plugin_path": vst3_path,
+                        "plugin_settings": self.config.get("vst3_settings", {})
+                    }}]
+                    processed_audio = execute_stage_chain(
+                        initial_data=audio_data,
+                        initial_data_type="audio_buffer_mono",
+                        chain_definition=chain,
+                        context={"sample_rate": sr}
+                    )
+                    output_file_path = self._save_intermediate(processed_audio, sr, input_file_path, "denoised_vst")
+                except Exception as e:
+                    logging.error("[%s] VST3 denoising failed: %s", self.stage_name, e)
+                    output_file_path = self._copy_with_suffix(input_file_path, "denoised_failed")
+            else:
+                # TODO: Implement native denoising (e.g. spectral subtraction)
+                logging.debug(
+                    "[%s] Native denoising not yet implemented. Passing through.", self.stage_name
+                )
+                output_file_path = self._copy_with_suffix(input_file_path, "denoised_stub")
         else:
             logging.info(
                 "[%s] Denoising not recommended for %s. Skipping.",
@@ -167,8 +197,8 @@ class DenoisingStage(ProcessingStage):
 class ClickPopRemovalStage(ProcessingStage):
     """Stage for removing clicks and pops."""
 
-    def __init__(self, working_dir: str):
-        super().__init__(working_dir, stage_name="ClickPopRemovalStage")
+    def __init__(self, working_dir: str, config: Optional[dict] = None):
+        super().__init__(working_dir, stage_name="ClickPopRemovalStage", config=config)
 
     def process(
         self, input_file_path: str, evaluation_result: VocalChopEvaluationResult
@@ -182,13 +212,37 @@ class ClickPopRemovalStage(ProcessingStage):
                 self.stage_name,
                 input_file_path
             )
-            # TODO: Implement actual click/pop removal logic here.
-            logging.debug(
-                "[%s] Click/pop removal not yet implemented. Passing through.", self.stage_name
-            )
-            output_file_path = self._copy_with_suffix(
-                input_file_path, "clickremoved_stub"
-            )
+            
+            vst3_path = self.config.get("vst3_path")
+            if vst3_path:
+                logging.info("[%s] Using VST3 plugin for click removal: %s", self.stage_name, vst3_path)
+                try:
+                    audio_data, sr = soundfile.read(input_file_path)
+                    if audio_data.ndim > 1:
+                        audio_data = np.mean(audio_data, axis=1)
+                    
+                    chain = [{"stage_name": "vst3_plugin", "params": {
+                        "plugin_path": vst3_path,
+                        "plugin_settings": self.config.get("vst3_settings", {})
+                    }}]
+                    processed_audio = execute_stage_chain(
+                        initial_data=audio_data,
+                        initial_data_type="audio_buffer_mono",
+                        chain_definition=chain,
+                        context={"sample_rate": sr}
+                    )
+                    output_file_path = self._save_intermediate(processed_audio, sr, input_file_path, "clickremoved_vst")
+                except Exception as e:
+                    logging.error("[%s] VST3 click removal failed: %s", self.stage_name, e)
+                    output_file_path = self._copy_with_suffix(input_file_path, "clickremoved_failed")
+            else:
+                # TODO: Implement native click removal (e.g. interpolation)
+                logging.debug(
+                    "[%s] Native click/pop removal not yet implemented. Passing through.", self.stage_name
+                )
+                output_file_path = self._copy_with_suffix(
+                    input_file_path, "clickremoved_stub"
+                )
         else:
             logging.info(
                 "[%s] No clicks/pops detected or recommendation for %s. Skipping.",
@@ -201,8 +255,9 @@ class ClickPopRemovalStage(ProcessingStage):
 class SilenceAndStabAdjustmentStage(ProcessingStage):
     """Stage for adjusting silence and stab boundaries."""
 
-    def __init__(self, working_dir: str):
+    def __init__(self, working_dir: str, config: Optional[Dict[str, Any]] = None):
         super().__init__(working_dir, stage_name="SilenceAndStabAdjustmentStage")
+        self.config = config or {}
 
     def _find_closest_zero_crossing(
         self,
@@ -373,10 +428,12 @@ class SilenceAndStabAdjustmentStage(ProcessingStage):
 
 # pylint: disable=too-few-public-methods
 class MetadataUpdateStage(ProcessingStage):
-    """Stage for updating metadata in the audio file."""
+    """Stage for updating WAV metadata (tags, comments)."""
 
-    def __init__(self, working_dir: str):
+    def __init__(self, working_dir: str, config: Optional[Dict[str, Any]] = None):
         super().__init__(working_dir, stage_name="MetadataUpdateStage")
+        self.config = config or {}
+
 
     # pylint: disable=too-many-branches,too-many-statements # Refactor if it gets too complex
     def process( # noqa: C901
@@ -455,10 +512,11 @@ class VocalChopPerfectionWorkflow:
     """Orchestrates the vocal chop perfection processing stages."""
 
     def __init__(
-        self, initial_file_path: str, evaluation_result: VocalChopEvaluationResult
+        self, initial_file_path: str, evaluation_result: VocalChopEvaluationResult, config: Optional[dict] = None
     ):
         self.initial_file_path = initial_file_path
         self.evaluation_result = evaluation_result
+        self.config = config or {}
         self.stages: List[Type[ProcessingStage]] = [
             DenoisingStage,
             ClickPopRemovalStage,
@@ -487,7 +545,9 @@ class VocalChopPerfectionWorkflow:
         current_file_path = self.initial_file_path
 
         for stage_class in self.stages:
-            stage_instance = stage_class(working_dir=run_working_dir)
+            # Get config for this specific stage if available
+            stage_config = self.config.get(stage_class.__name__, {})
+            stage_instance = stage_class(working_dir=run_working_dir, config=stage_config)
             try:
                 current_file_path = stage_instance.process(
                     current_file_path, self.evaluation_result
