@@ -12,8 +12,20 @@ jobs:
         python-version: ["3.12"]
     steps:
     - uses: actions/checkout@v4
+    - name: Checkout amanuensis
+      uses: actions/checkout@v4
       with:
-        persist-credentials: false
+        repository: HarringAudioTech/amanuensis
+        token: ${{ secrets.GH_PAT }}
+        path: amanuensis
+        ref: trunk
+    - name: Checkout patchlab
+      uses: actions/checkout@v4
+      with:
+        repository: HarringAudioTech/patchlab
+        token: ${{ secrets.GH_PAT }}
+        path: patchlab
+        ref: 567eaf9
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v3
       with:
@@ -28,11 +40,13 @@ jobs:
     - name: Install dependencies
       run: |
         poetry export --without-hashes --with dev -f requirements.txt > requirements.txt
-        sed -i "s|https://github.com/|https://${GH_PAT}@github.com/|g" requirements.txt
+        sed -i '/amanuensis/d' requirements.txt
+        sed -i '/patchlab/d' requirements.txt
         pip install -r requirements.txt
+        pip install ./amanuensis
+        pip install ./patchlab/patchlab-python
         pip install -e .
-      env:
-        GH_PAT: ${{ secrets.GH_PAT }}
+
 
     - name: Analysing the code with pylint
       run: |
