@@ -28,7 +28,7 @@ jobs:
     - name: Configure Git auth via pyproject injection
       run: |
         sed -i 's|https://github.com/|https://x-access-token:${{ secrets.GH_PAT }}@github.com/|g' pyproject.toml
-        poetry lock --no-update
+        poetry lock
     - name: Install dependencies
       run: |
         poetry install
