@@ -22,7 +22,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       with:
-        token: ${{ secrets.GH_PAT }}
+        persist-credentials: false
     - name: Set up Python 3.12
       uses: actions/setup-python@v3
       with:
@@ -34,10 +34,10 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y libportaudio2 libportaudiocpp0 portaudio19-dev
-    - name: Inject PAT and refresh lock
+    - name: Configure Git and Poetry
       run: |
-        sed -i 's|https://github.com/|https://x-access-token:${{ secrets.GH_PAT }}@github.com/|g' pyproject.toml
-        rm poetry.lock
+        git config --global url."https://${{ secrets.GH_PAT }}@github.com/".insteadOf "https://github.com/"
+        poetry config system-git-client true
     - name: Install dependencies
       run: |
         poetry install
