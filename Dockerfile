@@ -1,5 +1,5 @@
 # Use an official Python runtime as a parent image
-FROM python:3.12
+FROM python:3.14-slim
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -7,7 +7,7 @@ ENV PYTHONUNBUFFERED=1
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc curl libasound2-dev ffmpeg \
+    gcc curl libasound2-dev ffmpeg libsndfile1 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -15,7 +15,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # Install minimal dependencies required to run the Flask app
-RUN pip install Flask==3.0.2 flask-cors==4.0.0 sqlalchemy==2.0.28 mido==1.3.2 requests==2.31.0 numpy==1.26.0 librosa==0.10.1
+# Using versions specified in pyproject.toml
+RUN pip install Flask==3.0.2 flask-cors==4.0.0 sqlalchemy==2.0.28 mido==1.3.2 requests==2.32.3 numpy==2.0.0 librosa==0.10.1 pedalboard==0.9.14
 
 # Copy the application code
 COPY src/ ./src/
