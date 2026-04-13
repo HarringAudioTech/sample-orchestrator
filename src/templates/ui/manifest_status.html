@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+
+{% block title %}Manifest Status - {{ project.name }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('ui_bp.index') }}">Projects</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('ui_bp.dashboard', project_id=project.id) }}">{{ project.name }}</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Manifest Status</li>
+        </ol>
+    </nav>
+
+    <div class="row mb-4">
+        <div class="col">
+            <h1>Construction Kit Fulfillment</h1>
+            <p class="text-muted">Tracking progress against defined manifest rules.</p>
+        </div>
+        <div class="col-auto">
+            <form action="{{ url_for('ui_bp.export_kit', project_id=project.id) }}" method="POST" style="display: inline;">
+                <button type="submit" class="btn btn-success">
+                    <i class="bi bi-file-earmark-zip"></i> Export Kit
+                </button>
+            </form>
+            <a href="{{ url_for('ui_bp.manifest_builder', project_id=project.id) }}" class="btn btn-outline-primary">
+                <i class="bi bi-pencil"></i> Edit Manifest
+            </a>
+        </div>
+    </div>
+
+    <!-- Overall Progress -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5 class="card-title">Overall Pack Progress</h5>
+            <div class="progress" style="height: 30px;">
+                <div class="progress-bar bg-success" role="progressbar" 
+                     style="width: {{ results.total_progress }}%;" 
+                     aria-valuenow="{{ results.total_progress }}" aria-valuemin="0" aria-valuemax="100">
+                    {{ results.total_progress }}%
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Fulfillment Grid -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Requirement Status</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Requirement</th>
+                                    <th>Category</th>
+                                    <th>Progress</th>
+                                    <th>Assets</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for rule in results.rule_results %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ rule.name }}</strong>
+                                    </td>
+                                    <td><span class="badge bg-secondary">{{ rule.category }}</span></td>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <div class="progress flex-grow-1 me-2" style="height: 10px;">
+                                                <div class="progress-bar bg-{{ 'success' if rule.is_fulfilled else 'warning' }}" 
+                                                     role="progressbar" style="width: {{ rule.progress }}%;"></div>
+                                            </div>
+                                            <small>{{ rule.match_count }} / {{ rule.target_count }}</small>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        {% for match in rule.matches %}
+                                        <span class="badge bg-light text-dark border" title="{{ match.name }}">
+                                            <i class="bi bi-{{ 'file-earmark-music' if match.type == 'sample' else 'music-note' }}"></i>
+                                            {{ match.name | truncate(15) }}
+                                        </span>
+                                        {% endfor %}
+                                    </td>
+                                    <td>
+                                        {% if rule.is_fulfilled %}
+                                        <span class="text-success"><i class="bi bi-check-circle-fill"></i> Ready</span>
+                                        {% else %}
+                                        <form action="{{ url_for('ui_bp.fulfill_rule', project_id=project.id, rule_id=rule.rule_id) }}" method="POST" class="row g-2 align-items-center">
+                                            <div class="col-auto">
+                                                <select name="render_config_id" class="form-select form-select-sm" required>
+                                                    <option value="">Select Config...</option>
+                                                    {% for config in render_configs %}
+                                                    <option value="{{ config.id }}">{{ config.name }}</option>
+                                                    {% endfor %}
+                                                </select>
+                                            </div>
+                                            <div class="col-auto">
+                                                <button type="submit" class="btn btn-sm btn-primary">
+                                                    <i class="bi bi-play-circle"></i> Fulfill
+                                                </button>
+                                            </div>
+                                        </form>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Unassigned Assets -->
+    {% if results.unassigned_assets %}
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card border-warning">
+                <div class="card-header bg-warning-subtle text-warning-emphasis">
+                    <h5 class="mb-0">Unassigned Assets</h5>
+                    <small>These assets don't match any manifest rules (check their tags).</small>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Type</th>
+                                    <th>Tags</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for asset in results.unassigned_assets %}
+                                <tr>
+                                    <td>{{ asset.name }}</td>
+                                    <td>{{ asset.type }}</td>
+                                    <td>
+                                        {% for k, v in asset.tags.items() %}
+                                        <small class="badge bg-light text-dark">{{ k }}:{{ v }}</small>
+                                        {% endfor %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

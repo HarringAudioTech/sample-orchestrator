@@ -21,6 +21,7 @@ class ProjectType(str, enum.Enum):
     """Enum for project types."""
     SAMPLE_PACK = "sample_pack"
     VIRTUAL_INSTRUMENT = "virtual_instrument"
+    CONSTRUCTION_KIT = "construction_kit"
 
 
 class SamplePackStatus(str, enum.Enum):
@@ -109,6 +110,15 @@ class VirtualInstrumentModel(ProjectModel):
         "polymorphic_identity": "virtual_instrument",
     }
     velocity_groups = relationship("VelocityGroupModel", back_populates="project", cascade="all, delete-orphan")
+
+
+class ConstructionKitProjectModel(ProjectModel):
+    """Model for construction kit projects."""
+    
+    __mapper_args__ = {
+        "polymorphic_identity": "construction_kit",
+    }
+    manifest = relationship("ManifestModel", back_populates="project", uselist=False, cascade="all, delete-orphan")
 
 
 class RecordingModel(Base):
@@ -303,3 +313,51 @@ class LoopRenderingConfigModel(Base):
     @property
     def patch_data(self) -> Dict[str, Any]:
         return json.loads(self.patch_data_json) if self.patch_data_json else {}
+
+
+class ManifestModel(Base):
+    """Model for a project's asset manifest."""
+    __tablename__ = "manifests"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    # Define relationships
+    project = relationship("ConstructionKitProjectModel", back_populates="manifest")
+    rules = relationship("ManifestRuleModel", back_populates="manifest", cascade="all, delete-orphan")
+
+
+class ManifestRuleModel(Base):
+    """Model for a single requirement in a manifest."""
+    __tablename__ = "manifest_rules"
+
+    id = Column(Integer, primary_key=True, index=True)
+    manifest_id = Column(Integer, ForeignKey("manifests.id"), nullable=False)
+    name = Column(String(255), nullable=False)
+
+    # Requirement configuration as JSON (e.g., {"instrument": "bass", "section": "chorus"})
+    required_tags_json = Column(Text, nullable=False)
+
+    # Target number of unique samples/MIDI files required to fulfill this rule
+    target_count = Column(Integer, nullable=False, default=1)
+
+    # Optional category/group for UI organization (e.g., "Instruments", "Vocals")
+    category = Column(String(100), nullable=True)
+
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    # Define relationships
+    manifest = relationship("ManifestModel", back_populates="rules")
+
+    @property
+    def required_tags(self) -> Dict[str, Any]:
+        """Parse and return required tags JSON as a dictionary."""
+        if self.required_tags_json:
+            try:
+                return json.loads(self.required_tags_json)
+            except json.JSONDecodeError:
+                return {}
+        return {}

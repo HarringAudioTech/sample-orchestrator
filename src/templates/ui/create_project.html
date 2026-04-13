@@ -24,6 +24,16 @@
         <textarea id="project_description" name="project_description" rows="4"></textarea>
     </div>
     <div>
+        <label for="project_type">Project Type:</label>
+        <select id="project_type" name="project_type" class="form-select">
+            {% for type in project_types %}
+            <option value="{{ type }}" {% if type == selected_type %}selected{% endif %}>
+                {{ type | replace('_', ' ') | title }}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+    <div>
         <label for="config_file">Configuration File (Optional):</label>
         <input type="file" id="config_file" name="config_file">
     </div>
