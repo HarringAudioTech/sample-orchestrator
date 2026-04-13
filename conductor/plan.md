@@ -32,9 +32,9 @@
 - [ ] Task: Validate the resulting stems have improved separation and sit well together without significant masking.
 
 ## Phase 6: Python 3.14 & Distroless Docker Upgrade
-- [ ] Task: Update Python version requirement from `3.12` to `3.14` in `.python-version`.
-- [ ] Task: Update `python = "^3.12"` to `python = "^3.14"` in `pyproject.toml`.
+- [x] Task: Update Python version requirement from `3.12` to `3.14` in `.python-version`.
+- [x] Task: Update `python = "^3.12"` to `python = "^3.14"` in `pyproject.toml`.
 - [ ] Task: Update Poetry lockfile (`poetry update`) and uv lockfile (`uv lock`) to reflect the new Python 3.14 requirement.
-- [ ] Task: Update `Dockerfile` to use `FROM python:3.14-slim` to reduce footprint while supporting `apt-get` system dependencies like `ffmpeg` and `libasound2-dev`.
-- [ ] Task: Update `Dockerfile.test` to use `FROM python:3.14-slim`.
-- [ ] Task: Update `README.md` to reflect the Python 3.14 requirement and document the current slim Docker setup.
+- [x] Task: Update `Dockerfile` to use `FROM python:3.14-slim` to reduce footprint while supporting `apt-get` system dependencies like `ffmpeg` and `libasound2-dev`.
+- [x] Task: Update `Dockerfile.test` to use `FROM python:3.14-slim`.
+- [x] Task: Update `README.md` to reflect the Python 3.14 requirement and document the current slim Docker setup.
