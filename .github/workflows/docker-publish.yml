@@ -2,7 +2,7 @@ name: Docker Image CI for GHCR
 
 on:
   push:
-    branches: [ "main" ] # Or "trunk" if that's your main branch
+    branches: [ "trunk" ]
 
 jobs:
   build_and_push_image:
