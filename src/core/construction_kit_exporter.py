@@ -89,6 +89,19 @@ class ConstructionKitExporter:
                         if asset and os.path.exists(asset.file_path):
                             shutil.copy2(asset.file_path, unassigned_dir / os.path.basename(asset.file_path))
 
+            # 2.5 Apply Spectral EQ to each section
+            from src.core.spectral_eq import SpectralEQ
+            spectral_eq = SpectralEQ()
+            # Iterate through song/section folders in temp_dir
+            for song_dir in temp_dir.iterdir():
+                if song_dir.is_dir() and song_dir.name != "Unassigned":
+                    for section_dir in song_dir.iterdir():
+                        if section_dir.is_dir():
+                            try:
+                                spectral_eq.process_section(section_dir)
+                            except Exception as e:
+                                logger.error(f"Error applying spectral EQ to {section_dir}: {e}")
+
             # 3. Zip it up
             zip_file_path = output_path
             if not zip_file_path.endswith(".zip"):
