@@ -23,7 +23,8 @@ def test_workflow_template_iteration():
             now=datetime.datetime.now(),
             workflows=workflows_instances,
             stages={},
-            url_for=lambda endpoint, **kwargs: "/mock/url"
+            url_for=lambda endpoint, **kwargs: "/mock/url",
+            get_flashed_messages=lambda **kwargs: []
         )
         # Verify it renders the stages properly (check for "slicing" since both workflows use it)
         assert "slicing" in html

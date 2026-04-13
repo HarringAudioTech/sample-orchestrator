@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+
+{% block title %}Manifest Builder - {{ project.name }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-at"><a href="{{ url_for('ui_bp.index') }}">Projects</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('ui_bp.dashboard', project_id=project.id) }}">{{ project.name }}</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Manifest Builder</li>
+        </ol>
+    </nav>
+
+    <div class="row mb-4">
+        <div class="col">
+            <h1>Manifest Builder</h1>
+            <p class="text-muted">Define the required assets for your Construction Kit.</p>
+        </div>
+        <div class="col-auto">
+            <a href="{{ url_for('ui_bp.manifest_status', project_id=project.id) }}" class="btn btn-info">
+                <i class="bi bi-grid-3x3-gap"></i> View Status
+            </a>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Quick Rules Generator</h5>
+        </div>
+        <div class="card-body">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label for="num_songs" class="form-label">Number of Songs</label>
+                    <input type="number" class="form-control" id="num_songs" value="3" min="1" max="10">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Default Sections</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="section_intro" checked value="Intro">
+                        <label class="form-check-label" for="section_intro">Intro</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="section_verse" checked value="Verse">
+                        <label class="form-check-label" for="section_verse">Verse</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="section_chorus" checked value="Chorus">
+                        <label class="form-check-label" for="section_chorus">Chorus</label>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Required Parts</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="part_drums" checked value="Drums">
+                        <label class="form-check-label" for="part_drums">Drums</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="part_bass" checked value="Bass">
+                        <label class="form-check-label" for="part_bass">Bass</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="part_synth" checked value="Synth Lead">
+                        <label class="form-check-label" for="part_synth">Synth Lead</label>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <button type="button" class="btn btn-outline-primary w-100" id="btn_generate">
+                        Generate Rules
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <form method="POST" id="manifest_form">
+        <input type="hidden" name="rules_json" id="rules_json">
+        
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Manifest Rules</h5>
+                <button type="button" class="btn btn-sm btn-success" id="btn_add_rule">
+                    <i class="bi bi-plus-lg"></i> Add Rule
+                </button>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0" id="rules_table">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Name</th>
+                                <th>Category</th>
+                                <th>Required Tags (JSON)</th>
+                                <th>Target Count</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="rules_body">
+                            {% for rule in manifest.rules %}
+                            <tr class="rule-row">
+                                <td><input type="text" class="form-control form-control-sm rule-name" value="{{ rule.name }}"></td>
+                                <td><input type="text" class="form-control form-control-sm rule-category" value="{{ rule.category }}"></td>
+                                <td><input type="text" class="form-control form-control-sm rule-tags" value='{{ rule.required_tags_json }}'></td>
+                                <td><input type="number" class="form-control form-control-sm rule-count" value="{{ rule.target_count }}" min="1"></td>
+                                <td class="text-end">
+                                    <button type="button" class="btn btn-sm btn-outline-danger btn-remove-rule">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card-footer text-end">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-save"></i> Save Manifest
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<template id="rule_row_template">
+    <tr class="rule-row">
+        <td><input type="text" class="form-control form-control-sm rule-name"></td>
+        <td><input type="text" class="form-control form-control-sm rule-category"></td>
+        <td><input type="text" class="form-control form-control-sm rule-tags" value="{}"></td>
+        <td><input type="number" class="form-control form-control-sm rule-count" value="1" min="1"></td>
+        <td class="text-end">
+            <button type="button" class="btn btn-sm btn-outline-danger btn-remove-rule">
+                <i class="bi bi-trash"></i>
+            </button>
+        </td>
+    </tr>
+</template>
+
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const rulesBody = document.getElementById('rules_body');
+        const btnAddRule = document.getElementById('btn_add_rule');
+        const btnGenerate = document.getElementById('btn_generate');
+        const manifestForm = document.getElementById('manifest_form');
+        const rulesJsonInput = document.getElementById('rules_json');
+        const template = document.getElementById('rule_row_template');
+
+        // Add Rule button handler
+        btnAddRule.addEventListener('click', function() {
+            const clone = template.content.cloneNode(true);
+            rulesBody.appendChild(clone);
+        });
+
+        // Remove Rule handler (delegated)
+        rulesBody.addEventListener('click', function(e) {
+            if (e.target.closest('.btn-remove-rule')) {
+                e.target.closest('tr').remove();
+            }
+        });
+
+        // Quick Generate handler
+        btnGenerate.addEventListener('click', function() {
+            const numSongs = parseInt(document.getElementById('num_songs').value);
+            const sections = [];
+            if (document.getElementById('section_intro').checked) sections.push("Intro");
+            if (document.getElementById('section_verse').checked) sections.push("Verse");
+            if (document.getElementById('section_chorus').checked) sections.push("Chorus");
+            
+            const parts = [];
+            if (document.getElementById('part_drums').checked) parts.push("Drums");
+            if (document.getElementById('part_bass').checked) parts.push("Bass");
+            if (document.getElementById('part_synth').checked) parts.push("Synth Lead");
+
+            if (confirm(`This will generate ${numSongs * sections.length * parts.length} rules. Clear existing rules?`)) {
+                rulesBody.innerHTML = '';
+                
+                for (let s = 1; s <= numSongs; s++) {
+                    const songName = `Song ${s}`;
+                    for (const section of sections) {
+                        for (const part of parts) {
+                            const clone = template.content.cloneNode(true);
+                            const row = clone.querySelector('tr');
+                            
+                            row.querySelector('.rule-name').value = `${songName} - ${section} - ${part}`;
+                            row.querySelector('.rule-category').value = part;
+                            
+                            const tags = {
+                                "song": songName,
+                                "section": section,
+                                "instrument": part.toLowerCase().split(' ')[0]
+                            };
+                            row.querySelector('.rule-tags').value = JSON.stringify(tags);
+                            
+                            rulesBody.appendChild(clone);
+                        }
+                    }
+                }
+            }
+        });
+
+        // Form submission handler
+        manifestForm.addEventListener('submit', function(e) {
+            const rules = [];
+            const rows = rulesBody.querySelectorAll('.rule-row');
+            
+            rows.forEach(row => {
+                try {
+                    const tags = JSON.parse(row.querySelector('.rule-tags').value || '{}');
+                    rules.push({
+                        name: row.querySelector('.rule-name').value,
+                        category: row.querySelector('.rule-category').value,
+                        target_count: parseInt(row.querySelector('.rule-count').value),
+                        required_tags: tags
+                    });
+                } catch (err) {
+                    console.error("Error parsing tags for row:", err);
+                }
+            });
+            
+            rulesJsonInput.value = JSON.stringify(rules);
+        });
+    });
+</script>
+{% endblock %}

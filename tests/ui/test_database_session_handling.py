@@ -395,6 +395,5 @@ def test_create_project_submit_error_handling(client: FlaskClient):
         # Verify the API was called with the correct data
         mock_post.assert_called_once()
         _, kwargs = mock_post.call_args
-        # Verify we're using the project_type from the form data - it should be SAMPLE_PACK.value
-        # as defined in the route, regardless of what was submitted in the form
-        assert kwargs['json']['project_type'] == ProjectType.SAMPLE_PACK.value
+        # Verify we're using the project_type from the form data
+        assert kwargs['json']['project_type'] == "invalid_type"

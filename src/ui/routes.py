@@ -42,6 +42,9 @@ ui_bp = Blueprint(
 from . import dashboard_routes  # noqa: E402
 dashboard_routes.init_dashboard_routes(ui_bp)
 
+from . import manifest_routes  # noqa: E402
+manifest_routes.init_manifest_routes(ui_bp)
+
 # --- Loop Generation Routes ---
 
 @ui_bp.route("/projects/<int:project_id>/loop_generation", methods=["GET"])
@@ -252,8 +255,8 @@ def create_project_submit():
     from datetime import datetime
     from src.database.models import ProjectType
     
-    # Default to SAMPLE_PACK as the project type
-    project_type = ProjectType.SAMPLE_PACK.value
+    # Get project type from form, defaulting to SAMPLE_PACK
+    project_type = request.form.get('project_type', ProjectType.SAMPLE_PACK.value)
     
     # The API is mounted at the root path, so we don't need the /api prefix
     api_url = "http://localhost:5001/projects"
