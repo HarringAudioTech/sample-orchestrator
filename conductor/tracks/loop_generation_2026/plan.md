@@ -22,3 +22,11 @@
 - [x] Task: Update the export pipeline to save generated audio loops alongside their source MIDI files.
 - [x] Task: Implement metadata tagging (tempo, key, loop type) for the new loops.
 - [x] Task: Verify output directory structures and ensure they are ready for future "Construction Kit" enhancements.
+
+## Phase 5: Construction Kit Spectral EQ Pass
+- [x] Task: Create a utility (e.g., `src/core/spectral_eq.py`) to analyze and process audio stems within a section directory.
+- [x] Task: Implement spectral analysis using `librosa` to compute the average frequency power across bands for all stems in a section.
+- [x] Task: Develop logic to detect frequency masking between stems and generate dynamic EQ curves (using `pedalboard` filters like `PeakFilter` or `HighpassFilter`/`LowpassFilter`) to attenuate overlapping frequencies.
+- [x] Task: Prioritize frequencies based on instrument roles inferred from the filename or tags (e.g., Bass gets priority in low frequencies, Lead in mids/highs).
+- [x] Task: Integrate the EQ pass into `src/core/construction_kit_exporter.py` so that all `.wav` files within a `Song_Name/Section_Name` directory are processed together before the final zip archive is created.
+- [x] Task: Validate the resulting stems have improved separation and sit well together without significant masking.
