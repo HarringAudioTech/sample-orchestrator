@@ -16,7 +16,7 @@ numpy = "^2.0.0"
 requests = "^2.32.3"
 flask-cors = "^4.0.0"
 sqlalchemy = "^2.0.28"
-pedalboard = "^0.9.14"
+pedalboard = "^0.9.22"
 amanuensis = { git = "https://github.com/HarringAudioTech/amanuensis.git", branch = "trunk" }
 patchlab = { git = "https://github.com/HarringAudioTech/patchlab.git", rev = "567eaf9", subdirectory = "patchlab-python" }
 
