@@ -86,13 +86,13 @@ The goal is a reliable end-to-end pipeline: **record → import → analyze → 
 
 > *Go beyond simple onset detection to produce musically meaningful slices.*
 
-- [ ] **Real noise reduction** — replace the placeholder with spectral gating (e.g., `noisereduce` library) using a noise profile captured from silent sections of the recording
+- [x] **Real noise reduction** — implemented spectral gating using `noisereduce` library with noise profiles.
 - [ ] **Beat-grid–aware slicing** — snap slice points to the nearest beat/bar boundary using detected BPM, producing bar-aligned loops (1-bar, 2-bar, 4-bar, 8-bar)
 - [ ] **Tempo-synced loop trimming** — auto-calculate exact sample-accurate loop lengths from detected BPM so loops are seamlessly repeatable
 - [ ] **Crossfade loop points** — apply short crossfades at loop boundaries to eliminate clicks on seamless playback
 - [ ] **One-shot tail handling** — detect natural decay envelopes on one-shots; option to truncate or fade-out to a consistent tail length
 - [ ] **Transient-preserving fade-in/out** — apply zero-crossing–snapped micro-fades to every slice to prevent start/end clicks
-- [ ] **Improved loop point detection** — implement actual self-similarity matrix analysis to find true loop regions within longer recordings
+- [x] **Improved loop point detection** — implemented self-similarity matrix analysis to find true loop regions within longer recordings
 - [ ] **Manual slice editing UI** — waveform display with draggable slice markers, audition buttons, and the ability to merge/split slices in the browser
 
 ### Phase 3 — Comprehensive Metadata & Tagging
@@ -190,7 +190,7 @@ The goal is a reliable end-to-end pipeline: **record → import → analyze → 
 ├── scripts/                 # Utility & test scripts
 ├── Dockerfile
 ├── docker-compose.yml
-├── pyproject.toml           # Poetry dependencies (Python 3.11+)
+├── pyproject.toml           # Poetry dependencies (Python 3.14+)
 └── README.md
 ```
 
@@ -235,5 +235,8 @@ poetry run pytest
 ```
 
 ## License
+
+MIT — see [LICENSE](LICENSE) for details.
+nse
 
 MIT — see [LICENSE](LICENSE) for details.
