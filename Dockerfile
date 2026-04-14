@@ -16,7 +16,15 @@ WORKDIR /build
 
 # Install dependencies into a temporary directory
 # This allows us to copy only the site-packages to the final image
-RUN pip install --prefix=/install Flask==3.0.2 flask-cors==4.0.0 sqlalchemy==2.0.28 mido==1.3.2 requests==2.32.3 numpy>=2.0.0 librosa>=0.10.1 pedalboard>=0.9.22
+RUN pip install --prefix=/install \
+    Flask==3.0.2 \
+    flask-cors==4.0.0 \
+    sqlalchemy==2.0.28 \
+    mido==1.3.2 \
+    requests==2.32.3 \
+    numpy>=2.0.0 \
+    librosa>=0.10.1 \
+    pedalboard>=0.9.22
 
 # Stage 2: Runtime stage
 FROM python:3.14-slim

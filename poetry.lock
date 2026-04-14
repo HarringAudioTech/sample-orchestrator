@@ -1489,8 +1489,8 @@ develop = false
 [package.source]
 type = "git"
 url = "https://github.com/HarringAudioTech/patchlab.git"
-reference = "567eaf9"
-resolved_reference = "567eaf9114f4b23f2add07bdba2f840c65c5422c"
+reference = "v0.1"
+resolved_reference = "7bcb8233571078642df3159706e10561f46d7cd2"
 subdirectory = "patchlab-python"
 
 [[package]]
@@ -2874,4 +2874,4 @@ watchdog = ["watchdog (>=2.3)"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.14"
-content-hash = "af20d93a5de85c03a62286c1ce2493478575bef9467f0bdd4abd3109a8949b9b"
+content-hash = "882b4c2c9c1f6cf863aa1ad5a4b03e44e8069bdc1fa615188181fd89387d5e52"
