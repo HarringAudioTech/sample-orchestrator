@@ -297,8 +297,8 @@ class Project:
                 .first()
             )
             
-            # Check if the recording belongs to this project using the many-to-many relationship
-            if recording and self.project_model not in recording.projects:
+            # Check if the recording belongs to this project
+            if recording and recording.project_id != self.project_id:
                 logger.debug(
                     f"Recording ID {recording_id} found but does not belong to project ID {self.project_id}."
                 )
