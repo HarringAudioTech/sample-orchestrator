@@ -96,19 +96,21 @@
                             </tr>
                         </thead>
                         <tbody id="rules_body">
-                            {% for rule in manifest.rules %}
-                            <tr class="rule-row">
-                                <td><input type="text" class="form-control form-control-sm rule-name" value="{{ rule.name }}"></td>
-                                <td><input type="text" class="form-control form-control-sm rule-category" value="{{ rule.category }}"></td>
-                                <td><input type="text" class="form-control form-control-sm rule-tags" value='{{ rule.required_tags_json }}'></td>
-                                <td><input type="number" class="form-control form-control-sm rule-count" value="{{ rule.target_count }}" min="1"></td>
-                                <td class="text-end">
-                                    <button type="button" class="btn btn-sm btn-outline-danger btn-remove-rule">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </td>
-                            </tr>
-                            {% endfor %}
+                            {% if manifest.rules %}
+                                {% for rule in manifest.rules %}
+                                <tr class="rule-row">
+                                    <td><input type="text" class="form-control form-control-sm rule-name" value="{{ rule.name }}"></td>
+                                    <td><input type="text" class="form-control form-control-sm rule-category" value="{{ rule.category }}"></td>
+                                    <td><input type="text" class="form-control form-control-sm rule-tags" value='{{ rule.required_tags_json }}'></td>
+                                    <td><input type="number" class="form-control form-control-sm rule-count" value="{{ rule.target_count }}" min="1"></td>
+                                    <td class="text-end">
+                                        <button type="button" class="btn btn-sm btn-outline-danger btn-remove-rule">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% endif %}
                         </tbody>
                     </table>
                 </div>

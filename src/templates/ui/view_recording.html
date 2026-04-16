@@ -23,6 +23,7 @@
             <thead>
                 <tr>
                     <th>ID</th>
+                    <th>Name</th>
                     <th>File Path</th>
                     <th>Actions</th>
                 </tr>
@@ -31,9 +32,11 @@
                 {% for sample in samples %}
                     <tr>
                         <td>{{ sample.id }}</td>
+                        <td>{{ sample.name }}</td>
                         <td>{{ sample.file_path }}</td>
                         <td>
-                            <a href="{{ url_for('data_bp.view_sample', sample_id=sample.id) }}" class="btn btn-sm btn-info">View</a>
+                            <a href="{{ url_for('view_sample', project_id=recording.project_id, sample_id=sample.id) }}" class="btn btn-sm btn-info">View</a>
+
                         </td>
                     </tr>
                 {% endfor %}

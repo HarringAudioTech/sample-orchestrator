@@ -3,16 +3,6 @@
 {% block title %}DSPreset Settings - {{ project.name }}{% endblock %}
 
 {% block content %}
-  {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-      <ul class=flashes>
-      {% for category, message in messages %}
-        <li class="{{ category }}">{{ message }}</li>
-      {% endfor %}
-      </ul>
-    {% endif %}
-  {% endwith %}
-
 <h2>DSPreset Settings for {{ project.name }}</h2>
 <form action="{{ url_for('dspreset_settings_submit', project_id=project.id) }}" method="post" enctype="multipart/form-data">
     <div>
@@ -41,15 +31,17 @@
 
     <h3>Velocity Layers</h3>
     <div id="velocity-layers-container">
-        {% for group in project.velocity_groups %}
-        <div class="velocity-layer" data-layer-id="{{ group.id }}">
-            <input type="hidden" name="layer_id" value="{{ group.id }}">
-            <label>Name: <input type="text" name="layer_name_{{ group.id }}" value="{{ group.name }}" onchange="updateLayerDropdowns()"></label>
-            <label>Low Velocity: <input type="number" name="layer_low_vel_{{ group.id }}" value="{{ group.low_vel }}" min="0" max="127"></label>
-            <label>High Velocity: <input type="number" name="layer_high_vel_{{ group.id }}" value="{{ group.high_vel }}" min="0" max="127" onchange="sortLayers()"></label>
-            <button type="button" onclick="removeLayer(this)">Remove</button>
-        </div>
-        {% endfor %}
+        {% if project.velocity_groups %}
+            {% for group in project.velocity_groups %}
+            <div class="velocity-layer" data-layer-id="{{ group.id }}">
+                <input type="hidden" name="layer_id" value="{{ group.id }}">
+                <label>Name: <input type="text" name="layer_name_{{ group.id }}" value="{{ group.name }}" onchange="updateLayerDropdowns()"></label>
+                <label>Low Velocity: <input type="number" name="layer_low_vel_{{ group.id }}" value="{{ group.low_vel }}" min="0" max="127"></label>
+                <label>High Velocity: <input type="number" name="layer_high_vel_{{ group.id }}" value="{{ group.high_vel }}" min="0" max="127" onchange="sortLayers()"></label>
+                <button type="button" onclick="removeLayer(this)">Remove</button>
+            </div>
+            {% endfor %}
+        {% endif %}
     </div>
     <button type="button" onclick="addLayer()">Add Velocity Layer</button>
 
@@ -107,7 +99,7 @@
 </form>
 
 <script>
-let layerCounter = {{ project.velocity_groups|length }};
+let layerCounter = {{ project.velocity_groups|length if project.velocity_groups else 0 }};
 
 function addLayer() {
     layerCounter++;

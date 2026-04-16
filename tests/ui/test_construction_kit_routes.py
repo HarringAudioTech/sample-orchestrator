@@ -90,6 +90,8 @@ def test_manifest_status_fulfillment_matching(client: TestClient, session: Sessi
     )
     session.add(sample)
     session.commit()
+    session.refresh(project)
+    session.refresh(manifest)
     
     # 3. Check status page
     response = client.get(f"/projects/{project.id}/manifest/status")

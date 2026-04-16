@@ -117,6 +117,8 @@ def test_create_recording_api_db_session(client: TestClient, session: Session):
         mock_recording.file_path = "/path/to/recording.wav"
         mock_recording.project_id = project.id
         mock_recording.metadata_json = "{}" # Ensure it's a string for Pydantic
+        mock_recording.status = "uploaded"
+        mock_recording.file_format = "wav"
         mock_add_recording.return_value = mock_recording
         
         # Create a mock file for testing

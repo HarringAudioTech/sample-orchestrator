@@ -13,11 +13,15 @@ templates = Jinja2Templates(directory="src/templates")
 data_router = APIRouter(prefix="/ui/projects/{project_id}", tags=["Data"])
 
 @data_router.get("/recordings/{recording_id}", response_class=HTMLResponse)
-async def view_recording(recording_id: int, request: Request, db: Session = Depends(get_db)):
+async def view_recording(project_id: int, recording_id: int, request: Request, db: Session = Depends(get_db)):
     """Renders the page for viewing a single recording and its samples."""
     recording = db.get(RecordingModel, recording_id)
     if not recording:
         raise HTTPException(status_code=404, detail=f"Recording with ID {recording_id} not found.")
+
+    # Explicitly query for samples
+    statement = select(SampleModel).where(SampleModel.recording_id == recording_id)
+    samples = db.exec(statement).all()
 
     return templates.TemplateResponse(
         "ui/view_recording.html",
@@ -25,7 +29,7 @@ async def view_recording(recording_id: int, request: Request, db: Session = Depe
             "request": request,
             "title": f"Recording - {recording.name}",
             "recording": recording,
-            "samples": recording.samples,
+            "samples": samples,
             "now": datetime.utcnow()
         }
     )

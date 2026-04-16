@@ -89,12 +89,16 @@ async def dashboard(project_id: int, request: Request, db: Session = Depends(get
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     
+    # Explicitly query for recordings to ensure we get a list
+    statement = select(RecordingModel).where(RecordingModel.project_id == project_id)
+    recordings = db.exec(statement).all()
+    
     return templates.TemplateResponse(
         "ui/dashboard.html", 
         {
             "request": request, 
             "project": project, 
-            "recordings": project.recordings,
+            "recordings": recordings,
             "now": datetime.utcnow()
         }
     )
@@ -140,9 +144,36 @@ async def dspreset_settings_form(project_id: int, request: Request, db: Session 
     project = db.get(ProjectModel, project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
+    
+    if project.project_type != ProjectType.VIRTUAL_INSTRUMENT:
+        raise HTTPException(status_code=403, detail="DSPreset settings only available for virtual instruments")
+
     return templates.TemplateResponse(
         "ui/dspreset_settings.html", 
         {"request": request, "project": project, "now": datetime.utcnow()}
     )
 
-# ... Additional routes will be migrated as needed ...
+@ui_router.post("/projects/{project_id}/dspreset_settings")
+async def dspreset_settings_submit(
+    project_id: int, 
+    project_name: str = Form(...),
+    db: Session = Depends(get_db)
+):
+    """Stub for DSPreset settings submission."""
+    project = db.get(ProjectModel, project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    project.name = project_name
+    db.add(project)
+    db.commit()
+    
+    return RedirectResponse(url=f"/projects/{project_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+@ui_router.get("/projects/{project_id}/recordings/{recording_id}/process", response_class=HTMLResponse)
+async def process_recording_ui(project_id: int, recording_id: int, request: Request, db: Session = Depends(get_db)):
+    """Stub for recording processing UI."""
+    return templates.TemplateResponse(
+        "ui/process_recording.html", 
+        {"request": request, "project_id": project_id, "recording_id": recording_id, "now": datetime.utcnow()}
+    )

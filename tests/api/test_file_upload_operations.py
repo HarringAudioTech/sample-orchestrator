@@ -31,6 +31,8 @@ def test_upload_audio_file_success(client: TestClient, session: Session):
         mock_recording.file_path = "/path/to/recording.wav"
         mock_recording.project_id = test_project.id
         mock_recording.metadata_json = "{}" # Ensure it's a string for Pydantic
+        mock_recording.status = "uploaded"
+        mock_recording.file_format = "wav"
         mock_add_recording.return_value = mock_recording
         
         # Create a test file for upload

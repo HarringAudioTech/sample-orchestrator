@@ -69,11 +69,11 @@ class ProjectModel(ProjectBase, table=True):
     )
 
     # Relationships
-    recordings: List[RecordingModel] = Relationship(
+    recordings: List["RecordingModel"] = Relationship(
         sa_relationship=relationship("RecordingModel", back_populates="project", cascade="all, delete-orphan", uselist=True)
     )
     
-    velocity_groups: List[VelocityGroupModel] = Relationship(
+    velocity_groups: List["VelocityGroupModel"] = Relationship(
         sa_relationship=relationship("VelocityGroupModel", back_populates="project", cascade="all, delete-orphan", uselist=True)
     )
     
@@ -102,9 +102,12 @@ class RecordingBase(SQLModel):
     project_id: int = Field(foreign_key="projects.id")
     name: str = Field(max_length=255)
     file_path: str = Field(max_length=512)
+    file_size_bytes: Optional[int] = None
     duration: Optional[float] = None
     sample_rate: Optional[int] = None
     channels: Optional[int] = None
+    status: Optional[str] = Field(default="uploaded", max_length=50)
+    file_format: Optional[str] = Field(default=None, max_length=10)
     metadata_json: Optional[str] = Field(default=None, sa_column=Column(Text))
 
 class RecordingModel(RecordingBase, table=True):
@@ -119,7 +122,7 @@ class RecordingModel(RecordingBase, table=True):
     project: ProjectModel = Relationship(
         sa_relationship=relationship("ProjectModel", back_populates="recordings")
     )
-    samples: List[SampleModel] = Relationship(
+    samples: List["SampleModel"] = Relationship(
         sa_relationship=relationship("SampleModel", back_populates="recording", cascade="all, delete-orphan", uselist=True)
     )
 
@@ -156,7 +159,7 @@ class SampleModel(SampleBase, table=True):
     recording: RecordingModel = Relationship(
         sa_relationship=relationship("RecordingModel", back_populates="samples")
     )
-    sample_mapping_items: List[SampleMappingItemModel] = Relationship(
+    sample_mapping_items: List["SampleMappingItemModel"] = Relationship(
         sa_relationship=relationship("SampleMappingItemModel", back_populates="sample", cascade="all, delete-orphan", uselist=True)
     )
 
@@ -255,8 +258,8 @@ class MidiCaptureSessionModel(SQLModel, table=True):
     )
     
     # Relationships
-    midi_files: List[MidiFileModel] = Relationship(
-        sa_relationship=relationship("MidiFileModel", back_populates="capture_session", cascade="all, delete-orphan")
+    midi_files: List["MidiFileModel"] = Relationship(
+        sa_relationship=relationship("MidiFileModel", back_populates="capture_session", cascade="all, delete-orphan", uselist=True)
     )
 
 
@@ -344,8 +347,8 @@ class ManifestModel(SQLModel, table=True):
     project: ProjectModel = Relationship(
         sa_relationship=relationship("ProjectModel", back_populates="manifest")
     )
-    rules: List[ManifestRuleModel] = Relationship(
-        sa_relationship=relationship("ManifestRuleModel", back_populates="manifest", cascade="all, delete-orphan")
+    rules: List["ManifestRuleModel"] = Relationship(
+        sa_relationship=relationship("ManifestRuleModel", back_populates="manifest", cascade="all, delete-orphan", uselist=True)
     )
 
 

@@ -69,7 +69,7 @@ def test_update_dspreset_settings(client: TestClient, session: Session):
     )
     
     if response.status_code == 200:
-        session.refresh(project)
-        assert project.name == "Updated VI Project"
+        updated_project = session.get(ProjectModel, project.id)
+        assert updated_project.name == "Updated VI Project"
     else:
         assert response.status_code == 404

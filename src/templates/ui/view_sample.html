@@ -17,6 +17,6 @@
         </div>
     </div>
 
-    <a href="{{ url_for('data_bp.view_recording', recording_id=sample.recording_id) }}" class="btn btn-secondary">Back to Recording</a>
+    <a href="{{ url_for('view_recording', project_id=request.path_params.project_id, recording_id=sample.recording_id) }}" class="btn btn-secondary">Back to Recording</a>
 </div>
 {% endblock %}

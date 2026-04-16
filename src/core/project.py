@@ -1,4 +1,6 @@
 import os
+import librosa
+import numpy as np
 
 # import wave # Removed
 import logging  # Added logging
@@ -199,10 +201,10 @@ class Project:
 
             except Exception as e:
                 logger.error(
-                    f"Error getting audio properties for {file_path} using librosa: {e}. "
-                    "Recording will be added with minimal or no metadata.",
+                    f"Error getting audio properties for {file_path} using librosa: {e}",
                     exc_info=True,
                 )
+                raise ValueError(f"Invalid audio file or unsupported format: {file_path}")
 
             filesize: int | None = None
             try:
@@ -224,8 +226,13 @@ class Project:
             )
             # Add the recording to the database
             _db_to_use.add(new_recording)
-            _db_to_use.commit()
-            _db_to_use.refresh(new_recording)
+            
+            if _manage_session_locally:
+                _db_to_use.commit()
+                _db_to_use.refresh(new_recording)
+            else:
+                _db_to_use.flush() # Flush to get the ID without committing
+                
             logger.info(
                 f"Successfully added recording '{new_recording.name}' with ID {new_recording.id}."
             )

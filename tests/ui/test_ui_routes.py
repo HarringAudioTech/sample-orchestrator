@@ -90,6 +90,7 @@ def test_dashboard_shows_recordings(client: TestClient, session: Session):
     session.add(recording1)
     session.add(recording2)
     session.commit()
+    session.refresh(project)
     
     response = client.get(f"/projects/{project.id}")
     assert response.status_code == 200

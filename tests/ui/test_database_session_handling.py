@@ -42,11 +42,8 @@ def test_create_project_form_loads(client: TestClient):
 
 def test_create_project_submit_handling(client: TestClient, session: Session):
     """Test that the create project submit handling works."""
-    # In FastAPI migration, /projects/new might submit to an API or a UI route
-    # Let's check src/ui/routes.py for the actual submit route
-    
-    # For now, let's test the listing
-    response = client.get("/projects")
+    # The project list is at /
+    response = client.get("/")
     assert response.status_code == 200
     assert "My Projects" in response.text
 
@@ -57,7 +54,7 @@ def test_db_session_error_handling_graceful(client: TestClient):
         mock_get_db.side_effect = SQLAlchemyError("Test database error")
         
         # Make the request to the root projects list
-        response = client.get("/projects")
+        response = client.get("/")
         
         # Depending on implementation, it might be 500 or a graceful error page
         assert response.status_code in [200, 500]

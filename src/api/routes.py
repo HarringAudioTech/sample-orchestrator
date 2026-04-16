@@ -88,10 +88,13 @@ async def add_project_recording(
     with open(file_path, "wb") as f:
         f.write(await file.read())
 
-    # Add to DB via core logic
-    core_proj = CoreProject(project_id=project_id, db_session=db)
-    recording = core_proj.add_recording(file_path=str(file_path), name=name)
-    return recording
+    try:
+        # Add to DB via core logic
+        core_proj = CoreProject(project_id=project_id, db_session=db)
+        recording = core_proj.add_recording(file_path=str(file_path), name=name)
+        return recording
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @projects_router.get("/{project_id}/recordings", response_model=List[RecordingModel])
 async def list_project_recordings(project_id: int, db: Session = Depends(get_db)):
