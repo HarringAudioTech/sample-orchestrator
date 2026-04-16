@@ -31,9 +31,8 @@ logger = logging.getLogger(__name__)
 
 def setup_database():
     """Set up the database for testing."""
-    from sqlalchemy import create_engine
-    from sqlalchemy.orm import sessionmaker
-    from src.database.models import Base, Recording, Project
+    from sqlmodel import SQLModel, create_engine, Session
+    from src.database.models import RecordingModel, ProjectModel
     
     # Use SQLite in-memory database for testing
     DATABASE_URL = "sqlite:///:memory:"
@@ -42,43 +41,46 @@ def setup_database():
     engine = create_engine(DATABASE_URL)
     
     # Create all tables
-    Base.metadata.create_all(engine)
+    SQLModel.metadata.create_all(engine)
     
     # Create session
-    Session = sessionmaker(bind=engine)
-    session = Session()
+    session = Session(engine)
     
     return session
 
 def create_test_recording(session, audio_file_path):
     """Create a test recording in the database."""
-    from src.database.models import Recording, Project
+    from sqlmodel import select
+    from src.database.models import RecordingModel, ProjectModel
     
     # Create a test project if it doesn't exist
-    project = session.query(Project).filter_by(name="Test Project").first()
+    statement = select(ProjectModel).where(ProjectModel.name == "Test Project")
+    project = session.exec(statement).first()
     if not project:
-        project = Project(
+        project = ProjectModel(
             name="Test Project",
             description="Test project for sample pack workflow",
-            project_type="SAMPLE_PACK"  # Using valid enum value
+            project_type="sample_pack"
         )
         session.add(project)
         session.commit()
+        session.refresh(project)
     
     # Create a test recording
-    recording = Recording(
+    recording = RecordingModel(
         name=os.path.basename(audio_file_path),
         file_path=str(audio_file_path),
         project_id=project.id,
         status="pending",
-        duration_seconds=0.0,  # Using duration_seconds instead of duration
-        samplerate=44100,      # Using samplerate instead of sample_rate
+        duration=0.0,
+        sample_rate=44100,
         channels=2,
-        filesize=os.path.getsize(audio_file_path) if os.path.exists(audio_file_path) else 0
+        file_size_bytes=os.path.getsize(audio_file_path) if os.path.exists(audio_file_path) else 0
     )
     
     session.add(recording)
     session.commit()
+    session.refresh(recording)
     
     return recording.id, project.id
 

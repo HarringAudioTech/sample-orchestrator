@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 class LoopOrchestrator:
     """
     Coordinates MIDI generation via Amanuensis, synth control via Patchlab,
-    and audio recording via PyAudio.
+    and audio recording via SoundCard.
     """
 
     def __init__(self, db: Session):

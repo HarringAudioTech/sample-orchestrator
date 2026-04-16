@@ -6,7 +6,8 @@ from sqlalchemy.orm import sessionmaker
 # Add src to path
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from src.database.models import Base, ProjectModel
+from sqlmodel import SQLModel, create_engine, Session
+from src.database.models import ProjectModel
 from src.core.amanuensis_service import AmanuensisService
 
 def test_integration():
@@ -15,10 +16,9 @@ def test_integration():
     
     # Use a temporary SQLite DB for testing
     engine = create_engine("sqlite:///data/test_amanuensis.db")
-    Base.metadata.drop_all(engine) # Start fresh
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine)
-    db = Session()
+    SQLModel.metadata.drop_all(engine) # Start fresh
+    SQLModel.metadata.create_all(engine)
+    db = Session(engine)
 
     try:
         # 1. Create a dummy project

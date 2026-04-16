@@ -7,26 +7,24 @@ from sqlalchemy.orm import sessionmaker
 # Add src to path
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from src.database.models import Base, ProjectModel
+from sqlmodel import SQLModel, create_engine, Session
+from src.database.models import ProjectModel
 from src.core.loop_orchestrator import LoopOrchestrator
 
-@patch("src.core.audio_recorder.pyaudio.PyAudio")
 @patch("src.core.loop_orchestrator.mido.open_output")
 @patch("src.core.loop_orchestrator.mido.MidiFile")
-def test_orchestration(mock_midi_file, mock_mido_open, mock_pyaudio):
+def test_orchestration(mock_midi_file, mock_mido_open):
     # Setup mocks
     mock_midi_file.return_value.play.return_value = [MagicMock()]
-    mock_pyaudio.return_value.get_host_api_info_by_index.return_value = {'deviceCount': 0}
     
     # Ensure data directory exists
     Path("data").mkdir(exist_ok=True)
     
     # Use a temporary SQLite DB for testing
     engine = create_engine("sqlite:///data/test_orchestrator.db")
-    Base.metadata.drop_all(engine)
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine)
-    db = Session()
+    SQLModel.metadata.drop_all(engine)
+    SQLModel.metadata.create_all(engine)
+    db = Session(engine)
 
     try:
         # 1. Create a dummy project
