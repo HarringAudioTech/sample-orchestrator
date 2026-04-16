@@ -14,7 +14,7 @@
   {% endwith %}
 
 <h2>DSPreset Settings for {{ project.name }}</h2>
-<form action="{{ url_for('ui_bp.dspreset_settings_submit', project_id=project.id) }}" method="post" enctype="multipart/form-data">
+<form action="{{ url_for('dspreset_settings_submit', project_id=project.id) }}" method="post" enctype="multipart/form-data">
     <div>
         <label for="project_name">Project Name:</label>
         <input type="text" id="project_name" name="project_name" value="{{ project.name }}" required>

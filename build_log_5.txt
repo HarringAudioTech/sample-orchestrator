@@ -1,0 +1,75 @@
+ Image sample-orchestrator-app Building 
+#1 [internal] load local bake definitions
+#1 reading from stdin 558B done
+#1 DONE 0.0s
+
+#2 [internal] load build definition from Dockerfile
+#2 transferring dockerfile: 1.45kB 0.0s done
+#2 DONE 0.0s
+
+#3 [internal] load metadata for docker.io/library/python:3.14-slim
+#3 ...
+
+#4 [internal] load metadata for docker.io/library/python:3.14
+#4 DONE 0.6s
+
+#3 [internal] load metadata for docker.io/library/python:3.14-slim
+#3 DONE 0.6s
+
+#5 [internal] load .dockerignore
+#5 transferring context: 71B done
+#5 DONE 0.0s
+
+#6 [stage-1 1/6] FROM docker.io/library/python:3.14-slim@sha256:bc389f7dfcb21413e72a28f491985326994795e34d2b86c8ae2f417b4e7818aa
+#6 resolve docker.io/library/python:3.14-slim@sha256:bc389f7dfcb21413e72a28f491985326994795e34d2b86c8ae2f417b4e7818aa 0.0s done
+#6 DONE 0.0s
+
+#7 [stage-1 2/6] RUN apt-get update && apt-get install -y --no-install-recommends     curl libasound2 ffmpeg libsndfile1     && apt-get clean     && rm -rf /var/lib/apt/lists/*
+#7 CACHED
+
+#8 [builder 1/4] FROM docker.io/library/python:3.14@sha256:3de5d55a43a58c09ed47952b15d87ea8d18d82bc616a9277b9ddd0e6dd25b3f0
+#8 resolve docker.io/library/python:3.14@sha256:3de5d55a43a58c09ed47952b15d87ea8d18d82bc616a9277b9ddd0e6dd25b3f0 0.0s done
+#8 DONE 0.0s
+
+#9 [internal] load build context
+#9 transferring context: 3.93kB 0.0s done
+#9 DONE 0.0s
+
+#10 [builder 2/4] RUN apt-get update && apt-get install -y --no-install-recommends     gcc g++ curl libasound2-dev libsndfile1-dev     && apt-get clean     && rm -rf /var/lib/apt/lists/*
+#10 CACHED
+
+#11 [builder 3/4] WORKDIR /build
+#11 CACHED
+
+#12 [builder 4/4] RUN pip install --prefix=/install Flask==3.0.2 flask-cors==4.0.0 sqlalchemy==2.0.28 mido==1.3.2 requests==2.32.3 numpy>=2.0.0 librosa>=0.10.1 pedalboard>=0.9.22
+#12 58.19 WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+#12 DONE 61.9s
+
+#13 [stage-1 3/6] COPY --from=builder /install /usr/local
+#13 DONE 4.4s
+
+#14 [stage-1 4/6] WORKDIR /app
+#14 DONE 0.2s
+
+#15 [stage-1 5/6] COPY src/ ./src/
+#15 DONE 0.1s
+
+#16 [stage-1 6/6] RUN mkdir -p /app/data
+#16 DONE 0.4s
+
+#17 exporting to image
+#17 exporting layers
+#17 exporting layers 48.0s done
+#17 exporting manifest sha256:7aac304132cec42de5709140cb776d9403451fae6cc49bcfa2379cb817157af4 0.0s done
+#17 exporting config sha256:80049a3ccc0aaae373dd8a41638014468127898e576a26e8c349b0f8fd817980 0.0s done
+#17 exporting attestation manifest sha256:d88177ae28bd54dbda69f28c44413ed6b3076ea2bacfc4e3f899dd2fdf210e17 0.0s done
+#17 exporting manifest list sha256:d1be0155227e7c3fc51953e5bb4cd05daafb209d271be0e1fa39dbd706c34a61
+#17 exporting manifest list sha256:d1be0155227e7c3fc51953e5bb4cd05daafb209d271be0e1fa39dbd706c34a61 0.0s done
+#17 naming to docker.io/library/sample-orchestrator-app:latest done
+#17 unpacking to docker.io/library/sample-orchestrator-app:latest
+#17 unpacking to docker.io/library/sample-orchestrator-app:latest 9.8s done
+#17 DONE 58.0s
+
+#18 resolving provenance for metadata file
+#18 DONE 0.0s
+ Image sample-orchestrator-app Built 

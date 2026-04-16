@@ -15,6 +15,8 @@ from fastapi.responses import JSONResponse
 from src.database.utils import init_db
 from src.api.routes import api_router
 from src.ui.routes import ui_router
+from src.ui.manifest_routes import manifest_router
+from src.ui.data_routes import data_router
 
 # --- Configuration ---
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -60,6 +62,8 @@ templates = Jinja2Templates(directory="src/templates")
 # --- Routers ---
 app.include_router(api_router, prefix="/api")
 app.include_router(ui_router)
+app.include_router(manifest_router)
+app.include_router(data_router)
 
 # --- Root Endpoints ---
 @app.get("/", tags=["General"])

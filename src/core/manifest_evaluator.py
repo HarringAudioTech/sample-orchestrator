@@ -51,7 +51,7 @@ class ManifestEvaluator:
                 "error": "No manifest found for this project"
             }
 
-        rules = manifest.rules
+        rules = self.db.query(ManifestRuleModel).filter(ManifestRuleModel.manifest_id == manifest.id).all()
         if not rules:
             return {
                 "total_progress": 100,
@@ -79,11 +79,20 @@ class ManifestEvaluator:
         }
 
         for rule in rules:
+            # Ensure we have a rule object, not a tuple (sometimes happens in join queries)
+            if isinstance(rule, tuple):
+                rule = rule[0]
+                
             matching_samples = []
             matching_midi = []
             
             # Extract tags for matching
             required_tags = rule.required_tags
+            if isinstance(required_tags, str):
+                try:
+                    required_tags = json.loads(required_tags)
+                except json.JSONDecodeError:
+                    required_tags = {}
             
             # Match samples
             for sample in samples:

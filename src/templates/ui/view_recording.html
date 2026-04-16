@@ -43,6 +43,6 @@
         <p>No samples found for this recording.</p>
     {% endif %}
 
-    <a href="{{ url_for('ui_bp.dashboard', project_id=recording.project_id) }}" class="btn btn-secondary">Back to Dashboard</a>
+    <a href="{{ url_for('dashboard', project_id=recording.project_id) }}" class="btn btn-secondary">Back to Dashboard</a>
 </div>
 {% endblock %}

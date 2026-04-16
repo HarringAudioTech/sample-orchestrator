@@ -11,7 +11,7 @@
     </div>
 
     {% call ui.card(body_class="p-0 overflow-hidden") %}
-        <form action="{{ url_for('ui_bp.create_project_submit') }}" method="post" class="p-8 space-y-6">
+        <form action="{{ url_for('create_project_submit') }}" method="post" class="p-8 space-y-6">
             {{ ui.text_input(
                 "project_name", 
                 label="Project Name", 
@@ -36,7 +36,7 @@
 
             {{ ui.select_input(
                 "project_type", 
-                options=[(t, t | replace('_', ' ') | title) for t in project_types],
+                options=project_types,
                 label="Project Type",
                 selected_value=selected_type,
                 required=True,
@@ -55,7 +55,7 @@
 
             <div class="pt-6 flex flex-col sm:flex-row gap-3">
                 {{ ui.button("Create Project", type="submit", class="btn-primary flex-1 shadow-lg") }}
-                {{ ui.button("Cancel", href=url_for('ui_bp.index'), class="btn-ghost") }}
+                {{ ui.button("Cancel", href=url_for('index'), class="btn-ghost") }}
             </div>
         </form>
     {% endcall %}

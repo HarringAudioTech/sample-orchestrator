@@ -14,21 +14,30 @@ project_root = Path(__file__).parent.parent.resolve()
 src_dir = project_root / "src"
 sys.path.insert(0, str(src_dir))
 
+# Mock patchlab before any imports that might use it
+import unittest.mock
+sys.modules['patchlab'] = unittest.mock.MagicMock()
+
 @pytest.fixture(name="engine")
 def engine_fixture():
     """Provides an in-memory SQLite engine for tests."""
+    import src.database.utils as db_utils
     engine = create_engine(
         "sqlite:///:memory:",
         connect_args={"check_same_thread": False}
     )
+    # Override the global engine in utils
+    db_utils.engine = engine
+    
     SQLModel.metadata.create_all(engine)
     yield engine
     SQLModel.metadata.drop_all(engine)
+    db_utils.engine = None
 
 @pytest.fixture(name="session")
 def session_fixture(engine):
     """Provides a SQLModel session for tests."""
-    with Session(engine) as session:
+    with Session(engine, expire_on_commit=False) as session:
         yield session
 
 @pytest.fixture(name="client")

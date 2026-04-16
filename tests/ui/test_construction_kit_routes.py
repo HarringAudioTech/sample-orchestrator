@@ -28,7 +28,6 @@ def create_construction_kit_project(session: Session, name: str = "Test Kit") ->
     )
     session.add(project)
     session.commit()
-    session.refresh(project)
     return project
 
 # --- UI Route Tests ---
@@ -37,8 +36,8 @@ def test_manifest_builder_page_loads(client: TestClient, session: Session):
     """Test that the manifest builder page loads correctly for a construction kit."""
     project = create_construction_kit_project(session)
     response = client.get(f"/projects/{project.id}/manifest/builder")
-    # Route not yet migrated, expect 404
-    assert response.status_code in [200, 404]
+    assert response.status_code == 200
+    assert "Manifest Builder" in response.text
 
 def test_save_manifest_rules(client: TestClient, session: Session):
     """Test saving rules in the manifest builder."""
@@ -58,7 +57,7 @@ def test_save_manifest_rules(client: TestClient, session: Session):
         data={"rules_json": json.dumps(rules)}
     )
     
-    assert response.status_code in [200, 303, 404]
+    assert response.status_code in [200, 302, 303]
 
 def test_manifest_status_fulfillment_matching(client: TestClient, session: Session):
     """Test that assets are correctly matched against manifest rules in the status view."""
@@ -66,6 +65,7 @@ def test_manifest_status_fulfillment_matching(client: TestClient, session: Sessi
     project = create_construction_kit_project(session)
     manifest = ManifestModel(project_id=project.id)
     session.add(manifest)
+    session.commit()
     
     rule = ManifestRuleModel(
         manifest_id=manifest.id,
@@ -93,13 +93,17 @@ def test_manifest_status_fulfillment_matching(client: TestClient, session: Sessi
     
     # 3. Check status page
     response = client.get(f"/projects/{project.id}/manifest/status")
-    assert response.status_code in [200, 404]
+    assert response.status_code == 200
+    assert "Bass Verse" in response.text
+    assert "100%" in response.text or "fulfilled" in response.text.lower()
 
 def test_fulfill_rule_action(client: TestClient, session: Session):
     """Test triggering fulfillment of a rule."""
     project = create_construction_kit_project(session)
     manifest = ManifestModel(project_id=project.id)
     session.add(manifest)
+    session.commit()
+    
     rule = ManifestRuleModel(manifest_id=manifest.id, name="Test Rule", required_tags_json="{}", target_count=1)
     session.add(rule)
     
@@ -107,10 +111,13 @@ def test_fulfill_rule_action(client: TestClient, session: Session):
     session.add(config)
     session.commit()
     
-    # Using a dummy mock path that matches where the route would be migrated
-    with patch("src.ui.routes.WORKFLOW_REGISTRY", {}):
+    # Mock LoopOrchestrator to avoid actually running audio logic
+    with patch("src.ui.manifest_routes.LoopOrchestrator") as mock_orch_cls:
+        mock_orch = mock_orch_cls.return_value
+        mock_orch.fulfill_manifest_rule.return_value = []
+        
         response = client.post(
             f"/projects/{project.id}/manifest/fulfill/{rule.id}",
             data={"render_config_id": config.id}
         )
-        assert response.status_code in [200, 303, 404]
+        assert response.status_code in [200, 302, 303]

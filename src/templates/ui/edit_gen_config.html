@@ -59,7 +59,7 @@
                         </div>
 
                         <div class="d-flex justify-content-between">
-                            <a href="{{ request.args.get('next') or url_for('ui_bp.index') }}" class="btn btn-secondary">Cancel</a>
+                            <a href="{{ request.args.get('next') or url_for('index') }}" class="btn btn-secondary">Cancel</a>
                             <button type="submit" class="btn btn-primary">Save Configuration</button>
                         </div>
                     </form>

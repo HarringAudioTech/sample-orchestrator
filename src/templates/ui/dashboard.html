@@ -24,24 +24,24 @@
         
         <div class="flex flex-wrap gap-2">
             {% if project.project_type == 'virtual_instrument' %}
-            {{ ui.button("DSPreset Settings", href=url_for('ui_bp.dspreset_settings_form', project_id=project.id), icon="bi-sliders", class="btn-ghost btn-sm border-base-300") }}
+            {{ ui.button("DSPreset Settings", href=url_for('dspreset_settings_form', project_id=project.id), icon="bi-sliders", class="btn-ghost btn-sm border-base-300") }}
             {% endif %}
             
             {% if project.project_type == 'construction_kit' %}
-            {{ ui.button("Manifest Builder", href=url_for('ui_bp.manifest_builder', project_id=project.id), icon="bi-list-check", class="btn-warning btn-sm shadow-sm") }}
+            {{ ui.button("Manifest Builder", href=url_for('manifest_builder', project_id=project.id), icon="bi-list-check", class="btn-warning btn-sm shadow-sm") }}
             {% endif %}
 
-            {{ ui.button("Loop Generation", href=url_for('ui_bp.loop_generation_ui', project_id=project.id), icon="bi-music-note-list", class="btn-success btn-sm shadow-sm text-success-content") }}
+            {{ ui.button("Loop Generation", href=url_for('loop_generation_ui', project_id=project.id), icon="bi-music-note-list", class="btn-success btn-sm shadow-sm text-success-content") }}
             
-            {{ ui.button("Import Audio", href=url_for('ui_bp.import_project_audio_ui', project_id=project.id), icon="bi-upload", class="btn-primary btn-sm shadow-md") }}
+            {{ ui.button("Import Audio", href=url_for('import_project_audio_ui', project_id=project.id), icon="bi-upload", class="btn-primary btn-sm shadow-md") }}
         </div>
     </div>
 
     <!-- Stats Overview -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {{ ui.stat_card("Files", recordings | length, icon="bi-file-earmark-music", description="Total audio assets") }}
-        {{ ui.stat_card("Created", project.created_at.strftime('%Y-%m-%d'), icon="bi-calendar-event", description="Project initialization date") }}
-        {{ ui.stat_card("Status", recordings | length ~ " items", icon="bi-activity", color_class="text-secondary") }}
+        {{ ui.stat_card("Files", (recordings | length) if recordings else 0, icon="bi-file-earmark-music", description="Total audio assets") }}
+        {{ ui.stat_card("Created", project.created_at.strftime('%Y-%m-%d') if project.created_at else 'N/A', icon="bi-calendar-event", description="Project initialization date") }}
+        {{ ui.stat_card("Status", ((recordings | length) if recordings else 0) ~ " items", icon="bi-activity", color_class="text-secondary") }}
     </div>
 
     {% if project.project_type == 'virtual_instrument' %}
@@ -119,15 +119,15 @@
                         </td>
                         <td class="text-right">
                             <div class="join shadow-sm border border-base-300">
-                                <a href="{{ url_for('ui_bp.view_recording', project_id=project.id, recording_id=recording.id) }}" 
+                                <a href="{{ url_for('view_recording', project_id=project.id, recording_id=recording.id) }}" 
                                    class="btn btn-ghost btn-xs join-item tooltip" data-tip="View details">
                                     <i class="bi bi-eye"></i>
                                 </a>
-                                <a href="{{ url_for('ui_bp.process_recording_ui', project_id=project.id, recording_id=recording.id) }}" 
+                                <a href="{{ url_for('process_recording_ui', project_id=project.id, recording_id=recording.id) }}" 
                                    class="btn btn-ghost btn-xs join-item tooltip" data-tip="Process recording">
                                     <i class="bi bi-gear"></i>
                                 </a>
-                                <a href="{{ url_for('ui_bp.view_samples', project_id=project.id, recording_id=recording.id) }}" 
+                                <a href="{{ url_for('view_samples', project_id=project.id, recording_id=recording.id) }}" 
                                    class="btn btn-ghost btn-xs join-item tooltip" data-tip="View Samples">
                                     <i class="bi bi-music-note-list"></i>
                                 </a>
@@ -153,14 +153,14 @@
                 <p class="text-base-content/60 mb-8">
                     Your project is empty. Import some high-quality audio recordings to begin your orchestration journey.
                 </p>
-                {{ ui.button("Import First Audio File", href=url_for('ui_bp.import_project_audio_ui', project_id=project.id), class="btn-primary btn-lg", icon="bi-upload") }}
+                {{ ui.button("Import First Audio File", href=url_for('import_project_audio_ui', project_id=project.id), class="btn-primary btn-lg", icon="bi-upload") }}
             </div>
         </div>
     </div>
     {% endif %}
 
     <div class="flex justify-center mt-4">
-        {{ ui.button("Back to Projects", href=url_for('ui_bp.index'), class="btn-ghost btn-sm", icon="bi-arrow-left") }}
+        {{ ui.button("Back to Projects", href=url_for('index'), class="btn-ghost btn-sm", icon="bi-arrow-left") }}
     </div>
 </div>
 {% endblock %}

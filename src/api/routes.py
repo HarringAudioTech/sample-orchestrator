@@ -30,17 +30,20 @@ async def create_project(
     db: Session = Depends(get_db)
 ):
     """Creates a new project."""
-    db.add(project)
-    db.commit()
-    db.refresh(project)
-    
-    # Create project directory
-    ProjectManager.create_project_directory(
-        project_id=project.id,
-        project_type=project.project_type,
-        app_config={} # Need to handle config better in future
-    )
-    return project
+    try:
+        db.add(project)
+        db.commit()
+        db.refresh(project)
+        
+        # Create project directory
+        ProjectManager.create_project_directory(
+            project_id=project.id,
+            project_type=project.project_type,
+            app_config={} # Need to handle config better in future
+        )
+        return project
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @projects_router.get("", response_model=List[ProjectModel])
 async def list_projects(

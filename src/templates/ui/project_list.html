@@ -10,7 +10,7 @@
             <h1 class="text-4xl font-extrabold text-base-content tracking-tight">My Projects</h1>
             <p class="text-base-content/60 mt-2">Manage and monitor your audio instrument projects.</p>
         </div>
-        {{ ui.button("New Project", href=url_for('ui_bp.create_project_form'), icon="bi-plus-circle-fill", class="btn-primary btn-lg shadow-lg hover:scale-105 transition-transform") }}
+        {{ ui.button("New Project", href=url_for('create_project_form'), icon="bi-plus-circle-fill", class="btn-primary btn-lg shadow-lg hover:scale-105 transition-transform") }}
     </div>
 
     {% if projects %}
@@ -21,7 +21,7 @@
                     <span class="text-xs text-base-content/50 italic">
                         Created: {{ project.created_at.strftime('%b %d, %Y') }}
                     </span>
-                    {{ ui.button("Open", href=url_for('ui_bp.dashboard', project_id=project.id), class="btn-sm btn-outline btn-primary group", icon="bi-arrow-right group-hover:translate-x-1 transition-transform") }}
+                    {{ ui.button("Open", href=url_for('dashboard', project_id=project.id), class="btn-sm btn-outline btn-primary group", icon="bi-arrow-right group-hover:translate-x-1 transition-transform") }}
                 </div>
             {% endset %}
 
@@ -52,7 +52,7 @@
                     <p class="text-base-content/60 mb-8">
                         Ready to start your next sonic masterpiece? Create a new project to begin recording and processing your samples.
                     </p>
-                    {{ ui.button("Create First Project", href=url_for('ui_bp.create_project_form'), class="btn-primary btn-lg", icon="bi-plus-circle-fill") }}
+                    {{ ui.button("Create First Project", href=url_for('create_project_form'), class="btn-primary btn-lg", icon="bi-plus-circle-fill") }}
                 </div>
             </div>
         </div>

@@ -4,6 +4,7 @@ Database models for sample-orchestrator using SQLModel.
 This module defines SQLModel classes for projects, recordings, and samples.
 SQLModel unifies Pydantic models and SQLAlchemy models.
 """
+from __future__ import annotations
 
 import datetime
 import enum
@@ -12,12 +13,21 @@ from typing import Dict, Any, Optional, List, Union
 
 from sqlmodel import SQLModel, Field, Relationship, create_engine, Session, select
 from sqlalchemy import Column, Text, DateTime, func, Integer, String
+from sqlalchemy.orm import relationship
 
 class ProjectType(str, enum.Enum):
     """Enum for project types."""
     SAMPLE_PACK = "sample_pack"
     VIRTUAL_INSTRUMENT = "virtual_instrument"
     CONSTRUCTION_KIT = "construction_kit"
+
+
+class SamplePackStatus(str, enum.Enum):
+    """Status of a sample pack."""
+    PENDING = "pending"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    FAILED = "failed"
 
 
 class SampleStatus(str, enum.Enum):
@@ -40,7 +50,7 @@ class SampleType(str, enum.Enum):
 class ProjectBase(SQLModel):
     name: str = Field(max_length=255)
     description: Optional[str] = Field(default=None, sa_column=Column(Text))
-    project_type: str = Field(max_length=50)
+    project_type: ProjectType = Field(sa_column=Column(String(50)))
     metadata_json: Optional[str] = Field(default=None, sa_column=Column(Text))
     
     # Optional fields for VirtualInstrument (Single Table Inheritance)
@@ -59,19 +69,16 @@ class ProjectModel(ProjectBase, table=True):
     )
 
     # Relationships
-    recordings: List["RecordingModel"] = Relationship(
-        back_populates="project",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    recordings: List[RecordingModel] = Relationship(
+        sa_relationship=relationship("RecordingModel", back_populates="project", cascade="all, delete-orphan", uselist=True)
     )
     
-    velocity_groups: List["VelocityGroupModel"] = Relationship(
-        back_populates="project",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    velocity_groups: List[VelocityGroupModel] = Relationship(
+        sa_relationship=relationship("VelocityGroupModel", back_populates="project", cascade="all, delete-orphan", uselist=True)
     )
     
-    manifest: Optional["ManifestModel"] = Relationship(
-        back_populates="project",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan", "uselist": False}
+    manifest: Optional[ManifestModel] = Relationship(
+        sa_relationship=relationship("ManifestModel", back_populates="project", cascade="all, delete-orphan", uselist=False)
     )
 
     @property
@@ -83,6 +90,12 @@ class ProjectModel(ProjectBase, table=True):
             except json.JSONDecodeError:
                 return {}
         return {}
+
+
+# Type aliases for compatibility with legacy code
+VirtualInstrumentModel = ProjectModel
+ConstructionKitProjectModel = ProjectModel
+SamplePackModel = ProjectModel
 
 
 class RecordingBase(SQLModel):
@@ -103,10 +116,11 @@ class RecordingModel(RecordingBase, table=True):
     )
 
     # Relationships
-    project: ProjectModel = Relationship(back_populates="recordings")
-    samples: List["SampleModel"] = Relationship(
-        back_populates="recording",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    project: ProjectModel = Relationship(
+        sa_relationship=relationship("ProjectModel", back_populates="recordings")
+    )
+    samples: List[SampleModel] = Relationship(
+        sa_relationship=relationship("SampleModel", back_populates="recording", cascade="all, delete-orphan", uselist=True)
     )
 
     @property
@@ -139,10 +153,11 @@ class SampleModel(SampleBase, table=True):
     )
 
     # Relationships
-    recording: RecordingModel = Relationship(back_populates="samples")
-    sample_mapping_items: List["SampleMappingItemModel"] = Relationship(
-        back_populates="sample",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    recording: RecordingModel = Relationship(
+        sa_relationship=relationship("RecordingModel", back_populates="samples")
+    )
+    sample_mapping_items: List[SampleMappingItemModel] = Relationship(
+        sa_relationship=relationship("SampleMappingItemModel", back_populates="sample", cascade="all, delete-orphan", uselist=True)
     )
 
     @property
@@ -166,8 +181,12 @@ class VelocityGroupModel(SQLModel, table=True):
     high_vel: int = Field(default=127)
 
     # Relationships
-    project: ProjectModel = Relationship(back_populates="velocity_groups")
-    sample_mapping_items: List["SampleMappingItemModel"] = Relationship(back_populates="velocity_group")
+    project: ProjectModel = Relationship(
+        sa_relationship=relationship("ProjectModel", back_populates="velocity_groups")
+    )
+    sample_mapping_items: List[SampleMappingItemModel] = Relationship(
+        sa_relationship=relationship("SampleMappingItemModel", back_populates="velocity_group")
+    )
 
 
 class SampleMappingItemModel(SQLModel, table=True):
@@ -185,8 +204,12 @@ class SampleMappingItemModel(SQLModel, table=True):
     )
     
     # Relationships
-    sample: SampleModel = Relationship(back_populates="sample_mapping_items")
-    velocity_group: Optional[VelocityGroupModel] = Relationship(back_populates="sample_mapping_items")
+    sample: SampleModel = Relationship(
+        sa_relationship=relationship("SampleModel", back_populates="sample_mapping_items")
+    )
+    velocity_group: Optional[VelocityGroupModel] = Relationship(
+        sa_relationship=relationship("VelocityGroupModel", back_populates="sample_mapping_items")
+    )
 
 
 class MidiDeviceModel(SQLModel, table=True):
@@ -232,9 +255,8 @@ class MidiCaptureSessionModel(SQLModel, table=True):
     )
     
     # Relationships
-    midi_files: List["MidiFileModel"] = Relationship(
-        back_populates="capture_session",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    midi_files: List[MidiFileModel] = Relationship(
+        sa_relationship=relationship("MidiFileModel", back_populates="capture_session", cascade="all, delete-orphan")
     )
 
 
@@ -251,7 +273,9 @@ class MidiFileModel(SQLModel, table=True):
     )
 
     # Relationships
-    capture_session: MidiCaptureSessionModel = Relationship(back_populates="midi_files")
+    capture_session: MidiCaptureSessionModel = Relationship(
+        sa_relationship=relationship("MidiCaptureSessionModel", back_populates="midi_files")
+    )
 
 
 class LoopGenerationConfigModel(SQLModel, table=True):
@@ -317,10 +341,11 @@ class ManifestModel(SQLModel, table=True):
     )
 
     # Relationships
-    project: ProjectModel = Relationship(back_populates="manifest")
-    rules: List["ManifestRuleModel"] = Relationship(
-        back_populates="manifest",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    project: ProjectModel = Relationship(
+        sa_relationship=relationship("ProjectModel", back_populates="manifest")
+    )
+    rules: List[ManifestRuleModel] = Relationship(
+        sa_relationship=relationship("ManifestRuleModel", back_populates="manifest", cascade="all, delete-orphan")
     )
 
 
@@ -341,7 +366,9 @@ class ManifestRuleModel(SQLModel, table=True):
     )
 
     # Relationships
-    manifest: ManifestModel = Relationship(back_populates="rules")
+    manifest: ManifestModel = Relationship(
+        sa_relationship=relationship("ManifestModel", back_populates="rules")
+    )
 
     @property
     def required_tags(self) -> Dict[str, Any]:

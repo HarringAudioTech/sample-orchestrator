@@ -43,13 +43,17 @@ async def index(request: Request, db: Session = Depends(get_db)):
 @ui_router.get("/projects/new", response_class=HTMLResponse)
 async def create_project_form(request: Request):
     """Renders the HTML form for creating a new project."""
+    # Pre-format project types for the template
+    project_types_formatted = [
+        (t.value, t.value.replace('_', ' ').title()) for t in ProjectType
+    ]
     return templates.TemplateResponse(
         "ui/create_project.html", 
         {
             "request": request, 
             "title": "Create Project",
             "now": datetime.utcnow(),
-            "project_types": [t.value for t in ProjectType],
+            "project_types": project_types_formatted,
             "selected_type": ProjectType.SAMPLE_PACK.value
         }
     )
@@ -80,16 +84,16 @@ async def create_project_submit(
 
 @ui_router.get("/projects/{project_id}", response_class=HTMLResponse)
 async def dashboard(project_id: int, request: Request, db: Session = Depends(get_db)):
-    """Renders the dashboard for a specific project."""
+    """Renders the project dashboard."""
     project = db.get(ProjectModel, project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     
     return templates.TemplateResponse(
-        "ui/dashboard.html",
+        "ui/dashboard.html", 
         {
-            "request": request,
-            "project": project,
+            "request": request, 
+            "project": project, 
             "recordings": project.recordings,
             "now": datetime.utcnow()
         }
@@ -117,6 +121,28 @@ async def import_project_audio_ui(project_id: int, request: Request, db: Session
             "project_name": project.name,
             "now": datetime.utcnow()
         }
+    )
+
+@ui_router.get("/projects/{project_id}/loop_generation", response_class=HTMLResponse)
+async def loop_generation_ui(project_id: int, request: Request, db: Session = Depends(get_db)):
+    """Stub for loop generation UI."""
+    project = db.get(ProjectModel, project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return templates.TemplateResponse(
+        "ui/loop_generation.html", 
+        {"request": request, "project": project, "now": datetime.utcnow()}
+    )
+
+@ui_router.get("/projects/{project_id}/dspreset_settings", response_class=HTMLResponse)
+async def dspreset_settings_form(project_id: int, request: Request, db: Session = Depends(get_db)):
+    """Stub for DSPreset settings form."""
+    project = db.get(ProjectModel, project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return templates.TemplateResponse(
+        "ui/dspreset_settings.html", 
+        {"request": request, "project": project, "now": datetime.utcnow()}
     )
 
 # ... Additional routes will be migrated as needed ...

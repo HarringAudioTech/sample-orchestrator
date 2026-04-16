@@ -1,0 +1,106 @@
+ Image sample-orchestrator-app Building 
+#1 [internal] load local bake definitions
+#1 reading from stdin 558B done
+#1 DONE 0.0s
+
+#2 [internal] load build definition from Dockerfile
+#2 transferring dockerfile: 1.69kB 0.0s done
+#2 DONE 0.0s
+
+#3 [internal] load metadata for docker.io/library/python:3.14-slim
+#3 ...
+
+#4 [internal] load metadata for docker.io/library/python:3.14
+#4 DONE 0.7s
+
+#3 [internal] load metadata for docker.io/library/python:3.14-slim
+#3 DONE 0.7s
+
+#5 [internal] load .dockerignore
+#5 transferring context: 71B 0.0s done
+#5 DONE 0.0s
+
+#6 [internal] load build context
+#6 DONE 0.0s
+
+#7 [stage-1 1/6] FROM docker.io/library/python:3.14-slim@sha256:bc389f7dfcb21413e72a28f491985326994795e34d2b86c8ae2f417b4e7818aa
+#7 resolve docker.io/library/python:3.14-slim@sha256:bc389f7dfcb21413e72a28f491985326994795e34d2b86c8ae2f417b4e7818aa 0.1s done
+#7 DONE 0.1s
+
+#8 [builder 1/4] FROM docker.io/library/python:3.14@sha256:3de5d55a43a58c09ed47952b15d87ea8d18d82bc616a9277b9ddd0e6dd25b3f0
+#8 resolve docker.io/library/python:3.14@sha256:3de5d55a43a58c09ed47952b15d87ea8d18d82bc616a9277b9ddd0e6dd25b3f0 0.1s done
+#8 DONE 0.1s
+
+#9 [builder 2/4] RUN apt-get update && apt-get install -y --no-install-recommends     gcc g++ curl libasound2-dev libsndfile1-dev     && apt-get clean     && rm -rf /var/lib/apt/lists/*
+#9 CACHED
+
+#10 [builder 3/4] WORKDIR /build
+#10 CACHED
+
+#6 [internal] load build context
+#6 transferring context: 3.93kB 0.0s done
+#6 DONE 0.0s
+
+#11 [builder 4/4] RUN pip install --prefix=/install     Flask==3.0.2     flask-cors==4.0.0     sqlalchemy==2.0.28     mido==1.3.2     requests==2.32.3     numpy>=2.0.0     librosa>=0.10.1     pedalboard>=0.9.22     "patchlab[python] @ git+https://github.com/HarringAudioTech/patchlab.git@v0.1#subdirectory=patchlab-python"     "amanuensis @ git+https://github.com/HarringAudioTech/amanuensis.git@trunk"
+#11 4.272   Running command git clone --filter=blob:none --quiet https://github.com/HarringAudioTech/patchlab.git /tmp/pip-install-kduz2ko7/patchlab_f4fc7d2b00cf4a768a53e36cdc5fba7b
+#11 4.701   fatal: could not read Username for 'https://github.com': No such device or address
+#11 4.722   error: subprocess-exited-with-error
+#11 4.722   
+#11 4.722   × git clone --filter=blob:none --quiet https://github.com/HarringAudioTech/patchlab.git /tmp/pip-install-kduz2ko7/patchlab_f4fc7d2b00cf4a768a53e36cdc5fba7b did not run successfully.
+#11 4.722   │ exit code: 128
+#11 4.722   ╰─> No available output.
+#11 4.722   
+#11 4.722   note: This error originates from a subprocess, and is likely not a problem with pip.
+#11 4.933 ERROR: Failed to build 'patchlab' when git clone --filter=blob:none --quiet https://github.com/harringaudiotech/patchlab.git /tmp/pip-install-kduz2ko7/patchlab_f4fc7d2b00cf4a768a53e36cdc5fba7b
+#11 ERROR: process "/bin/sh -c pip install --prefix=/install     Flask==3.0.2     flask-cors==4.0.0     sqlalchemy==2.0.28     mido==1.3.2     requests==2.32.3     numpy>=2.0.0     librosa>=0.10.1     pedalboard>=0.9.22     \"patchlab[python] @ git+https://github.com/HarringAudioTech/patchlab.git@v0.1#subdirectory=patchlab-python\"     \"amanuensis @ git+https://github.com/HarringAudioTech/amanuensis.git@trunk\"" did not complete successfully: exit code: 1
+------
+ > [builder 4/4] RUN pip install --prefix=/install     Flask==3.0.2     flask-cors==4.0.0     sqlalchemy==2.0.28     mido==1.3.2     requests==2.32.3     numpy>=2.0.0     librosa>=0.10.1     pedalboard>=0.9.22     "patchlab[python] @ git+https://github.com/HarringAudioTech/patchlab.git@v0.1#subdirectory=patchlab-python"     "amanuensis @ git+https://github.com/HarringAudioTech/amanuensis.git@trunk":
+4.272   Running command git clone --filter=blob:none --quiet https://github.com/HarringAudioTech/patchlab.git /tmp/pip-install-kduz2ko7/patchlab_f4fc7d2b00cf4a768a53e36cdc5fba7b
+4.701   fatal: could not read Username for 'https://github.com': No such device or address
+4.722   error: subprocess-exited-with-error
+4.722   
+4.722   × git clone --filter=blob:none --quiet https://github.com/HarringAudioTech/patchlab.git /tmp/pip-install-kduz2ko7/patchlab_f4fc7d2b00cf4a768a53e36cdc5fba7b did not run successfully.
+4.722   │ exit code: 128
+4.722   ╰─> No available output.
+4.722   
+4.722   note: This error originates from a subprocess, and is likely not a problem with pip.
+4.933 ERROR: Failed to build 'patchlab' when git clone --filter=blob:none --quiet https://github.com/harringaudiotech/patchlab.git /tmp/pip-install-kduz2ko7/patchlab_f4fc7d2b00cf4a768a53e36cdc5fba7b
+------
+Dockerfile:19
+
+--------------------
+
+  18 |     # This allows us to copy only the site-packages to the final image
+
+  19 | >>> RUN pip install --prefix=/install \
+
+  20 | >>>     Flask==3.0.2 \
+
+  21 | >>>     flask-cors==4.0.0 \
+
+  22 | >>>     sqlalchemy==2.0.28 \
+
+  23 | >>>     mido==1.3.2 \
+
+  24 | >>>     requests==2.32.3 \
+
+  25 | >>>     numpy>=2.0.0 \
+
+  26 | >>>     librosa>=0.10.1 \
+
+  27 | >>>     pedalboard>=0.9.22 \
+
+  28 | >>>     "patchlab[python] @ git+https://github.com/HarringAudioTech/patchlab.git@v0.1#subdirectory=patchlab-python" \
+
+  29 | >>>     "amanuensis @ git+https://github.com/HarringAudioTech/amanuensis.git@trunk"
+
+  30 |     
+
+--------------------
+
+failed to solve: process "/bin/sh -c pip install --prefix=/install     Flask==3.0.2     flask-cors==4.0.0     sqlalchemy==2.0.28     mido==1.3.2     requests==2.32.3     numpy>=2.0.0     librosa>=0.10.1     pedalboard>=0.9.22     \"patchlab[python] @ git+https://github.com/HarringAudioTech/patchlab.git@v0.1#subdirectory=patchlab-python\"     \"amanuensis @ git+https://github.com/HarringAudioTech/amanuensis.git@trunk\"" did not complete successfully: exit code: 1
+
+
+
+View build details: docker-desktop://dashboard/build/default/default/p6ny0nvjibnapbfgm4tyd2yb4
+

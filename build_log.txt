@@ -1,0 +1,35 @@
+time="2026-04-13T14:34:09-07:00" level=warning msg="/Users/nicholasharring/work/sample-orchestrator/docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion"
+ Image sample-orchestrator-app Building 
+#1 [internal] load local bake definitions
+#1 reading from stdin 558B done
+#1 DONE 0.0s
+
+#2 [internal] load build definition from Dockerfile
+#2 transferring dockerfile: 1.08kB 0.0s done
+#2 DONE 0.0s
+
+#3 [internal] load metadata for docker.io/library/python:3.14-slim
+#3 ERROR: error getting credentials - err: exec: "docker-credential-desktop": executable file not found in $PATH, out: ``
+------
+ > [internal] load metadata for docker.io/library/python:3.14-slim:
+------
+Dockerfile:2
+
+--------------------
+
+   1 |     # Use an official Python runtime as a parent image
+
+   2 | >>> FROM python:3.14-slim
+
+   3 |     
+
+   4 |     # Set environment variables
+
+--------------------
+
+failed to solve: error getting credentials - err: exec: "docker-credential-desktop": executable file not found in $PATH, out: ``
+
+
+
+View build details: docker-desktop://dashboard/build/default/default/yvxld6tyyurgsilydn7mswi83
+

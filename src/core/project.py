@@ -214,6 +214,7 @@ class Project:
 
             new_recording: RecordingModel = RecordingModel(
                 name=name,
+                project_id=self.project_id,
                 file_path=file_path,
                 file_size_bytes=filesize,
                 duration_seconds=duration_seconds,
@@ -221,8 +222,7 @@ class Project:
                 channels=channels,
                 status="uploaded",
             )
-            # Add the recording to the project using the many-to-many relationship
-            self.project_model.recordings.append(new_recording)
+            # Add the recording to the database
             _db_to_use.add(new_recording)
             _db_to_use.commit()
             _db_to_use.refresh(new_recording)

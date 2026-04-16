@@ -1,0 +1,103 @@
+{% macro card(title=None, subtitle=None, body_class="", footer=None) %}
+<div class="card bg-base-100 shadow-xl border border-base-300">
+    <div class="card-body {{ body_class }}">
+        {% if title %}
+        <h2 class="card-title text-2xl font-bold flex justify-between items-center mb-2">
+            {{ title }}
+        </h2>
+        {% endif %}
+        {% if subtitle %}
+        <p class="text-base-content/70 mb-4">{{ subtitle }}</p>
+        {% endif %}
+        
+        <div class="space-y-4">
+            {{ caller() }}
+        </div>
+        
+        {% if footer %}
+        <div class="card-actions justify-end mt-6 pt-6 border-t border-base-200">
+            {{ footer }}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endmacro %}
+
+{% macro stat_card(title, value, icon=None, description=None, color_class="text-primary") %}
+<div class="stats shadow bg-base-100 border border-base-300 w-full">
+  <div class="stat">
+    {% if icon %}
+    <div class="stat-figure {{ color_class }}">
+      <i class="bi {{ icon }} text-3xl"></i>
+    </div>
+    {% endif %}
+    <div class="stat-title">{{ title }}</div>
+    <div class="stat-value {{ color_class }}">{{ value }}</div>
+    {% if description %}
+    <div class="stat-desc">{{ description }}</div>
+    {% endif %}
+  </div>
+</div>
+{% endmacro %}
+
+{% macro button(text, href=None, type="button", class="btn-primary", icon=None, id=None) %}
+{% if href %}
+<a href="{{ href }}" class="btn {{ class }}" {% if id %}id="{{ id }}"{% endif %}>
+    {% if icon %}<i class="bi {{ icon }}"></i>{% endif %}
+    {{ text }}
+</a>
+{% else %}
+<button type="{{ type }}" class="btn {{ class }}" {% if id %}id="{{ id }}"{% endif %}>
+    {% if icon %}<i class="bi {{ icon }}"></i>{% endif %}
+    {{ text }}
+</button>
+{% endif %}
+{% endmacro %}
+
+{% macro badge(text, class="badge-ghost") %}
+<div class="badge {{ class }} gap-2">{{ text }}</div>
+{% endmacro %}
+
+{% macro text_input(name, label=None, value="", placeholder="", type="text", required=False, help_text=None) %}
+<div class="form-control w-full">
+    {% if label %}
+    <label class="label">
+        <span class="label-text font-semibold">{{ label }}{% if required %}<span class="text-error ml-1">*</span>{% endif %}</span>
+    </label>
+    {% endif %}
+    <input type="{{ type }}" 
+           name="{{ name }}" 
+           placeholder="{{ placeholder }}" 
+           value="{{ value }}"
+           class="input input-bordered w-full" 
+           {% if required %}required{% endif %} />
+    {% if help_text %}
+    <label class="label">
+        <span class="label-text-alt text-base-content/60">{{ help_text }}</span>
+    </label>
+    {% endif %}
+</div>
+{% endmacro %}
+
+{% macro select_input(name, options, label=None, selected_value=None, required=False, help_text=None) %}
+<div class="form-control w-full">
+    {% if label %}
+    <label class="label">
+        <span class="label-text font-semibold">{{ label }}{% if required %}<span class="text-error ml-1">*</span>{% endif %}</span>
+    </label>
+    {% endif %}
+    <select name="{{ name }}" class="select select-bordered w-full" {% if required %}required{% endif %}>
+        {% if not selected_value %}
+        <option disabled selected value="">Select an option</option>
+        {% endif %}
+        {% for val, label in options %}
+        <option value="{{ val }}" {% if selected_value == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+    </select>
+    {% if help_text %}
+    <label class="label">
+        <span class="label-text-alt text-base-content/60">{{ help_text }}</span>
+    </label>
+    {% endif %}
+</div>
+{% endmacro %}
