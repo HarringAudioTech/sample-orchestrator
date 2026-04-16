@@ -3,54 +3,23 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      secrets:
+        - GH_PAT
     ports:
       - "8000:5001"
     volumes:
       - .:/app  # Map current directory to /app for live code reloading
       - ./data:/app/data  # Persist data in ./data directory on the host
-    # --- Device Access (Platform Dependent) ---
-    # Uncomment and adapt the following lines based on your OS and needs.
-    # This is highly dependent on your host system configuration.
-    #
-    # For Linux (Audio - ALSA):
-    # devices:
-    #   - "/dev/snd:/dev/snd"
-    #
-    # For Linux (USB MIDI - may require udev rules on host):
-    #   You might need to identify specific USB devices.
-    #   Example: find your device with `lsusb`, then map e.g. /dev/bus/usb/001/002
-    # devices:
-    #   - "/dev/bus/usb:/dev/bus/usb" # Broad access, potentially risky
-    # Or more specific (after identifying your MIDI device, e.g., using lsusb):
-    #   - "/dev/bus/usb/XXX/YYY:/dev/bus/usb/XXX/YYY" # Replace XXX/YYY
-    #
-    # For macOS:
-    # Accessing host audio/MIDI devices directly from Docker Desktop on macOS
-    # is complex. Usually, applications like Loopback are used on the host to
-    # route audio. For MIDI, macOS's Audio MIDI Setup might be used with virtual
-    # MIDI ports if the application inside Docker can connect to them (often via network MIDI).
-    # The Dockerfile already includes ALSA utilities, which are Linux-specific.
-    #
-    # For Windows:
-    # Similar complexities as macOS. WSL2 backend for Docker Desktop might offer
-    # some pass-through capabilities but can be involved to set up.
     environment:
-      # Flask configuration
-      - FLASK_ENV=development
-      - FLASK_DEBUG=1
-      - FLASK_APP=src/app.py
-      - FLASK_SECRET_KEY=dev-secret-key-change-in-production
-      
-      # Database configuration
+      - APP_ENV=development
+      - APP_DEBUG=1
       - DATABASE_URL=sqlite:////app/data/orchestrator.db
       - PYTHONPATH=/app
-      
-      # Ensure Python output is not buffered for better logging
       - PYTHONUNBUFFERED=1
     
-    # Command to initialize the database and start the application
-    command: >
-      sh -c "
-      flask init-db &&
-      flask run --host=0.0.0.0 --port=5001
-      "
+    # Command to start the application (init_db is handled by app lifespan)
+    command: uvicorn src.app:app --host 0.0.0.0 --port 5001 --reload
+
+secrets:
+  GH_PAT:
+    file: .env

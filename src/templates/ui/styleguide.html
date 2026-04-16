@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% import "macros/ui.html" as ui %}
+
+{% block title %}Design System Styleguide - Sample Orchestrator{% endblock %}
+
+{% block content %}
+<div class="flex flex-col gap-12">
+    <div>
+        <h1 class="text-5xl font-black text-base-content mb-4 tracking-tighter">Design System Styleguide</h1>
+        <p class="text-xl text-base-content/60">A cohesive visual vocabulary for the Sample Orchestrator UI.</p>
+        <div class="divider"></div>
+    </div>
+
+    <!-- Typography -->
+    <section>
+        <h2 class="text-2xl font-bold mb-6 flex items-center gap-2">
+            <i class="bi bi-type"></i> Typography
+        </h2>
+        <div class="grid gap-4 bg-base-100 p-8 rounded-2xl border border-base-300 shadow-sm">
+            <h1 class="text-5xl font-black">Heading 1 (Black, 5xl)</h1>
+            <h2 class="text-4xl font-extrabold">Heading 2 (Extrabold, 4xl)</h2>
+            <h3 class="text-3xl font-bold">Heading 3 (Bold, 3xl)</h3>
+            <h4 class="text-2xl font-semibold">Heading 4 (Semibold, 2xl)</h4>
+            <p class="text-xl">Body Large (xl)</p>
+            <p class="text-base">Body Base (base)</p>
+            <p class="text-sm text-base-content/70">Body Small / Muted (sm)</p>
+            <p class="font-mono text-xs">Monospace Small (mono, xs)</p>
+        </div>
+    </section>
+
+    <!-- Buttons -->
+    <section>
+        <h2 class="text-2xl font-bold mb-6 flex items-center gap-2">
+            <i class="bi bi-hand-index"></i> Buttons
+        </h2>
+        <div class="flex flex-wrap gap-4 bg-base-100 p-8 rounded-2xl border border-base-300 shadow-sm">
+            {{ ui.button("Primary", class="btn-primary") }}
+            {{ ui.button("Secondary", class="btn-secondary") }}
+            {{ ui.button("Accent", class="btn-accent") }}
+            {{ ui.button("Info", class="btn-info") }}
+            {{ ui.button("Success", class="btn-success") }}
+            {{ ui.button("Warning", class="btn-warning") }}
+            {{ ui.button("Error", class="btn-error") }}
+            {{ ui.button("Ghost", class="btn-ghost") }}
+            {{ ui.button("Outline", class="btn-outline btn-primary") }}
+        </div>
+    </section>
+
+    <!-- Cards -->
+    <section>
+        <h2 class="text-2xl font-bold mb-6 flex items-center gap-2">
+            <i class="bi bi-card-heading"></i> Cards & Stats
+        </h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {% call ui.card(title="Project Template", subtitle="A standard project card example.") %}
+                <p>This is the body of the card. It uses the standard DaisyUI card component with some custom border styling.</p>
+                {% set footer %}
+                    {{ ui.button("Action", class="btn-primary btn-sm") }}
+                    {{ ui.button("Cancel", class="btn-ghost btn-sm") }}
+                {% endset %}
+            {% endcall %}
+
+            {{ ui.stat_card("Active Projects", "12", icon="bi-folder-check", description="Across all categories") }}
+            {{ ui.stat_card("Processing", "85%", icon="bi-cpu", color_class="text-secondary", description="System load") }}
+        </div>
+    </section>
+
+    <!-- Forms -->
+    <section>
+        <h2 class="text-2xl font-bold mb-6 flex items-center gap-2">
+            <i class="bi bi-input-cursor-text"></i> Form Components
+        </h2>
+        <div class="max-w-xl space-y-4 bg-base-100 p-8 rounded-2xl border border-base-300 shadow-sm">
+            {{ ui.text_input("name", label="Project Name", placeholder="e.g. My Awesome Piano", required=True) }}
+            {{ ui.select_input("type", [("vi", "Virtual Instrument"), ("ck", "Construction Kit")], label="Project Type", selected_value="vi") }}
+            {{ ui.text_input("desc", label="Description", placeholder="Enter notes...", help_text="Optional: describe the source of your samples.") }}
+        </div>
+    </section>
+
+    <!-- Alerts -->
+    <section>
+        <h2 class="text-2xl font-bold mb-6 flex items-center gap-2">
+            <i class="bi bi-exclamation-triangle"></i> Feedback (Alerts)
+        </h2>
+        <div class="space-y-4">
+            <div class="alert alert-info shadow-lg">
+                <i class="bi bi-info-circle"></i>
+                <span>New software update available.</span>
+            </div>
+            <div class="alert alert-success shadow-lg">
+                <i class="bi bi-check-circle"></i>
+                <span>Project saved successfully!</span>
+            </div>
+            <div class="alert alert-error shadow-lg">
+                <i class="bi bi-exclamation-octagon"></i>
+                <span>Error: Failed to process audio file.</span>
+            </div>
+        </div>
+    </section>
+</div>
+{% endblock %}

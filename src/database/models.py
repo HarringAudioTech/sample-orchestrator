@@ -1,21 +1,17 @@
 """
-Database models for sample-orchestrator.
+Database models for sample-orchestrator using SQLModel.
 
-This module defines SQLAlchemy models for projects, recordings, and samples.
+This module defines SQLModel classes for projects, recordings, and samples.
+SQLModel unifies Pydantic models and SQLAlchemy models.
 """
 
 import datetime
 import enum
 import json
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Union
 
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, Text, Boolean, Enum
-from sqlalchemy.orm import relationship
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.sql import func
-
-from src.database.utils import Base
-
+from sqlmodel import SQLModel, Field, Relationship, create_engine, Session, select
+from sqlalchemy import Column, Text, DateTime, func, Integer, String
 
 class ProjectType(str, enum.Enum):
     """Enum for project types."""
@@ -24,18 +20,16 @@ class ProjectType(str, enum.Enum):
     CONSTRUCTION_KIT = "construction_kit"
 
 
-class SamplePackStatus(str, enum.Enum):
-    """Status of a sample pack in the orchestrator."""
-
+class SampleStatus(str, enum.Enum):
+    """Processing status of an audio sample."""
     PENDING = "pending"
     PROCESSING = "processing"
-    COMPLETE = "complete"
+    PROCESSED = "processed"
     FAILED = "failed"
 
 
 class SampleType(str, enum.Enum):
     """Type classification for audio samples."""
-
     ONE_SHOT = "one_shot"
     LOOP = "loop"
     AMBIENT = "ambient"
@@ -43,39 +37,43 @@ class SampleType(str, enum.Enum):
     TRANSITION = "transition"
 
 
-class SampleStatus(str, enum.Enum):
-    """Processing status of an audio sample."""
+class ProjectBase(SQLModel):
+    name: str = Field(max_length=255)
+    description: Optional[str] = Field(default=None, sa_column=Column(Text))
+    project_type: str = Field(max_length=50)
+    metadata_json: Optional[str] = Field(default=None, sa_column=Column(Text))
+    
+    # Optional fields for VirtualInstrument (Single Table Inheritance)
+    base_note: Optional[int] = None
+    round_robins: Optional[int] = None
 
-    PENDING = "pending"
-    PROCESSING = "processing"
-    PROCESSED = "processed"
-    FAILED = "failed"
-
-
-class ProjectModel(Base):
-    """Base model for projects."""
+class ProjectModel(ProjectBase, table=True):
     __tablename__ = "projects"
     
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(255), nullable=False)
-    description = Column(Text, nullable=True)
-    project_type = Column(String(50), nullable=False)
-    created_at = Column(DateTime, server_default=func.now())
-    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
-    metadata_json = Column(Text, nullable=True)
-    
-    # Columns for VirtualInstrumentModel, for single-table inheritance
-    base_note = Column(Integer, nullable=True)  # MIDI note number
-    round_robins = Column(Integer, nullable=True)
+    id: Optional[int] = Field(default=None, primary_key=True)
+    created_at: datetime.datetime = Field(
+        sa_column=Column(DateTime, server_default=func.now())
+    )
+    updated_at: datetime.datetime = Field(
+        sa_column=Column(DateTime, server_default=func.now(), onupdate=func.now())
+    )
 
-    # Define relationships
-    recordings = relationship("RecordingModel", back_populates="project", cascade="all, delete-orphan")
+    # Relationships
+    recordings: List["RecordingModel"] = Relationship(
+        back_populates="project",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    )
     
-    __mapper_args__ = {
-        "polymorphic_identity": "project",
-        "polymorphic_on": project_type
-    }
+    velocity_groups: List["VelocityGroupModel"] = Relationship(
+        back_populates="project",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    )
     
+    manifest: Optional["ManifestModel"] = Relationship(
+        back_populates="project",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan", "uselist": False}
+    )
+
     @property
     def meta_data(self) -> Dict[str, Any]:
         """Parse and return metadata JSON as a dictionary."""
@@ -87,58 +85,30 @@ class ProjectModel(Base):
         return {}
 
 
-class SamplePackModel(ProjectModel):
-    """Model for sample pack projects."""
-    
-    __mapper_args__ = {
-        "polymorphic_identity": "sample_pack",
-    }
-    
-    @property
-    def sample_count(self) -> int:
-        """Get the total number of samples in this sample pack."""
-        count = 0
-        for recording in self.recordings:
-            count += len(recording.samples)
-        return count
+class RecordingBase(SQLModel):
+    project_id: int = Field(foreign_key="projects.id")
+    name: str = Field(max_length=255)
+    file_path: str = Field(max_length=512)
+    duration: Optional[float] = None
+    sample_rate: Optional[int] = None
+    channels: Optional[int] = None
+    metadata_json: Optional[str] = Field(default=None, sa_column=Column(Text))
 
-
-class VirtualInstrumentModel(ProjectModel):
-    """Model for virtual instrument projects."""
-    
-    __mapper_args__ = {
-        "polymorphic_identity": "virtual_instrument",
-    }
-    velocity_groups = relationship("VelocityGroupModel", back_populates="project", cascade="all, delete-orphan")
-
-
-class ConstructionKitProjectModel(ProjectModel):
-    """Model for construction kit projects."""
-    
-    __mapper_args__ = {
-        "polymorphic_identity": "construction_kit",
-    }
-    manifest = relationship("ManifestModel", back_populates="project", uselist=False, cascade="all, delete-orphan")
-
-
-class RecordingModel(Base):
-    """Model for audio recordings."""
+class RecordingModel(RecordingBase, table=True):
     __tablename__ = "recordings"
     
-    id = Column(Integer, primary_key=True, index=True)
-    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
-    name = Column(String(255), nullable=False)
-    file_path = Column(String(512), nullable=False)
-    duration = Column(Float, nullable=True)  # in seconds
-    sample_rate = Column(Integer, nullable=True)
-    channels = Column(Integer, nullable=True)
-    created_at = Column(DateTime, server_default=func.now())
-    metadata_json = Column(Text, nullable=True)
-    
-    # Define relationships
-    project = relationship("ProjectModel", back_populates="recordings")
-    samples = relationship("SampleModel", back_populates="recording", cascade="all, delete-orphan")
-    
+    id: Optional[int] = Field(default=None, primary_key=True)
+    created_at: datetime.datetime = Field(
+        sa_column=Column(DateTime, server_default=func.now())
+    )
+
+    # Relationships
+    project: ProjectModel = Relationship(back_populates="recordings")
+    samples: List["SampleModel"] = Relationship(
+        back_populates="recording",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    )
+
     @property
     def meta_data(self) -> Dict[str, Any]:
         """Parse and return metadata JSON as a dictionary."""
@@ -150,25 +120,31 @@ class RecordingModel(Base):
         return {}
 
 
-class SampleModel(Base):
-    """Model for audio samples."""
+class SampleBase(SQLModel):
+    recording_id: int = Field(foreign_key="recordings.id")
+    name: str = Field(max_length=255)
+    file_path: str = Field(max_length=512)
+    start_time: Optional[float] = None
+    duration: Optional[float] = None
+    sample_type: Optional[str] = Field(default=SampleType.ONE_SHOT.value, max_length=50)
+    status: Optional[str] = Field(default=SampleStatus.PENDING.value, max_length=50)
+    metadata_json: Optional[str] = Field(default=None, sa_column=Column(Text))
+
+class SampleModel(SampleBase, table=True):
     __tablename__ = "samples"
+    
+    id: Optional[int] = Field(default=None, primary_key=True)
+    created_at: datetime.datetime = Field(
+        sa_column=Column(DateTime, server_default=func.now())
+    )
 
-    id = Column(Integer, primary_key=True, index=True)
-    recording_id = Column(Integer, ForeignKey("recordings.id"), nullable=False)
-    name = Column(String(255), nullable=False)
-    file_path = Column(String(512), nullable=False)
-    start_time = Column(Float, nullable=True)  # in seconds from parent recording
-    duration = Column(Float, nullable=True)    # in seconds
-    sample_type = Column(String(50), nullable=True, default=SampleType.ONE_SHOT.value)
-    status = Column(String(50), nullable=True, default=SampleStatus.PENDING.value)
-    created_at = Column(DateTime, server_default=func.now())
-    metadata_json = Column(Text, nullable=True)
-    
-    # Define relationships
-    recording = relationship("RecordingModel", back_populates="samples")
-    sample_mapping_items = relationship("SampleMappingItemModel", back_populates="sample", cascade="all, delete-orphan")
-    
+    # Relationships
+    recording: RecordingModel = Relationship(back_populates="samples")
+    sample_mapping_items: List["SampleMappingItemModel"] = Relationship(
+        back_populates="sample",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    )
+
     @property
     def meta_data(self) -> Dict[str, Any]:
         """Parse and return metadata JSON as a dictionary."""
@@ -180,49 +156,53 @@ class SampleModel(Base):
         return {}
 
 
-class VelocityGroupModel(Base):
-    """Model for velocity groups in a virtual instrument."""
+class VelocityGroupModel(SQLModel, table=True):
     __tablename__ = "velocity_groups"
 
-    id = Column(Integer, primary_key=True, index=True)
-    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
-    name = Column(String(255), nullable=False, default="default")
-    low_vel = Column(Integer, nullable=False, default=0)
-    high_vel = Column(Integer, nullable=False, default=127)
+    id: Optional[int] = Field(default=None, primary_key=True)
+    project_id: int = Field(foreign_key="projects.id")
+    name: str = Field(default="default", max_length=255)
+    low_vel: int = Field(default=0)
+    high_vel: int = Field(default=127)
 
-    project = relationship("VirtualInstrumentModel", back_populates="velocity_groups")
-    sample_mapping_items = relationship("SampleMappingItemModel", back_populates="velocity_group")
+    # Relationships
+    project: ProjectModel = Relationship(back_populates="velocity_groups")
+    sample_mapping_items: List["SampleMappingItemModel"] = Relationship(back_populates="velocity_group")
 
 
-class SampleMappingItemModel(Base):
-    """Model for sample key mapping items."""
+class SampleMappingItemModel(SQLModel, table=True):
     __tablename__ = "sample_mapping_items"
     
-    id = Column(Integer, primary_key=True, index=True)
-    sample_id = Column(Integer, ForeignKey("samples.id"), nullable=False)
-    velocity_group_id = Column(Integer, ForeignKey("velocity_groups.id"), nullable=True)
+    id: Optional[int] = Field(default=None, primary_key=True)
+    sample_id: int = Field(foreign_key="samples.id")
+    velocity_group_id: Optional[int] = Field(default=None, foreign_key="velocity_groups.id")
 
-    key_range_start = Column(Integer, nullable=True)  # MIDI note number for range start
-    key_range_end = Column(Integer, nullable=True)    # MIDI note number for range end
-    root_note = Column(Integer, nullable=True)  # MIDI note number for sample root note
-    created_at = Column(DateTime, server_default=func.now())
+    key_range_start: Optional[int] = None
+    key_range_end: Optional[int] = None
+    root_note: Optional[int] = None
+    created_at: datetime.datetime = Field(
+        sa_column=Column(DateTime, server_default=func.now())
+    )
     
-    # Define relationships
-    sample = relationship("SampleModel", back_populates="sample_mapping_items")
-    velocity_group = relationship("VelocityGroupModel", back_populates="sample_mapping_items")
+    # Relationships
+    sample: SampleModel = Relationship(back_populates="sample_mapping_items")
+    velocity_group: Optional[VelocityGroupModel] = Relationship(back_populates="sample_mapping_items")
 
 
-class MidiDeviceModel(Base):
-    """Model for MIDI input devices."""
+class MidiDeviceModel(SQLModel, table=True):
     __tablename__ = "midi_devices"
     
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(255), nullable=False, unique=True)
-    description = Column(Text, nullable=True)
-    is_available = Column(Boolean, default=True)
-    created_at = Column(DateTime, server_default=func.now())
-    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
-    metadata_json = Column(Text, nullable=True)
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(max_length=255, sa_column=Column(String(255), unique=True, nullable=False))
+    description: Optional[str] = Field(default=None, sa_column=Column(Text))
+    is_available: bool = Field(default=True)
+    created_at: datetime.datetime = Field(
+        sa_column=Column(DateTime, server_default=func.now())
+    )
+    updated_at: datetime.datetime = Field(
+        sa_column=Column(DateTime, server_default=func.now(), onupdate=func.now())
+    )
+    metadata_json: Optional[str] = Field(default=None, sa_column=Column(Text))
     
     @property
     def meta_data(self) -> Dict[str, Any]:
@@ -235,57 +215,64 @@ class MidiDeviceModel(Base):
         return {}
 
 
-class MidiCaptureSessionModel(Base):
-    """Model for MIDI capture sessions."""
+class MidiCaptureSessionModel(SQLModel, table=True):
     __tablename__ = "midi_capture_sessions"
     
-    id = Column(Integer, primary_key=True, index=True)
-    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
-    name = Column(String(255), nullable=False)
-    status = Column(String(50), nullable=False)  # pending, recording, completed, failed, completed_empty
-    start_time = Column(DateTime, nullable=True)
-    end_time = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, server_default=func.now())
-    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    id: Optional[int] = Field(default=None, primary_key=True)
+    project_id: int = Field(foreign_key="projects.id")
+    name: str = Field(max_length=255)
+    status: str = Field(max_length=50)  # pending, recording, completed, failed, completed_empty
+    start_time: Optional[datetime.datetime] = None
+    end_time: Optional[datetime.datetime] = None
+    created_at: datetime.datetime = Field(
+        sa_column=Column(DateTime, server_default=func.now())
+    )
+    updated_at: datetime.datetime = Field(
+        sa_column=Column(DateTime, server_default=func.now(), onupdate=func.now())
+    )
     
-    # Define relationships
-    project = relationship("ProjectModel")
-    midi_files = relationship("MidiFileModel", back_populates="capture_session", cascade="all, delete-orphan")
+    # Relationships
+    midi_files: List["MidiFileModel"] = Relationship(
+        back_populates="capture_session",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    )
 
 
-class MidiFileModel(Base):
-    """Model for MIDI files captured in a session."""
+class MidiFileModel(SQLModel, table=True):
     __tablename__ = "midi_files"
 
-    id = Column(Integer, primary_key=True, index=True)
-    capture_session_id = Column(Integer, ForeignKey("midi_capture_sessions.id"), nullable=False)
-    device_id = Column(Integer, ForeignKey("midi_devices.id"), nullable=False)
-    channel = Column(Integer, nullable=False)  # -1 for system messages, 0-15 for MIDI channels
-    file_data = Column(Text, nullable=False)  # Binary MIDI data stored as text (base64 encoded)
-    created_at = Column(DateTime, server_default=func.now())
+    id: Optional[int] = Field(default=None, primary_key=True)
+    capture_session_id: int = Field(foreign_key="midi_capture_sessions.id")
+    device_id: int = Field(foreign_key="midi_devices.id")
+    channel: int = Field()  # -1 for system messages, 0-15 for MIDI channels
+    file_data: str = Field(sa_column=Column(Text, nullable=False)) # base64 encoded
+    created_at: datetime.datetime = Field(
+        sa_column=Column(DateTime, server_default=func.now())
+    )
 
-    # Define relationships
-    capture_session = relationship("MidiCaptureSessionModel", back_populates="midi_files")
-    device = relationship("MidiDeviceModel")
+    # Relationships
+    capture_session: MidiCaptureSessionModel = Relationship(back_populates="midi_files")
 
 
-class LoopGenerationConfigModel(Base):
-    """Model for reusable loop generation parameters (Amanuensis)."""
+class LoopGenerationConfigModel(SQLModel, table=True):
     __tablename__ = "loop_generation_configs"
 
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(255), nullable=False)
-    engine_id = Column(String(100), nullable=False, default="bass")
-    key = Column(String(10), nullable=False, default="C")
-    meter = Column(String(10), nullable=False, default="4/4")
-    tempo = Column(Float, nullable=False, default=120.0)
-    bars = Column(Integer, nullable=False, default=4)
-    seed = Column(Integer, nullable=False, default=42)
-    # Store complex params as JSON
-    engine_options_json = Column(Text, nullable=True) 
-    chords_json = Column(Text, nullable=True)
-    created_at = Column(DateTime, server_default=func.now())
-    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(max_length=255)
+    engine_id: str = Field(default="bass", max_length=100)
+    key: str = Field(default="C", max_length=10)
+    meter: str = Field(default="4/4", max_length=10)
+    tempo: float = Field(default=120.0)
+    bars: int = Field(default=4)
+    seed: int = Field(default=42)
+    engine_options_json: Optional[str] = Field(default=None, sa_column=Column(Text))
+    chords_json: Optional[str] = Field(default=None, sa_column=Column(Text))
+    created_at: datetime.datetime = Field(
+        sa_column=Column(DateTime, server_default=func.now())
+    )
+    updated_at: datetime.datetime = Field(
+        sa_column=Column(DateTime, server_default=func.now(), onupdate=func.now())
+    )
 
     @property
     def engine_options(self) -> Dict[str, Any]:
@@ -296,61 +283,65 @@ class LoopGenerationConfigModel(Base):
         return json.loads(self.chords_json) if self.chords_json else []
 
 
-class LoopRenderingConfigModel(Base):
-    """Model for reusable loop rendering parameters (Audio Capture)."""
+class LoopRenderingConfigModel(SQLModel, table=True):
     __tablename__ = "loop_rendering_configs"
 
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(255), nullable=False)
-    midi_port = Column(String(255), nullable=False)
-    audio_device_index = Column(Integer, nullable=True)
-    capture_tail_seconds = Column(Float, nullable=False, default=2.0)
-    # Store Patchlab patch data as JSON
-    patch_data_json = Column(Text, nullable=True)
-    created_at = Column(DateTime, server_default=func.now())
-    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(max_length=255)
+    midi_port: str = Field(max_length=255)
+    audio_device_index: Optional[int] = None
+    capture_tail_seconds: float = Field(default=2.0)
+    patch_data_json: Optional[str] = Field(default=None, sa_column=Column(Text))
+    created_at: datetime.datetime = Field(
+        sa_column=Column(DateTime, server_default=func.now())
+    )
+    updated_at: datetime.datetime = Field(
+        sa_column=Column(DateTime, server_default=func.now(), onupdate=func.now())
+    )
 
     @property
     def patch_data(self) -> Dict[str, Any]:
         return json.loads(self.patch_data_json) if self.patch_data_json else {}
 
 
-class ManifestModel(Base):
-    """Model for a project's asset manifest."""
+class ManifestModel(SQLModel, table=True):
     __tablename__ = "manifests"
 
-    id = Column(Integer, primary_key=True, index=True)
-    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
-    created_at = Column(DateTime, server_default=func.now())
-    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    id: Optional[int] = Field(default=None, primary_key=True)
+    project_id: int = Field(foreign_key="projects.id")
+    created_at: datetime.datetime = Field(
+        sa_column=Column(DateTime, server_default=func.now())
+    )
+    updated_at: datetime.datetime = Field(
+        sa_column=Column(DateTime, server_default=func.now(), onupdate=func.now())
+    )
 
-    # Define relationships
-    project = relationship("ConstructionKitProjectModel", back_populates="manifest")
-    rules = relationship("ManifestRuleModel", back_populates="manifest", cascade="all, delete-orphan")
+    # Relationships
+    project: ProjectModel = Relationship(back_populates="manifest")
+    rules: List["ManifestRuleModel"] = Relationship(
+        back_populates="manifest",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    )
 
 
-class ManifestRuleModel(Base):
-    """Model for a single requirement in a manifest."""
+class ManifestRuleModel(SQLModel, table=True):
     __tablename__ = "manifest_rules"
 
-    id = Column(Integer, primary_key=True, index=True)
-    manifest_id = Column(Integer, ForeignKey("manifests.id"), nullable=False)
-    name = Column(String(255), nullable=False)
+    id: Optional[int] = Field(default=None, primary_key=True)
+    manifest_id: int = Field(foreign_key="manifests.id")
+    name: str = Field(max_length=255)
+    required_tags_json: str = Field(sa_column=Column(Text, nullable=False))
+    target_count: int = Field(default=1)
+    category: Optional[str] = Field(default=None, max_length=100)
+    created_at: datetime.datetime = Field(
+        sa_column=Column(DateTime, server_default=func.now())
+    )
+    updated_at: datetime.datetime = Field(
+        sa_column=Column(DateTime, server_default=func.now(), onupdate=func.now())
+    )
 
-    # Requirement configuration as JSON (e.g., {"instrument": "bass", "section": "chorus"})
-    required_tags_json = Column(Text, nullable=False)
-
-    # Target number of unique samples/MIDI files required to fulfill this rule
-    target_count = Column(Integer, nullable=False, default=1)
-
-    # Optional category/group for UI organization (e.g., "Instruments", "Vocals")
-    category = Column(String(100), nullable=True)
-
-    created_at = Column(DateTime, server_default=func.now())
-    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
-
-    # Define relationships
-    manifest = relationship("ManifestModel", back_populates="rules")
+    # Relationships
+    manifest: ManifestModel = Relationship(back_populates="rules")
 
     @property
     def required_tags(self) -> Dict[str, Any]:
