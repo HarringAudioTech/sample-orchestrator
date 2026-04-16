@@ -19,16 +19,16 @@ WORKDIR /build
 RUN --mount=type=secret,id=GH_PAT \
     export TOKEN=$(grep '^GH_PAT=' /run/secrets/GH_PAT | sed 's/^GH_PAT=//') && \
     pip install --prefix=/install \
-    fastapi==0.115.0 \
-    "uvicorn[standard]==0.34.0" \
-    sqlmodel==0.0.16 \
+    fastapi==0.136.0 \
+    "uvicorn[standard]==0.44.0" \
+    sqlmodel==0.0.38 \
     soundcard==0.4.3 \
     torch==2.11.0 \
     torchaudio==2.11.0 \
     jinja2==3.1.3 \
     python-multipart==0.0.26 \
     mido==1.3.3 \
-    requests==2.32.3 \
+    requests==2.33.1 \
     numpy>=2.4.4 \
     librosa>=0.11.0 \
     pedalboard>=0.9.22 \
