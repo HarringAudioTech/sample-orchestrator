@@ -26,7 +26,7 @@ RUN --mount=type=secret,id=GH_PAT \
     torch==2.11.0 \
     torchaudio==2.11.0 \
     jinja2==3.1.3 \
-    python-multipart==0.0.9 \
+    python-multipart==0.0.20 \
     mido==1.3.3 \
     requests==2.32.3 \
     numpy>=2.4.4 \
