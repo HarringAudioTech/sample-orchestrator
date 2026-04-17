@@ -23,6 +23,7 @@
             <thead>
                 <tr>
                     <th>ID</th>
+                    <th>Name</th>
                     <th>File Path</th>
                     <th>Actions</th>
                 </tr>
@@ -31,9 +32,11 @@
                 {% for sample in samples %}
                     <tr>
                         <td>{{ sample.id }}</td>
+                        <td>{{ sample.name }}</td>
                         <td>{{ sample.file_path }}</td>
                         <td>
-                            <a href="{{ url_for('data_bp.view_sample', sample_id=sample.id) }}" class="btn btn-sm btn-info">View</a>
+                            <a href="{{ url_for('view_sample', project_id=recording.project_id, sample_id=sample.id) }}" class="btn btn-sm btn-info">View</a>
+
                         </td>
                     </tr>
                 {% endfor %}
@@ -43,6 +46,6 @@
         <p>No samples found for this recording.</p>
     {% endif %}
 
-    <a href="{{ url_for('ui_bp.dashboard', project_id=recording.project_id) }}" class="btn btn-secondary">Back to Dashboard</a>
+    <a href="{{ url_for('dashboard', project_id=recording.project_id) }}" class="btn btn-secondary">Back to Dashboard</a>
 </div>
 {% endblock %}

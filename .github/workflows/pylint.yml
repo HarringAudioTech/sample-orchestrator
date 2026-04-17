@@ -17,10 +17,12 @@ jobs:
     - name: Install Poetry
       run: |
         pip install poetry
-    - name: Install PortAudio system dependencies
+    - name: Install system dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y libportaudio2 libportaudiocpp0 portaudio19-dev
+        sudo apt-get install -y libportaudio2 libportaudiocpp0 portaudio19-dev libsndfile1-dev ffmpeg libasound2-dev build-essential
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
     - name: Configure Git credentials
       run: |
         git config --global url."https://x-access-token:${{ secrets.GH_PAT }}@github.com/".insteadOf "https://github.com/"

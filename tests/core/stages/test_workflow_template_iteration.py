@@ -8,7 +8,15 @@ def test_workflow_template_iteration():
     template = env.get_template("process_recording.html")
 
     workflows = WORKFLOW_REGISTRY.copy()
-    workflows_instances = {name: workflow_class() for name, workflow_class in workflows.items()}
+    workflows_instances = {}
+    for name, workflow_class in workflows.items():
+        try:
+            # Try to instantiate without args first (for legacy compatibility if any)
+            workflows_instances[name] = workflow_class()
+        except TypeError:
+            # Handle workflows that require a db_session (like SamplePackWorkflow)
+            from unittest.mock import MagicMock
+            workflows_instances[name] = workflow_class(db_session=MagicMock())
 
     # We mock project, recording, and stages as they are needed for the template to compile without failing
     class MockProject: id = 1; name = "test"

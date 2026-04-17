@@ -75,13 +75,10 @@ class TestStageProperties:
 
 class TestRegistration:
     def test_stage_is_registered(self):
-        from src.core.processing_stages import _registered_stages
+        from src.core.stage_runner import STAGE_REGISTRY
 
         # The import of the module triggers registration.
-        # Note: register_stage uses stage_class.name which accesses the
-        # property descriptor on the class, so check that our class is
-        # among the registered values.
-        assert LoopDetectionStage in _registered_stages.values()
+        assert LoopDetectionStage in STAGE_REGISTRY.values()
 
 
 # ---------------------------------------------------------------------------

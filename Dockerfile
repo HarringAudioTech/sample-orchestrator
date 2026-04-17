@@ -7,7 +7,7 @@ ENV PYTHONUNBUFFERED=1
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc g++ curl libasound2-dev libsndfile1-dev \
+    gcc g++ curl libasound2-dev libsndfile1-dev portaudio19-dev git \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -16,15 +16,24 @@ WORKDIR /build
 
 # Install dependencies into a temporary directory
 # This allows us to copy only the site-packages to the final image
-RUN pip install --prefix=/install \
-    Flask==3.0.2 \
-    flask-cors==4.0.0 \
-    sqlalchemy==2.0.28 \
-    mido==1.3.2 \
-    requests==2.32.3 \
-    numpy>=2.0.0 \
-    librosa>=0.10.1 \
-    pedalboard>=0.9.22
+RUN --mount=type=secret,id=GH_PAT \
+    export TOKEN=$(grep '^GH_PAT=' /run/secrets/GH_PAT | sed 's/^GH_PAT=//') && \
+    pip install --prefix=/install \
+    fastapi==0.136.0 \
+    "uvicorn[standard]==0.44.0" \
+    sqlmodel==0.0.38 \
+    soundcard==0.4.3 \
+    torch==2.11.0 \
+    torchaudio==2.11.0 \
+    jinja2==3.1.3 \
+    python-multipart==0.0.26 \
+    mido==1.3.3 \
+    requests==2.33.1 \
+    numpy>=2.4.4 \
+    librosa>=0.11.0 \
+    pedalboard>=0.9.22 \
+    "amanuensis @ git+https://${TOKEN}@github.com/HarringAudioTech/amanuensis.git@v0.3" \
+    "patchlab @ git+https://${TOKEN}@github.com/HarringAudioTech/patchlab.git@v0.1#subdirectory=patchlab-python"
 
 # Stage 2: Runtime stage
 FROM python:3.14-slim
@@ -36,7 +45,7 @@ ENV PYTHONPATH=/usr/local/lib/python3.14/site-packages
 
 # Install runtime system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl libasound2 ffmpeg libsndfile1 \
+    curl libasound2 libportaudio2 ffmpeg libsndfile1 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -53,7 +62,7 @@ COPY src/ ./src/
 RUN mkdir -p /app/data
 
 # Expose the port the app runs on
-EXPOSE 5000
+EXPOSE 5001
 
 # Define the command to run the application
 CMD ["python", "-m", "src.app"]

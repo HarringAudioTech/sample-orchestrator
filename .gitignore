@@ -177,3 +177,9 @@ cython_debug/
 .pypirc
 .venv/
 .venv_test/
+
+# Application data
+data/
+file:testdb*
+*.db
+*.db-journal

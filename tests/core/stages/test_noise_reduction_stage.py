@@ -8,7 +8,7 @@ import logging
 from typing import Dict, Any, List, cast
 from _pytest.logging import LogCaptureFixture  # For caplog fixture type
 
-from src.core.processing_stages import DATA_TYPE_AUDIO_BUFFER_MONO
+from src.core.stage_runner import DATA_TYPE_AUDIO_BUFFER_MONO
 from src.core.stages.noise_reduction_stage import NoiseReductionStage
 
 logger = logging.getLogger(__name__)

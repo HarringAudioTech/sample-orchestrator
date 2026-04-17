@@ -64,8 +64,8 @@ class ProjectManager:
             OSError: If directory creation fails
             ValueError: If project_type is invalid
         """
-        if project_type not in ["sample_pack", "virtual_instrument"]:
-            raise ValueError(f"Invalid project_type: {project_type}. Must be 'sample_pack' or 'virtual_instrument'")
+        if project_type not in ["sample_pack", "virtual_instrument", "construction_kit"]:
+            raise ValueError(f"Invalid project_type: {project_type}. Must be 'sample_pack', 'virtual_instrument', or 'construction_kit'")
             
         # Determine base directory
         if base_dir is None and app_config is not None:

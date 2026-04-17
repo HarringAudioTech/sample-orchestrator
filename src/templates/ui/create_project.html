@@ -1,42 +1,63 @@
 {% extends "base.html" %}
+{% import "macros/ui.html" as ui %}
 
-{% block title %}Create New Project - Orchestrator UI{% endblock %}
+{% block title %}Create New Project - Sample Orchestrator{% endblock %}
 
 {% block content %}
-  {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-      <ul class=flashes>
-      {% for category, message in messages %}
-        <li class="{{ category }}">{{ message }}</li>
-      {% endfor %}
-      </ul>
-    {% endif %}
-  {% endwith %}
+<div class="max-w-2xl mx-auto">
+    <div class="mb-8">
+        <h1 class="text-4xl font-extrabold text-base-content tracking-tight mb-2">Create New Project</h1>
+        <p class="text-base-content/60">Define the parameters for your new audio sampling project.</p>
+    </div>
 
-<h2>Create New Sampling Project</h2>
-<form action="{{ url_for('ui_bp.create_project_submit') }}" method="post">
-    <div>
-        <label for="project_name">Project Name:</label>
-        <input type="text" id="project_name" name="project_name" required>
-    </div>
-    <div>
-        <label for="project_description">Description:</label>
-        <textarea id="project_description" name="project_description" rows="4"></textarea>
-    </div>
-    <div>
-        <label for="project_type">Project Type:</label>
-        <select id="project_type" name="project_type" class="form-select">
-            {% for type in project_types %}
-            <option value="{{ type }}" {% if type == selected_type %}selected{% endif %}>
-                {{ type | replace('_', ' ') | title }}
-            </option>
-            {% endfor %}
-        </select>
-    </div>
-    <div>
-        <label for="config_file">Configuration File (Optional):</label>
-        <input type="file" id="config_file" name="config_file">
-    </div>
-    <button type="submit">Create Project</button>
-</form>
+    {% call ui.card(body_class="p-0 overflow-hidden") %}
+        <form action="{{ url_for('create_project_submit') }}" method="post" class="p-8 space-y-6">
+            {{ ui.text_input(
+                "project_name", 
+                label="Project Name", 
+                placeholder="e.g. Vintage Upright Piano", 
+                value=project_name if project_name else "",
+                required=True,
+                help_text="A unique name to identify your project."
+            ) }}
+
+            <div class="form-control w-full">
+                <label class="label">
+                    <span class="label-text font-semibold">Description</span>
+                </label>
+                <textarea name="project_description" 
+                          placeholder="Describe the instrument, recording environment, or specific goal..." 
+                          class="textarea textarea-bordered h-32 text-base"
+                >{{ project_description if project_description else "" }}</textarea>
+                <label class="label">
+                    <span class="label-text-alt text-base-content/60">Optional: helpful for future reference.</span>
+                </label>
+            </div>
+
+            {{ ui.select_input(
+                "project_type", 
+                options=project_types,
+                label="Project Type",
+                selected_value=selected_type,
+                required=True,
+                help_text="The workflow used to process your recordings."
+            ) }}
+
+            <div class="form-control w-full">
+                <label class="label">
+                    <span class="label-text font-semibold">Configuration File (Optional)</span>
+                </label>
+                <input type="file" name="config_file" class="file-input file-input-bordered w-full" />
+                <label class="label">
+                    <span class="label-text-alt text-base-content/60">Upload a JSON configuration if you have one.</span>
+                </label>
+            </div>
+
+            <div class="pt-6 flex flex-col sm:flex-row gap-3">
+                {{ ui.button("Create Project", type="submit", class="btn-primary flex-1 shadow-lg") }}
+                {{ ui.button("Cancel", href=url_for('index'), class="btn-ghost") }}
+            </div>
+        </form>
+    {% endcall %}
+</div>
 {% endblock %}

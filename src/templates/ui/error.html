@@ -5,5 +5,5 @@
 {% block content %}
   <h2>Error {% if error and error.code %}{{ error.code }}{% else %}Encountered{% endif %}</h2>
   <p>{{ error.description if error and error.description else 'An unexpected error occurred.' }}</p>
-  <p><a href="{{ url_for('ui_bp.index') }}">Go to Homepage</a></p>
+  <p><a href="{{ url_for('index') }}">Go to Homepage</a></p>
 {% endblock %}

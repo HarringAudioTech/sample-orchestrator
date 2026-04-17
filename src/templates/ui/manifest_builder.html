@@ -6,8 +6,8 @@
 <div class="container mt-4">
     <nav aria-label="breadcrumb">
         <ol class="breadcrumb">
-            <li class="breadcrumb-at"><a href="{{ url_for('ui_bp.index') }}">Projects</a></li>
-            <li class="breadcrumb-item"><a href="{{ url_for('ui_bp.dashboard', project_id=project.id) }}">{{ project.name }}</a></li>
+            <li class="breadcrumb-at"><a href="{{ url_for('index') }}">Projects</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('dashboard', project_id=project.id) }}">{{ project.name }}</a></li>
             <li class="breadcrumb-item active" aria-current="page">Manifest Builder</li>
         </ol>
     </nav>
@@ -18,7 +18,7 @@
             <p class="text-muted">Define the required assets for your Construction Kit.</p>
         </div>
         <div class="col-auto">
-            <a href="{{ url_for('ui_bp.manifest_status', project_id=project.id) }}" class="btn btn-info">
+            <a href="{{ url_for('manifest_status', project_id=project.id) }}" class="btn btn-info">
                 <i class="bi bi-grid-3x3-gap"></i> View Status
             </a>
         </div>
@@ -96,19 +96,21 @@
                             </tr>
                         </thead>
                         <tbody id="rules_body">
-                            {% for rule in manifest.rules %}
-                            <tr class="rule-row">
-                                <td><input type="text" class="form-control form-control-sm rule-name" value="{{ rule.name }}"></td>
-                                <td><input type="text" class="form-control form-control-sm rule-category" value="{{ rule.category }}"></td>
-                                <td><input type="text" class="form-control form-control-sm rule-tags" value='{{ rule.required_tags_json }}'></td>
-                                <td><input type="number" class="form-control form-control-sm rule-count" value="{{ rule.target_count }}" min="1"></td>
-                                <td class="text-end">
-                                    <button type="button" class="btn btn-sm btn-outline-danger btn-remove-rule">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </td>
-                            </tr>
-                            {% endfor %}
+                            {% if manifest.rules %}
+                                {% for rule in manifest.rules %}
+                                <tr class="rule-row">
+                                    <td><input type="text" class="form-control form-control-sm rule-name" value="{{ rule.name }}"></td>
+                                    <td><input type="text" class="form-control form-control-sm rule-category" value="{{ rule.category }}"></td>
+                                    <td><input type="text" class="form-control form-control-sm rule-tags" value='{{ rule.required_tags_json }}'></td>
+                                    <td><input type="number" class="form-control form-control-sm rule-count" value="{{ rule.target_count }}" min="1"></td>
+                                    <td class="text-end">
+                                        <button type="button" class="btn btn-sm btn-outline-danger btn-remove-rule">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% endif %}
                         </tbody>
                     </table>
                 </div>

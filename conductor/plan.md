@@ -1,40 +1,47 @@
-# Implementation Plan: Loop Generation Integration
+# Implementation Plan: Modern Python Audio Stack Migration (2026)
 
-## Phase 1: Environment and Dependencies
-- [x] Task: Add `amanuensis` and `patchlab` as local pip editable dependencies in `pyproject.toml` (e.g. `pip install -e ../amanuensis`).
-- [x] Task: Ensure the development environment can successfully import both `amanuensis` and `patchlab-python`.
+## Objective
+Perform a complete architectural rewrite of the Sample Orchestrator backend and audio engine. We are migrating from the legacy Flask/SQLAlchemy/PyAudio stack to a modern, high-performance "Power Trio" stack utilizing **FastAPI**, **SQLModel**, **SoundCard**, **Pedalboard**, and **PyTorch**. 
 
-## Phase 2: Amanuensis Integration (MIDI Generation)
-- [x] Task: Create a service/wrapper in `src/core/` to interface with Amanuensis.
-- [x] Task: Review and adapt the logic from `amanuensis/session_output/batch_loops.py` and `batch_kits.py` as the reference for generating the target MIDI lines.
-- [x] Task: Implement generation of single-track monophonic MIDI loops (e.g., basslines, leads) using the reference logic.
-- [x] Task: Implement generation of single-track polyphonic MIDI loops (e.g., chord progressions) using the reference logic.
-- [x] Task: Add variations generation logic utilizing Amanuensis capabilities.
-- [x] Task: Verify output MIDI files are correctly generated and stored.
+This is a **"Big Bang"** rewrite as requested, meaning the entire application will be transitioned in one major coordinated effort.
 
-## Phase 3: Synthesizer Manipulation & Python Audio Recording
-- [x] Task: Create a service/wrapper in `src/core/` to interface with Patchlab solely for patch loading and parameter control.
-- [x] Task: Build out robust audio recording infrastructure within Sample Orchestrator using Python (e.g., PyAudio/Soundfile).
-- [x] Task: Coordinate Patchlab (to control the synth) and Amanuensis (to send MIDI), while Sample Orchestrator captures the resulting audio directly.
-- [x] Task: Verify the Python-based audio capture accurately records the monophonic and polyphonic phrases without relying on Patchlab's vestigial capture.
+## Scope & Impact
+- **Web Framework:** Replace Flask and Flask-CORS with FastAPI and Uvicorn.
+- **ORM & Validation:** Replace SQLAlchemy with SQLModel for unified data modeling, eliminating redundant Pydantic models or manual serialization functions (e.g., `model_to_dict`).
+- **Audio I/O:** Replace PyAudio with SoundCard for modern, cross-platform audio capture and playback without complex C-extensions.
+- **Audio Processing:** Integrate Pedalboard and PyTorch for advanced DSP, neural audio, and significantly faster processing pipelines, deprecating manual Librosa/NumPy loops where applicable.
+- **Impact:** The application will be temporarily non-functional during the rewrite phase. All API routes, UI templates, database schemas, and core audio logic must be updated to align with the new asynchronous, type-safe paradigms.
 
-## Phase 4: Output Organization
-- [x] Task: Update the export pipeline to save generated audio loops alongside their source MIDI files.
-- [x] Task: Implement metadata tagging (tempo, key, loop type) for the new loops.
-- [x] Task: Verify output directory structures and ensure they are ready for future "Construction Kit" enhancements.
+## Implementation Steps
 
-## Phase 5: Construction Kit Spectral EQ Pass
-- [ ] Task: Create a utility (e.g., `src/core/spectral_eq.py`) to analyze and process audio stems within a section directory.
-- [ ] Task: Implement spectral analysis using `librosa` to compute the average frequency power across bands for all stems in a section.
-- [ ] Task: Develop logic to detect frequency masking between stems and generate dynamic EQ curves (using `pedalboard` filters like `PeakFilter` or `HighpassFilter`/`LowpassFilter`) to attenuate overlapping frequencies.
-- [ ] Task: Prioritize frequencies based on instrument roles inferred from the filename or tags (e.g., Bass gets priority in low frequencies, Lead in mids/highs).
-- [ ] Task: Integrate the EQ pass into `src/core/construction_kit_exporter.py` so that all `.wav` files within a `Song_Name/Section_Name` directory are processed together before the final zip archive is created.
-- [ ] Task: Validate the resulting stems have improved separation and sit well together without significant masking.
+### Phase 1: Environment & Dependencies
+- [ ] Update `pyproject.toml` and `Dockerfile` to remove legacy dependencies (`Flask`, `pyaudio`, `sqlalchemy` direct usage).
+- [ ] Add modern dependencies: `fastapi`, `uvicorn`, `sqlmodel`, `soundcard`, `torch`, `torchaudio`, and ensure `jinja2` and `python-multipart` are included for UI/Form support.
+- [ ] Rebuild the Docker environment and synchronize lockfiles.
 
-## Phase 6: Python 3.14 & Distroless Docker Upgrade
-- [x] Task: Update Python version requirement from `3.12` to `3.14` in `.python-version`.
-- [x] Task: Update `python = "^3.12"` to `python = "^3.14"` in `pyproject.toml`.
-- [ ] Task: Update Poetry lockfile (`poetry update`) and uv lockfile (`uv lock`) to reflect the new Python 3.14 requirement.
-- [x] Task: Update `Dockerfile` to use `FROM python:3.14-slim` to reduce footprint while supporting `apt-get` system dependencies like `ffmpeg` and `libasound2-dev`.
-- [x] Task: Update `Dockerfile.test` to use `FROM python:3.14-slim`.
-- [x] Task: Update `README.md` to reflect the Python 3.14 requirement and document the current slim Docker setup.
+### Phase 2: Data Model Rewrite (SQLModel)
+- [ ] Rewrite `src/database/models.py` to inherit from `sqlmodel.SQLModel`. 
+- [ ] Convert SQLAlchemy relationships to SQLModel relationship attributes, ensuring proper type hinting (e.g., `List["RecordingModel"]`).
+- [ ] Update `src/database/utils.py` to initialize the database using `sqlmodel.create_engine` and manage `sqlmodel.Session`.
+
+### Phase 3: Core Audio Engine Rewrite
+- [ ] Rewrite `src/core/audio_recorder.py` to replace `pyaudio` logic with `soundcard`. Implement async-friendly capture loops if possible.
+- [ ] Update `src/core/loop_orchestrator.py` to handle the new `soundcard` interface and integrate `pedalboard` for any inline processing (e.g., applying effects during capture or playback).
+- [ ] Prepare the `IntelligentSlicingStage` to eventually utilize PyTorch models for neural onset detection or source separation.
+
+### Phase 4: API & UI Routing Rewrite (FastAPI)
+- [ ] Rewrite `src/api/routes.py` using `fastapi.APIRouter`. 
+  - [ ] Replace Flask request parsing (`request.get_json()`, `request.files`) with FastAPI dependency injection (`Body`, `UploadFile`, `Depends(get_db)`).
+  - [ ] Utilize SQLModel classes directly as `response_model` schemas, completely removing the custom `model_to_dict` function.
+- [ ] Rewrite `src/ui/routes.py` to use `fastapi.templating.Jinja2Templates`. Ensure the `request` object is passed to all template rendering calls as required by FastAPI.
+- [ ] Rewrite `src/app.py` to initialize the `FastAPI` application, mount static files (`StaticFiles`), configure CORS middleware, and include the routers.
+
+### Phase 5: Testing & Validation
+- [ ] Update integration tests in `tests/` to use FastAPI's `TestClient` instead of the Flask test client.
+- [ ] Perform manual end-to-end testing:
+  - [ ] Verify the UI (Tailwind/DaisyUI) renders correctly via FastAPI templates.
+  - [ ] Verify audio upload and processing via SoundCard/Pedalboard.
+  - [ ] Verify database CRUD operations via SQLModel.
+
+## Migration & Rollback
+Given this is a "Big Bang" rewrite, rollback involves reverting the git repository to the state prior to Phase 1. Database schema changes may require a fresh `app.db` initialization in the development environment.

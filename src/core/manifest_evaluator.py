@@ -15,7 +15,9 @@ from src.database.models import (
     MidiFileModel, 
     ManifestRuleModel, 
     ManifestModel,
-    ProjectModel
+    ProjectModel,
+    RecordingModel,
+    MidiCaptureSessionModel
 )
 
 logger = logging.getLogger(__name__)
@@ -51,7 +53,7 @@ class ManifestEvaluator:
                 "error": "No manifest found for this project"
             }
 
-        rules = manifest.rules
+        rules = self.db.query(ManifestRuleModel).filter(ManifestRuleModel.manifest_id == manifest.id).all()
         if not rules:
             return {
                 "total_progress": 100,
@@ -61,14 +63,12 @@ class ManifestEvaluator:
             }
 
         # 2. Fetch all samples and MIDI files for the project
-        # Note: Samples are linked to recordings which are linked to projects
-        # MIDI files are linked to capture sessions which are linked to projects
-        samples = self.db.query(SampleModel).join(SampleModel.recording).filter(
-            SampleModel.recording.has(project_id=project_id)
+        samples = self.db.query(SampleModel).join(RecordingModel).filter(
+            RecordingModel.project_id == project_id
         ).all()
         
-        midi_files = self.db.query(MidiFileModel).join(MidiFileModel.capture_session).filter(
-            MidiFileModel.capture_session.has(project_id=project_id)
+        midi_files = self.db.query(MidiFileModel).join(MidiCaptureSessionModel).filter(
+            MidiCaptureSessionModel.project_id == project_id
         ).all()
 
         # 3. Initialize rule results
@@ -79,11 +79,20 @@ class ManifestEvaluator:
         }
 
         for rule in rules:
+            # Ensure we have a rule object, not a tuple (sometimes happens in join queries)
+            if isinstance(rule, tuple):
+                rule = rule[0]
+                
             matching_samples = []
             matching_midi = []
             
             # Extract tags for matching
             required_tags = rule.required_tags
+            if isinstance(required_tags, str):
+                try:
+                    required_tags = json.loads(required_tags)
+                except json.JSONDecodeError:
+                    required_tags = {}
             
             # Match samples
             for sample in samples:

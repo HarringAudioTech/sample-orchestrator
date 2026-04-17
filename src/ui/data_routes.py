@@ -1,45 +1,52 @@
-"""Data-related UI routes for the sample orchestrator application."""
+"""Data-related UI routes for the sample orchestrator using FastAPI and SQLModel."""
 
-import datetime
-from flask import render_template, abort, Blueprint
+from datetime import datetime
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
+from sqlmodel import Session, select
+
 from src.database.utils import get_db
 from src.database.models import RecordingModel, SampleModel
 
-data_bp = Blueprint(
-    "data_bp",
-    __name__,
-    template_folder="../templates/ui",  # Points to src/templates/ui
-)
+templates = Jinja2Templates(directory="src/templates")
+data_router = APIRouter(prefix="/ui/projects/{project_id}", tags=["Data"])
 
-@data_bp.route("/recordings/<int:recording_id>")
-def view_recording(recording_id: int) -> str:
+@data_router.get("/recordings/{recording_id}", response_class=HTMLResponse)
+async def view_recording(project_id: int, recording_id: int, request: Request, db: Session = Depends(get_db)):
     """Renders the page for viewing a single recording and its samples."""
-    with get_db() as db:
-        recording = db.query(RecordingModel).filter(RecordingModel.id == recording_id).first()
-        if not recording:
-            abort(404, description=f"Recording with ID {recording_id} not found.")
+    recording = db.get(RecordingModel, recording_id)
+    if not recording:
+        raise HTTPException(status_code=404, detail=f"Recording with ID {recording_id} not found.")
 
-        samples = db.query(SampleModel).filter(SampleModel.recording_id == recording_id).all()
+    # Explicitly query for samples
+    statement = select(SampleModel).where(SampleModel.recording_id == recording_id)
+    samples = db.exec(statement).all()
 
-        return render_template(
-            "view_recording.html",
-            title=f"Recording - {recording.name}",
-            recording=recording,
-            samples=samples,
-            now=datetime.datetime.now()
-        )
+    return templates.TemplateResponse(
+        request=request,
+        name="ui/view_recording.html",
+        context={
+            "title": f"Recording - {recording.name}",
+            "recording": recording,
+            "samples": samples,
+            "now": datetime.utcnow()
+        }
+    )
 
-@data_bp.route("/samples/<int:sample_id>")
-def view_sample(sample_id: int) -> str:
+@data_router.get("/samples/{sample_id}", response_class=HTMLResponse)
+async def view_sample(sample_id: int, request: Request, db: Session = Depends(get_db)):
     """Renders the page for viewing a single sample."""
-    with get_db() as db:
-        sample = db.query(SampleModel).filter(SampleModel.id == sample_id).first()
-        if not sample:
-            abort(404, description=f"Sample with ID {sample_id} not found.")
+    sample = db.get(SampleModel, sample_id)
+    if not sample:
+        raise HTTPException(status_code=404, detail=f"Sample with ID {sample_id} not found.")
 
-        return render_template(
-            "view_sample.html",
-            title=f"Sample - {sample.id}",
-            sample=sample,
-            now=datetime.datetime.now()
-        )
+    return templates.TemplateResponse(
+        request=request,
+        name="ui/view_sample.html",
+        context={
+            "title": f"Sample - {sample.id}",
+            "sample": sample,
+            "now": datetime.utcnow()
+        }
+    )

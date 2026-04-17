@@ -7,27 +7,48 @@ readme = "README.md"
 packages = [{ include = "src" }]
 
 [tool.poetry.dependencies]
-python = "^3.14"
-librosa = "^0.10.1"
-mido = "^1.3.2"
-pyaudio = "*"
-Flask = "^3.0.2"
-numpy = "^2.0.0"
-requests = "^2.32.3"
-flask-cors = "^4.0.0"
-sqlalchemy = "^2.0.28"
+python = ">=3.14,<3.15"
+fastapi = "^0.136.0"
+uvicorn = {extras = ["standard"], version = "^0.44.0"}
+sqlmodel = "^0.0.38"
+soundcard = "^0.4.3"
+torch = "^2.11.0"
+torchaudio = "^2.11.0"
+jinja2 = "^3.1.3"
+python-multipart = "^0.0.26"
+librosa = "^0.11.0"
+mido = "^1.3.3"
+numpy = "^2.4.4"
+requests = "^2.33.1"
 pedalboard = "^0.9.22"
-amanuensis = { git = "https://github.com/HarringAudioTech/amanuensis.git", branch = "trunk" }
+amanuensis = { git = "https://github.com/HarringAudioTech/amanuensis.git", tag = "v0.3" }
 patchlab = { git = "https://github.com/HarringAudioTech/patchlab.git", tag = "v0.1", subdirectory = "patchlab-python" }
 
 [tool.poetry.group.dev.dependencies]
-pytest = "^8.3.5"
-pylint = ">=3.3.7,<4.0.0"
+pytest = "^9.0.0"
+pylint = "^4.0.0"
 black = ">=26.3.1"
 autopep8 = ">=2.3.2,<3.0.0"
 pre-commit = "^4.2.0"
 flake8 = "^7.2.0"
 pytest-mock = "*"
+
+[tool.pylint.messages_control]
+disable = [
+    "C0114", # missing-module-docstring
+    "C0115", # missing-class-docstring
+    "C0116", # missing-function-docstring
+    "R0903", # too-few-public-methods
+    "W1203", # logging-fstring-interpolation
+    "E1102", # not-callable (false positive for func.now)
+    "E1101", # no-member (false positive for SQLModel/Alchemy members)
+]
+
+[tool.pylint.format]
+max-line-length = 120
+
+[tool.pylint.similarities]
+min-similarity-lines = 15
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

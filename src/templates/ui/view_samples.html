@@ -4,7 +4,7 @@
 
 {% block content %}
 <h2>Samples for Recording: {{ recording.name }}</h2>
-<p><strong>Project:</strong> <a href="{{ url_for('ui_bp.dashboard', project_id=project.id) }}">{{ project.name }}</a></p>
+<p><strong>Project:</strong> <a href="{{ url_for('dashboard', project_id=project.id) }}">{{ project.name }}</a></p>
 
 {% if samples %}
     <h3>Generated Samples</h3>
@@ -28,8 +28,8 @@
                 <td>{{ "%.2f"|format(sample.end_time_seconds) }}</td>
                 <td>{{ sample.midi_pitch if sample.midi_pitch is not none else 'N/A' }}</td>
                 <td>
-                    <a href="{{ url_for('ui_bp.view_sample', sample_id=sample.id) }}" class="btn btn-sm btn-primary">View</a>
-                    <a href="{{ url_for('static', filename='../' + sample.file_path) }}" download class="btn btn-sm btn-success">Download</a>
+                    <a href="{{ url_for('view_sample', sample_id=sample.id) }}" class="btn btn-sm btn-primary">View</a>
+                    <a href="{{ url_for('static', path='../' + sample.file_path) }}" download class="btn btn-sm btn-success">Download</a>
                     <!-- Add a play button if audio playback is implemented -->
                 </td>
             </tr>
@@ -41,5 +41,5 @@
 {% endif %}
 
 <hr>
-<p><a href="{{ url_for('ui_bp.dashboard', project_id=project.id) }}" class="btn btn-secondary">Back to Dashboard</a></p>
+<p><a href="{{ url_for('dashboard', project_id=project.id) }}" class="btn btn-secondary">Back to Dashboard</a></p>
 {% endblock %}
