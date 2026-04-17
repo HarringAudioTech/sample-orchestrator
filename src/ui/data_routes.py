@@ -24,9 +24,9 @@ async def view_recording(project_id: int, recording_id: int, request: Request, d
     samples = db.exec(statement).all()
 
     return templates.TemplateResponse(
-        "ui/view_recording.html",
-        {
-            "request": request,
+        request=request,
+        name="ui/view_recording.html",
+        context={
             "title": f"Recording - {recording.name}",
             "recording": recording,
             "samples": samples,
@@ -42,9 +42,9 @@ async def view_sample(sample_id: int, request: Request, db: Session = Depends(ge
         raise HTTPException(status_code=404, detail=f"Sample with ID {sample_id} not found.")
 
     return templates.TemplateResponse(
-        "ui/view_sample.html",
-        {
-            "request": request,
+        request=request,
+        name="ui/view_sample.html",
+        context={
             "title": f"Sample - {sample.id}",
             "sample": sample,
             "now": datetime.utcnow()

@@ -56,8 +56,9 @@ async def manifest_builder(project_id: int, request: Request, db: Session = Depe
         db.refresh(manifest)
 
     return templates.TemplateResponse(
-        "ui/manifest_builder.html",
-        {"request": request, "project": project, "manifest": manifest, "now": datetime.utcnow()}
+        request=request,
+        name="ui/manifest_builder.html",
+        context={"project": project, "manifest": manifest, "now": datetime.utcnow()}
     )
 
 @manifest_router.post("/builder")
@@ -124,9 +125,9 @@ async def manifest_status(project_id: int, request: Request, db: Session = Depen
     results = evaluator.evaluate_project(project_id)
     
     return templates.TemplateResponse(
-        "ui/manifest_status.html",
-        {
-            "request": request,
+        request=request,
+        name="ui/manifest_status.html",
+        context={
             "project": project,
             "results": results,
             "render_configs": render_configs,

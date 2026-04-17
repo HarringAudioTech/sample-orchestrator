@@ -32,8 +32,9 @@ async def index(request: Request, db: Session = Depends(get_db)):
     statement = select(ProjectModel).order_by(ProjectModel.created_at.desc())
     projects = db.exec(statement).all()
     return templates.TemplateResponse(
-        "ui/project_list.html", 
-        {"request": request, "title": "My Projects", "projects": projects, "now": datetime.utcnow()}
+        request=request,
+        name="ui/project_list.html", 
+        context={"title": "My Projects", "projects": projects, "now": datetime.utcnow()}
     )
 
 @ui_router.get("/projects/new", response_class=HTMLResponse)
@@ -44,9 +45,9 @@ async def create_project_form(request: Request):
         (t.value, t.value.replace('_', ' ').title()) for t in ProjectType
     ]
     return templates.TemplateResponse(
-        "ui/create_project.html", 
-        {
-            "request": request, 
+        request=request,
+        name="ui/create_project.html", 
+        context={
             "title": "Create Project",
             "now": datetime.utcnow(),
             "project_types": project_types_formatted,
@@ -89,9 +90,9 @@ async def dashboard(project_id: int, request: Request, db: Session = Depends(get
     recordings = db.exec(statement).all()
     
     return templates.TemplateResponse(
-        "ui/dashboard.html", 
-        {
-            "request": request, 
+        request=request,
+        name="ui/dashboard.html", 
+        context={
             "project": project, 
             "recordings": recordings,
             "now": datetime.utcnow()
@@ -102,8 +103,9 @@ async def dashboard(project_id: int, request: Request, db: Session = Depends(get
 async def styleguide(request: Request):
     """Renders the design system styleguide."""
     return templates.TemplateResponse(
-        "ui/styleguide.html",
-        {"request": request, "title": "Design System Styleguide", "now": datetime.utcnow()}
+        request=request,
+        name="ui/styleguide.html",
+        context={"title": "Design System Styleguide", "now": datetime.utcnow()}
     )
 
 @ui_router.get("/projects/{project_id}/import_audio", response_class=HTMLResponse)
@@ -114,9 +116,9 @@ async def import_project_audio_ui(project_id: int, request: Request, db: Session
         raise HTTPException(status_code=404, detail="Project not found")
         
     return templates.TemplateResponse(
-        "ui/import_audio.html",
-        {
-            "request": request,
+        request=request,
+        name="ui/import_audio.html",
+        context={
             "project_id": project.id,
             "project_name": project.name,
             "now": datetime.utcnow()
@@ -130,8 +132,9 @@ async def loop_generation_ui(project_id: int, request: Request, db: Session = De
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     return templates.TemplateResponse(
-        "ui/loop_generation.html", 
-        {"request": request, "project": project, "now": datetime.utcnow()}
+        request=request,
+        name="ui/loop_generation.html", 
+        context={"project": project, "now": datetime.utcnow()}
     )
 
 @ui_router.get("/projects/{project_id}/dspreset_settings", response_class=HTMLResponse)
@@ -145,8 +148,9 @@ async def dspreset_settings_form(project_id: int, request: Request, db: Session 
         raise HTTPException(status_code=403, detail="DSPreset settings only available for virtual instruments")
 
     return templates.TemplateResponse(
-        "ui/dspreset_settings.html", 
-        {"request": request, "project": project, "now": datetime.utcnow()}
+        request=request,
+        name="ui/dspreset_settings.html", 
+        context={"project": project, "now": datetime.utcnow()}
     )
 
 @ui_router.post("/projects/{project_id}/dspreset_settings")
@@ -170,6 +174,7 @@ async def dspreset_settings_submit(
 async def process_recording_ui(project_id: int, recording_id: int, request: Request):
     """Stub for recording processing UI."""
     return templates.TemplateResponse(
-        "ui/process_recording.html", 
-        {"request": request, "project_id": project_id, "recording_id": recording_id, "now": datetime.utcnow()}
+        request=request,
+        name="ui/process_recording.html", 
+        context={"project_id": project_id, "recording_id": recording_id, "now": datetime.utcnow()}
     )
