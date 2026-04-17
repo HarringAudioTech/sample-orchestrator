@@ -24,19 +24,12 @@ STAGE_REGISTRY: Dict[str, Type] = {}
 
 def register_stage(stage_class: Type) -> Type:
     """Registers a stage class in the registry."""
-    # Create an instance to access the name property if it's not a class property
-    # In our implementation, name is a property of the class instance
     try:
-        # Try to get name from the class itself if defined as @property @classmethod 
-        # or just a class attribute. If it's a regular @property, we need an instance.
-        stage_name = getattr(stage_class, "name", None)
-        if callable(stage_name):
-             stage_name = stage_name()
-        
-        if not stage_name:
-            # Fallback: create a dummy instance to get the name
-            # This assumes __init__ doesn't require complex arguments
-            # If it does, we might need a different registration mechanism
+        # Try to get name from the class attribute or a property on an instance
+        if hasattr(stage_class, "name") and not isinstance(getattr(stage_class, "name"), property):
+            stage_name = stage_class.name
+        else:
+            # Create a dummy instance to get the name
             instance = stage_class()
             stage_name = instance.name
             
