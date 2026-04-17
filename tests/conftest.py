@@ -20,19 +20,24 @@ sys.modules['patchlab'] = unittest.mock.MagicMock()
 
 @pytest.fixture(name="engine")
 def engine_fixture():
-    """Provides an in-memory SQLite engine for tests."""
+    """Provides a shared in-memory SQLite engine for tests."""
     import src.database.utils as db_utils
+    # Use a shared in-memory database to allow multiple connections to see the same data
     engine = create_engine(
-        "sqlite:///:memory:",
+        "sqlite:///file:testdb?mode=memory&cache=shared",
         connect_args={"check_same_thread": False}
     )
+    # Keep one connection open to keep the database alive
+    connection = engine.connect()
+    
     # Override the global engine in utils
     db_utils.engine = engine
     
     SQLModel.metadata.create_all(engine)
     yield engine
-    SQLModel.metadata.drop_all(engine)
+    
     db_utils.engine = None
+    connection.close()
 
 @pytest.fixture(name="session")
 def session_fixture(engine):

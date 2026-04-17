@@ -25,7 +25,6 @@ def test_dashboard_route_db_session_handling(client: TestClient, session: Sessio
     project = ProjectModel(name="Test Project", project_type=ProjectType.SAMPLE_PACK.value)
     session.add(project)
     session.commit()
-    session.refresh(project)
     
     # Make the request
     response = client.get(f"/projects/{project.id}")

@@ -19,12 +19,10 @@ def test_view_recording_loads_with_recording(client: TestClient, session: Sessio
     project = ProjectModel(name="Test Project", project_type=ProjectType.SAMPLE_PACK.value)
     session.add(project)
     session.commit()
-    session.refresh(project)
 
     recording = RecordingModel(name="Test Recording", project_id=project.id, file_path="/path/to/recording.wav")
     session.add(recording)
     session.commit()
-    session.refresh(recording)
 
     response = client.get(f"/ui/projects/{project.id}/recordings/{recording.id}")
     assert response.status_code == 200
@@ -36,19 +34,16 @@ def test_view_recording_shows_samples(client: TestClient, session: Session):
     project = ProjectModel(name="Test Project", project_type=ProjectType.SAMPLE_PACK.value)
     session.add(project)
     session.commit()
-    session.refresh(project)
 
     recording = RecordingModel(name="Test Recording", project_id=project.id, file_path="/path/to/recording.wav")
     session.add(recording)
     session.commit()
-    session.refresh(recording)
 
     sample1 = SampleModel(name="sample1", recording_id=recording.id, file_path="/path/to/sample1.wav")
     sample2 = SampleModel(name="sample2", recording_id=recording.id, file_path="/path/to/sample2.wav")
     session.add(sample1)
     session.add(sample2)
     session.commit()
-    session.refresh(recording)
 
     response = client.get(f"/ui/projects/{project.id}/recordings/{recording.id}")
     assert response.status_code == 200
@@ -66,17 +61,14 @@ def test_view_sample_loads_with_sample(client: TestClient, session: Session):
     project = ProjectModel(name="Test Project", project_type=ProjectType.SAMPLE_PACK.value)
     session.add(project)
     session.commit()
-    session.refresh(project)
 
     recording = RecordingModel(name="Test Recording", project_id=project.id, file_path="/path/to/recording.wav")
     session.add(recording)
     session.commit()
-    session.refresh(recording)
 
     sample = SampleModel(name="sample", recording_id=recording.id, file_path="/path/to/sample.wav")
     session.add(sample)
     session.commit()
-    session.refresh(sample)
 
     response = client.get(f"/ui/projects/{project.id}/samples/{sample.id}")
     assert response.status_code == 200

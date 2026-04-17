@@ -81,7 +81,6 @@ def test_get_project_api_db_session(client: TestClient, session: Session):
     project = ProjectModel(name="Test Project", project_type="sample_pack")
     session.add(project)
     session.commit()
-    session.refresh(project)
 
     # Make the request
     response = client.get(f"/api/projects/{project.id}")

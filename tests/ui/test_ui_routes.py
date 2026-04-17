@@ -33,7 +33,6 @@ def test_dashboard_loads_with_project(client: TestClient, session: Session):
     project = ProjectModel(name="Test Project", project_type=ProjectType.SAMPLE_PACK.value)
     session.add(project)
     session.commit()
-    session.refresh(project)
     
     response = client.get(f"/projects/{project.id}")
     assert response.status_code == 200
@@ -49,7 +48,6 @@ def test_dashboard_shows_project_description(client: TestClient, session: Sessio
     )
     session.add(project)
     session.commit()
-    session.refresh(project)
     
     response = client.get(f"/projects/{project.id}")
     assert response.status_code == 200
@@ -61,7 +59,6 @@ def test_dashboard_shows_default_description_message(client: TestClient, session
     project = ProjectModel(name="Project without Description", project_type=ProjectType.SAMPLE_PACK.value)
     session.add(project)
     session.commit()
-    session.refresh(project)
     
     response = client.get(f"/projects/{project.id}")
     assert response.status_code == 200
@@ -74,7 +71,6 @@ def test_dashboard_shows_recordings(client: TestClient, session: Session):
     project = ProjectModel(name="Project with Recordings", project_type=ProjectType.SAMPLE_PACK.value)
     session.add(project)
     session.commit()
-    session.refresh(project)
     
     # Add recordings to the project
     recording1 = RecordingModel(
@@ -90,7 +86,6 @@ def test_dashboard_shows_recordings(client: TestClient, session: Session):
     session.add(recording1)
     session.add(recording2)
     session.commit()
-    session.refresh(project)
     
     response = client.get(f"/projects/{project.id}")
     assert response.status_code == 200
@@ -104,7 +99,6 @@ def test_dashboard_xss_protection(client: TestClient, session: Session):
     project = ProjectModel(name=special_name, project_type=ProjectType.SAMPLE_PACK.value)
     session.add(project)
     session.commit()
-    session.refresh(project)
     
     response = client.get(f"/projects/{project.id}")
     assert response.status_code == 200
@@ -121,7 +115,6 @@ def test_dashboard_with_unicode_chars(client: TestClient, session: Session):
     project = ProjectModel(name=unicode_name, project_type=ProjectType.SAMPLE_PACK.value)
     session.add(project)
     session.commit()
-    session.refresh(project)
     
     response = client.get(f"/projects/{project.id}")
     assert response.status_code == 200

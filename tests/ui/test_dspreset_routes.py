@@ -26,7 +26,6 @@ def create_virtual_instrument_project(session: Session, name: str = "Test VI Pro
     )
     session.add(project)
     session.commit()
-    session.refresh(project)
     return project
 
 # --- Tests ---
@@ -47,7 +46,6 @@ def test_dspreset_settings_page_not_for_sample_pack(client: TestClient, session:
     project = ProjectModel(name="Test Sample Pack", project_type=ProjectType.SAMPLE_PACK.value)
     session.add(project)
     session.commit()
-    session.refresh(project)
     response = client.get(f"/projects/{project.id}/dspreset_settings")
     # If not implemented, it might be 404. If implemented correctly, 403.
     assert response.status_code in [403, 404]

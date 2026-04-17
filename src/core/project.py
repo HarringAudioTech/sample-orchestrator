@@ -5,6 +5,7 @@ import numpy as np
 # import wave # Removed
 import logging  # Added logging
 from typing import List
+from sqlmodel import select
 from sqlalchemy.orm import Session  # Added Session for type hints
 from sqlalchemy.exc import SQLAlchemyError
 from typing import Optional
@@ -86,7 +87,7 @@ class Project:
                 _manage_session_locally = False  # No need to manage session as context manager handles it
                 
                 # Fetch the project within the context manager
-                self.project_model = _db_to_use.query(ProjectModel).filter(ProjectModel.id == project_id).first()
+                self.project_model = _db_to_use.get(ProjectModel, project_id)
                 
                 if not self.project_model:
                     raise ValueError(f"No project found with ID {project_id}")
@@ -97,9 +98,7 @@ class Project:
         # This code only runs if we're using a provided session (not our own context manager)
         if self.db:  # Only execute this block if we're using a provided session
             try:
-                project_model: ProjectModel | None = (
-                    _db_to_use.query(ProjectModel).filter(ProjectModel.id == project_id).first()
-                )
+                project_model = _db_to_use.get(ProjectModel, project_id)
                 if not project_model:
                     logger.error(f"Project with id {project_id} not found in database.")
                     raise ValueError(f"Project with id {project_id} not found")
@@ -292,9 +291,7 @@ class Project:
         try:
             # Query for the recording by ID first
             recording: RecordingModel | None = (
-                _db_to_use.query(RecordingModel)
-                .filter(RecordingModel.id == recording_id)
-                .first()
+                _db_to_use.get(RecordingModel, recording_id)
             )
             
             # Check if the recording belongs to this project
@@ -416,12 +413,12 @@ class Project:
     def _do_process_recording(self, db_session: Session, recording_id: int, output_sample_dir: str):
         """Internal method to perform processing within a database session."""
         recording = (
-            db_session.query(RecordingModel)
-            .filter(
-                RecordingModel.id == recording_id,
-                RecordingModel.project_id == self.project_id,
-            )
-            .first()
+            db_session.exec(
+                select(RecordingModel).where(
+                    RecordingModel.id == recording_id,
+                    RecordingModel.project_id == self.project_id,
+                )
+            ).first()
         )
 
         if not recording:
@@ -676,10 +673,11 @@ class Project:
 
         try:
             sessions: List[MidiCaptureSessionModel] = (
-                _db_to_use.query(MidiCaptureSessionModel)
-                .filter(MidiCaptureSessionModel.project_id == self.project_id)
-                .order_by(MidiCaptureSessionModel.created_at.desc())
-                .all()
+                _db_to_use.exec(
+                    select(MidiCaptureSessionModel)
+                    .where(MidiCaptureSessionModel.project_id == self.project_id)
+                    .order_by(MidiCaptureSessionModel.created_at.desc())
+                ).all()
             )
             logger.debug(
                 f"Found {len(sessions)} MIDI capture sessions for project ID {self.project_id}."
@@ -744,12 +742,12 @@ class Project:
 
         try:
             session: MidiCaptureSessionModel | None = (
-                _db_to_use.query(MidiCaptureSessionModel)
-                .filter(
-                    MidiCaptureSessionModel.id == session_id,
-                    MidiCaptureSessionModel.project_id == self.project_id,
-                )
-                .first()
+                _db_to_use.exec(
+                    select(MidiCaptureSessionModel).where(
+                        MidiCaptureSessionModel.id == session_id,
+                        MidiCaptureSessionModel.project_id == self.project_id,
+                    )
+                ).first()
             )
             if session:
                 logger.debug(f"Found MIDI capture session: {session.name}")
@@ -827,12 +825,12 @@ class Project:
 
         try:
             capture_session: MidiCaptureSessionModel | None = (
-                _db_to_use.query(MidiCaptureSessionModel)
-                .filter(
-                    MidiCaptureSessionModel.id == session_id,
-                    MidiCaptureSessionModel.project_id == self.project_id,
-                )
-                .first()
+                _db_to_use.exec(
+                    select(MidiCaptureSessionModel).where(
+                        MidiCaptureSessionModel.id == session_id,
+                        MidiCaptureSessionModel.project_id == self.project_id,
+                    )
+                ).first()
             )
 
             if not capture_session:
@@ -842,10 +840,11 @@ class Project:
                 return []
 
             midi_files: List[MidiFileModel] = (
-                _db_to_use.query(MidiFileModel)
-                .filter(MidiFileModel.capture_session_id == session_id)
-                .order_by(MidiFileModel.created_at.asc())
-                .all()
+                _db_to_use.exec(
+                    select(MidiFileModel)
+                    .where(MidiFileModel.capture_session_id == session_id)
+                    .order_by(MidiFileModel.created_at.asc())
+                ).all()
             )
             logger.debug(f"Found {len(midi_files)} MIDI files for session ID {session_id}.")
             return midi_files

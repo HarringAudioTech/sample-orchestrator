@@ -13,12 +13,10 @@ def create_project_with_recording(session: Session, project_name: str = "Test Pr
     project = ProjectModel(name=project_name, project_type="sample_pack")
     session.add(project)
     session.commit()
-    session.refresh(project)
     
     recording = RecordingModel(name=recording_name, file_path="/path/to/recording", project_id=project.id)
     session.add(recording)
     session.commit()
-    session.refresh(recording)
     return recording
 
 # --- Tests ---

@@ -20,7 +20,6 @@ def test_upload_audio_file_success(client: TestClient, session: Session):
     )
     session.add(test_project)
     session.commit()
-    session.refresh(test_project)
     
     # Mock the CoreProject.add_recording method
     with patch('src.core.project.Project.add_recording') as mock_add_recording:
@@ -73,7 +72,6 @@ def test_upload_invalid_file_type(client: TestClient, session: Session):
     )
     session.add(test_project)
     session.commit()
-    session.refresh(test_project)
     
     # Create a test file with an invalid extension
     from io import BytesIO
