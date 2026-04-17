@@ -14,9 +14,12 @@ project_root = Path(__file__).parent.parent.resolve()
 src_dir = project_root / "src"
 sys.path.insert(0, str(src_dir))
 
-# Mock patchlab before any imports that might use it
+# Mock external libraries before any imports that might use them
 import unittest.mock
 sys.modules['patchlab'] = unittest.mock.MagicMock()
+sys.modules['soundcard'] = unittest.mock.MagicMock()
+sys.modules['mido'] = unittest.mock.MagicMock()
+sys.modules['mido.ports'] = unittest.mock.MagicMock()
 
 @pytest.fixture(name="engine")
 def engine_fixture():
