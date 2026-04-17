@@ -1,23 +1,38 @@
+"""
+Core project management logic for the Sample Orchestrator.
+
+This module provides the Project class, which coordinates audio and MIDI 
+operations for a specific project.
+"""
+
+import logging
 import os
+from typing import List, Optional
+
 import librosa
 import numpy as np
-
-# import wave # Removed
-import logging  # Added logging
-from typing import List
-from sqlmodel import select
-from sqlalchemy.orm import Session  # Added Session for type hints
 from sqlalchemy.exc import SQLAlchemyError
-from typing import Optional
-from src.database.models import ProjectModel, RecordingModel, SampleModel, MidiDeviceModel, MidiCaptureSessionModel, MidiFileModel  # Added model imports
-from src.database.utils import get_db  # Import get_db function
+from sqlalchemy.orm import Session
+from sqlmodel import select
+
 from src.core.midi_capture import (
     MidiRecorder,
     list_available_midi_devices,
 )
 from src.core.stage_runner import execute_stage_chain
 import src.core.stages.intelligent_slicing_stage  # Ensure registered
+from src.database.models import (
+    MidiCaptureSessionModel,
+    MidiDeviceModel,
+    MidiFileModel,
+    ProjectModel,
+    RecordingModel,
+    SampleModel,
+)
+from src.database.utils import get_db
 
+# Configure basic logging
+...
 # Configure basic logging
 # In a larger application, this would likely be configured in a central place.
 logging.basicConfig(
@@ -25,6 +40,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
+# pylint: disable=no-member
 
 class Project:
     """

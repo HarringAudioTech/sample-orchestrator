@@ -4,6 +4,7 @@ Database models for sample-orchestrator using SQLModel.
 This module defines SQLModel classes for projects, recordings, and samples.
 SQLModel unifies Pydantic models and SQLAlchemy models.
 """
+# pylint: disable=no-member,not-callable
 from __future__ import annotations
 
 import datetime

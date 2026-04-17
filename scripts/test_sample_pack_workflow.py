@@ -9,31 +9,21 @@ an audio file and create a sample pack.
 import os
 import sys
 import logging
-import argparse
 from pathlib import Path
 
-# Add the project root to the Python path
-project_root = str(Path(__file__).parent.parent)
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
+# Add project root to sys.path
+project_root = Path(__file__).resolve().parents[1]
+sys.path.append(str(project_root))
 
-# Add src directory to path
-src_dir = os.path.join(project_root, 'src')
-if src_dir not in sys.path:
-    sys.path.insert(0, src_dir)
+from sqlmodel import SQLModel, create_engine, Session, select
+from src.database.models import RecordingModel, ProjectModel
+# pylint: disable=no-name-in-module
+from src.core.workflows import create_sample_pack_workflow
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
 logger = logging.getLogger(__name__)
 
 def setup_database():
     """Set up the database for testing."""
-    from sqlmodel import SQLModel, create_engine, Session
-    from src.database.models import RecordingModel, ProjectModel
-    
     # Use SQLite in-memory database for testing
     DATABASE_URL = "sqlite:///:memory:"
     
@@ -50,9 +40,6 @@ def setup_database():
 
 def create_test_recording(session, audio_file_path):
     """Create a test recording in the database."""
-    from sqlmodel import select
-    from src.database.models import RecordingModel, ProjectModel
-    
     # Create a test project if it doesn't exist
     statement = select(ProjectModel).where(ProjectModel.name == "Test Project")
     project = session.exec(statement).first()
@@ -86,73 +73,62 @@ def create_test_recording(session, audio_file_path):
 
 def main():
     """Main function to test the sample pack workflow."""
-    parser = argparse.ArgumentParser(description='Test the SamplePackWorkflow')
-    parser.add_argument('audio_file', type=str, help='Path to the audio file to process')
-    parser.add_argument('--output-dir', type=str, default='./output', 
-                       help='Output directory for samples')
-    args = parser.parse_args()
-    
-    # Validate input file
-    audio_file = Path(args.audio_file)
-    if not audio_file.is_file():
-        logger.error(f"Audio file not found: {audio_file}")
-        return 1
-    
-    # Set up output directory
-    output_dir = Path(args.output_dir).resolve()
-    output_dir.mkdir(parents=True, exist_ok=True)
+    # Configure logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
     
     # Set up database
     session = setup_database()
     
     try:
-        # Create test recording in the database
+        # Define test audio file
+        audio_file = project_root / "test_audio" / "drum_loop.wav"
+        
+        if not audio_file.exists():
+            logger.error(f"Test audio file not found at {audio_file}")
+            return 1
+            
+        # Create test recording in DB
         logger.info(f"Creating test recording for {audio_file.name}")
         recording_id, project_id = create_test_recording(session, audio_file)
         
         # Create and run the workflow
-        from src.core.workflows.sample_pack_workflow import create_sample_pack_workflow
-        
         logger.info("Initializing SamplePackWorkflow")
         workflow = create_sample_pack_workflow(session)
         
         # Define processing parameters
         params = {
-            "onset_detection": {
-                "hop_length": 512,
-                "fmin": 50.0,
-                "fmax": 5000.0,
-                "delta": 0.2,
-                "wait": 0.03
-            },
-            "slice_planning": {
-                "min_slice_duration": 0.05,  # 50ms
-                "max_slice_duration": 5.0,   # 5 seconds
-                "project_type": "drum_kit"
-            },
-            "segment_classification": {
-                "one_shot_max_duration": 2.0,  # 2 seconds
-                "loop_min_duration": 0.5,      # 500ms
-                "loop_max_duration": 8.0       # 8 seconds
-            },
-            "slicing": {
-                "normalize_audio": True,
-                "bit_depth": 24,
-                "sample_rate": 44100,
-                "default_category": "Drums"
-            }
+            "project_id": project_id,
+            "recording_id": recording_id,
+            "output_format": "wav",
+            "bit_depth": 24,
+            "noise_reduction_amount": 0.1,
+            "min_confidence": 0.5
         }
         
         # Run the workflow
-        logger.info(f"Starting workflow for recording {recording_id}")
-        result = workflow.process_recording(
-            recording_id=recording_id,
-            project_id=project_id,
-            output_dir=str(output_dir),
-            params=params
+        logger.info(f"Running workflow for recording ID: {recording_id}")
+        result = workflow.run(
+            initial_data=str(audio_file),
+            initial_data_type="file_path",
+            context={"db_session": session, "project_id": project_id}
         )
         
-        logger.info(f"Workflow completed successfully: {result}")
+        logger.info("Workflow execution completed")
+        logger.info(f"Result: {result}")
+        
+        # Check if samples were created
+        from src.database.models import SampleModel
+        statement = select(SampleModel).where(SampleModel.recording_id == recording_id)
+        samples = session.exec(statement).all()
+        logger.info(f"Number of samples created: {len(samples)}")
+        
+        for i, sample in enumerate(samples):
+            logger.info(f"Sample {i+1}: {sample.name} ({sample.file_path})")
+            
+        logger.info("Test completed successfully!")
         return 0
         
     except Exception as e:

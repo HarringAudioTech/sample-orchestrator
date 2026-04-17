@@ -2,24 +2,20 @@
 UI routes for the Sample Orchestrator using FastAPI and SQLModel.
 """
 
-from typing import List, Optional
+from typing import Optional
 from datetime import datetime
-import json
 
 from fastapi import APIRouter, Request, Depends, HTTPException, Form, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select
-from sqlalchemy.orm import joinedload
 
 from src.database.utils import get_db
 from src.database.models import (
-    ProjectModel, RecordingModel, SampleModel,
-    ProjectType, VirtualInstrumentModel, SampleMappingItemModel, VelocityGroupModel,
-    LoopGenerationConfigModel, LoopRenderingConfigModel
+    ProjectModel, RecordingModel, ProjectType
 )
-from src.core.stage_runner import STAGE_REGISTRY
-from src.core.workflows import WORKFLOW_REGISTRY
+
+# pylint: disable=no-member
 
 # Initialize templates
 templates = Jinja2Templates(directory="src/templates")
@@ -60,7 +56,6 @@ async def create_project_form(request: Request):
 
 @ui_router.post("/projects/create")
 async def create_project_submit(
-    request: Request,
     project_name: str = Form(...),
     project_description: Optional[str] = Form(None),
     project_type: str = Form(ProjectType.SAMPLE_PACK.value),
@@ -113,6 +108,7 @@ async def styleguide(request: Request):
 
 @ui_router.get("/projects/{project_id}/import_audio", response_class=HTMLResponse)
 async def import_project_audio_ui(project_id: int, request: Request, db: Session = Depends(get_db)):
+    """Renders the audio import page."""
     project = db.get(ProjectModel, project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -171,7 +167,7 @@ async def dspreset_settings_submit(
     return RedirectResponse(url=f"/projects/{project_id}", status_code=status.HTTP_303_SEE_OTHER)
 
 @ui_router.get("/projects/{project_id}/recordings/{recording_id}/process", response_class=HTMLResponse)
-async def process_recording_ui(project_id: int, recording_id: int, request: Request, db: Session = Depends(get_db)):
+async def process_recording_ui(project_id: int, recording_id: int, request: Request):
     """Stub for recording processing UI."""
     return templates.TemplateResponse(
         "ui/process_recording.html", 

@@ -33,6 +33,23 @@ pre-commit = "^4.2.0"
 flake8 = "^7.2.0"
 pytest-mock = "*"
 
+[tool.pylint.messages_control]
+disable = [
+    "C0114", # missing-module-docstring
+    "C0115", # missing-class-docstring
+    "C0116", # missing-function-docstring
+    "R0903", # too-few-public-methods
+    "W1203", # logging-fstring-interpolation
+    "E1102", # not-callable (false positive for func.now)
+    "E1101", # no-member (false positive for SQLModel/Alchemy members)
+]
+
+[tool.pylint.format]
+max-line-length = 120
+
+[tool.pylint.similarities]
+min-similarity-lines = 15
+
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
