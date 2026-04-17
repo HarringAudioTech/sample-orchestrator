@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Optional, List, Dict, Any
 
 import numpy as np
-import soundcard as sc
 import soundfile as sf
 
 logger = logging.getLogger(__name__)
@@ -42,6 +41,7 @@ class AudioRecorder:
         """
         Lists available audio input devices using SoundCard.
         """
+        import soundcard as sc
         devices = []
         try:
             inputs = sc.all_inputs()
@@ -61,6 +61,7 @@ class AudioRecorder:
         """
         Starts an asynchronous recording session in a separate thread.
         """
+        import soundcard as sc
         with self._lock:
             if self.is_recording:
                 logger.warning("Recording is already in progress.")

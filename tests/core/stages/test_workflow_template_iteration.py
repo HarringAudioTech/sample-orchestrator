@@ -21,7 +21,7 @@ def test_workflow_template_iteration():
     # We mock project, recording, and stages as they are needed for the template to compile without failing
     class MockProject: id = 1; name = "test"
     class MockRecording: id = 1; name = "test"
-    class MockRequest: endpoint = "ui_bp.index"
+    class MockRequest: endpoint = "index"
 
     try:
         html = template.render(
