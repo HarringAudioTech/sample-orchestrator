@@ -2,7 +2,7 @@
 Database utilities for sample-orchestrator using SQLModel.
 
 This module provides database connection and session management functions.
-The get_db() function is a context manager that yields a SQLModel session.
+The get_db function is a context manager that yields a SQLModel session.
 """
 
 import contextlib

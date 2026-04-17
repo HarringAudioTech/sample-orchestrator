@@ -34,7 +34,7 @@ class DbSessionChecker:
         self.patterns = {
             "next_db_session": re.compile(r'next\s*\(\s*(?:get_db\(\)|db_session_generator)\s*\)'),
             "db_session_generator": re.compile(r'db_session_generator\s*=\s*get_db\(\)'),
-            "get_db_without_with": re.compile(r'(?<!with\s)get_db\(\)(?!\s*as)'),
+            "get_db_without_with": re.compile(r'(?<!with\s)(?<!def\s)get_db\(\)(?!\s*as)(?![^#]*#)'),
         }
         
         # Files to exclude
@@ -63,9 +63,12 @@ class DbSessionChecker:
         if not file_path.endswith(".py"):
             return False
             
+        # Get relative path for easier matching
+        rel_path = os.path.relpath(file_path, self.root_dir)
+        
         # Skip excluded directories
         for exclude_dir in self.exclude_dirs:
-            if exclude_dir in file_path.split(os.sep):
+            if rel_path.startswith(exclude_dir) or f"{os.sep}{exclude_dir}{os.sep}" in f"{os.sep}{rel_path}{os.sep}":
                 return False
                 
         return True
