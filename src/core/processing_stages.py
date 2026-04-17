@@ -10,6 +10,7 @@ from src.core.stage_runner import (
     DATA_TYPE_AUDIO_BUFFER_STEREO,
     DATA_TYPE_MIDI_DATA,
     DATA_TYPE_METADATA,
+    DATA_TYPE_LIST_OF_SAMPLE_DATA,
     STAGE_REGISTRY,
     register_stage,
     execute_stage_chain
@@ -23,6 +24,7 @@ __all__ = [
     "DATA_TYPE_AUDIO_BUFFER_STEREO",
     "DATA_TYPE_MIDI_DATA",
     "DATA_TYPE_METADATA",
+    "DATA_TYPE_LIST_OF_SAMPLE_DATA",
     "STAGE_REGISTRY",
     "register_stage",
     "execute_stage_chain"

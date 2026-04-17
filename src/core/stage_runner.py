@@ -18,6 +18,7 @@ DATA_TYPE_AUDIO_BUFFER_MONO = "audio_buffer_mono"
 DATA_TYPE_AUDIO_BUFFER_STEREO = "audio_buffer_stereo"
 DATA_TYPE_MIDI_DATA = "midi_data"
 DATA_TYPE_METADATA = "metadata"
+DATA_TYPE_LIST_OF_SAMPLE_DATA = "list_of_sample_data"
 
 # Registry for available stages
 STAGE_REGISTRY: Dict[str, Type] = {}
